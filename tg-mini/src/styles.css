@@ -303,6 +303,12 @@ body::before {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.segment.center {
+  grid-template-columns: repeat(2, max-content);
+  width: fit-content;
+  margin: 10px auto 0;
+}
+
 .segment-button {
   background: transparent;
   border: 1px solid transparent;

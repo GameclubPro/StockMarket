@@ -230,7 +230,7 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <div className="segment wide">
+            <div className="segment center">
               <button
                 className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
                 type="button"
