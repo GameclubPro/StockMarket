@@ -1,5 +1,5 @@
 import { readTextFromClipboard } from '@telegram-apps/sdk';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMyGroups, type GroupDto, verifyInitData } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
@@ -48,6 +48,8 @@ export default function App() {
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
   const [myGroupsError, setMyGroupsError] = useState('');
+  const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
+  const linkPickerRef = useRef<HTMLDivElement | null>(null);
 
   const tasks = [
     {
@@ -155,34 +157,58 @@ export default function App() {
     void loadMyGroups();
   }, [linkPickerOpen, loadMyGroups, myGroupsLoaded, myGroupsLoading]);
 
+  useEffect(() => {
+    if (!linkPickerOpen) return;
+    const raf = requestAnimationFrame(() => {
+      linkPickerRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [linkPickerOpen]);
+
   const handleQuickLinkSelect = (url: string) => {
     setTaskLink(url);
     setLinkPickerOpen(false);
     setLinkHint('');
+    taskLinkInputRef.current?.focus();
   };
 
   const handlePasteLink = async () => {
     setLinkHint('');
     let text = '';
 
-    if (readTextFromClipboard.isAvailable()) {
-      const value = await readTextFromClipboard();
-      if (typeof value === 'string') text = value;
-    } else if (navigator.clipboard?.readText) {
+    const readViaNavigator = async () => {
+      if (!window.isSecureContext) return '';
+      if (!navigator.clipboard?.readText) return '';
       try {
-        text = await navigator.clipboard.readText();
+        return await navigator.clipboard.readText();
       } catch {
-        text = '';
+        return '';
       }
+    };
+
+    try {
+      if (readTextFromClipboard.isAvailable()) {
+        const value = await readTextFromClipboard();
+        if (typeof value === 'string') text = value;
+      } else {
+        text = await readViaNavigator();
+      }
+    } catch {
+      text = await readViaNavigator();
     }
 
     if (text) {
       setTaskLink(text.trim());
       setLinkPickerOpen(false);
+      taskLinkInputRef.current?.focus();
       return;
     }
 
-    setLinkHint('Не удалось прочитать буфер обмена.');
+    setLinkHint(
+      window.isSecureContext
+        ? 'Не удалось прочитать буфер обмена. Вставьте вручную.'
+        : 'Буфер обмена доступен только по HTTPS/localhost или в Telegram.'
+    );
   };
 
   const getGroupSecondaryLabel = (group: GroupDto) => {
@@ -361,8 +387,12 @@ export default function App() {
                     <input
                       type="url"
                       placeholder="https://t.me/..."
+                      ref={taskLinkInputRef}
                       value={taskLink}
-                      onChange={(event) => setTaskLink(event.target.value)}
+                      onChange={(event) => {
+                        setTaskLink(event.target.value);
+                        setLinkHint('');
+                      }}
                     />
                   </label>
                   <div className="link-tools">
@@ -371,7 +401,10 @@ export default function App() {
                       type="button"
                       aria-expanded={linkPickerOpen}
                       aria-controls="quick-link-picker"
-                      onClick={() => setLinkPickerOpen((prev) => !prev)}
+                      onClick={() => {
+                        setLinkHint('');
+                        setLinkPickerOpen((prev) => !prev);
+                      }}
                     >
                       Быстрый выбор
                     </button>
@@ -385,7 +418,7 @@ export default function App() {
                   </div>
                   {linkHint && <div className="link-hint">{linkHint}</div>}
                   {linkPickerOpen && (
-                    <div className="link-picker" id="quick-link-picker">
+                    <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
                       <div className="link-picker-head">
                         <span className="link-picker-title">Мои группы</span>
                         <button
