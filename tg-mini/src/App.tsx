@@ -11,9 +11,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
-  const [showCreateTask, setShowCreateTask] = useState(false);
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
+  const [subscriberCount, setSubscriberCount] = useState(10);
 
   const tasks = [
     {
@@ -265,49 +265,55 @@ export default function App() {
                   </button>
                 </div>
 
-                {showCreateTask ? (
-                  <div className="task-form-body">
-                    <label className="field">
-                      <span>Ссылка</span>
-                      <input
-                        type="url"
-                        placeholder="https://t.me/..."
-                        value={taskLink}
-                        onChange={(event) => setTaskLink(event.target.value)}
-                      />
-                    </label>
-                    <div className="choice-row">
-                      <button
-                        className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
-                        type="button"
-                        onClick={() => setTaskType('subscribe')}
-                      >
-                        Подписка
-                      </button>
-                      <button
-                        className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
-                        type="button"
-                        onClick={() => setTaskType('reaction')}
-                      >
-                        Реакция
-                      </button>
+                <div className="task-form-body">
+                  <label className="field">
+                    <span>Ссылка</span>
+                    <input
+                      type="url"
+                      placeholder="https://t.me/..."
+                      value={taskLink}
+                      onChange={(event) => setTaskLink(event.target.value)}
+                    />
+                  </label>
+                  <div className="choice-row">
+                    <button
+                      className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setTaskType('subscribe')}
+                    >
+                      Подписка
+                    </button>
+                    <button
+                      className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setTaskType('reaction')}
+                    >
+                      Реакция
+                    </button>
+                  </div>
+                  <label className="field">
+                    <span>Количество подписчиков</span>
+                    <input
+                      className="range-input"
+                      type="range"
+                      min={1}
+                      max={200}
+                      value={subscriberCount}
+                      onChange={(event) => setSubscriberCount(Number(event.target.value))}
+                    />
+                    <div className="range-meta">
+                      <span>{subscriberCount} участников</span>
+                      <span>Итог: {subscriberCount * 10} баллов</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="task-form-placeholder">
-                    Нажмите «Создать», чтобы открыть форму.
-                  </div>
-                )}
+                    <div className="range-hint">1 участник = 10 баллов</div>
+                  </label>
+                </div>
 
                 <div className="task-form-actions">
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => setShowCreateTask((prev) => !prev)}
-                  >
-                    {showCreateTask ? 'Скрыть' : 'Создать'}
-                  </button>
                   <div className="balance-pill">Баланс: {points}</div>
+                  <button className="primary-button" type="button">
+                    Создать
+                  </button>
                 </div>
               </div>
             )}
