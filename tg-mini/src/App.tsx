@@ -30,30 +30,30 @@ export default function App() {
                 )}
               </div>
             </div>
-            <div>
+            <div className="identity">
               <div className="user-name">{userLabel}</div>
               <div className="sub">Уровень: Alpha</div>
-              <div className="stats">
-                <div className="stat divider">
-                  <div className="stat-main">
-                    <span className="accent">+ 823</span>
-                    <span>OP</span>
-                  </div>
-                  <div className="stat-title">+122 сегодня</div>
-                </div>
-                <div className="stat">
-                  <div className="stat-main">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <path
-                        d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
-                        stroke="currentColor"
-                      />
-                    </svg>
-                    <span className="gold">4.8</span>
-                  </div>
-                  <div className="stat-title">Рейтинг 4.8</div>
-                </div>
+            </div>
+          </div>
+          <div className="stats">
+            <div className="stat divider">
+              <div className="stat-main">
+                <span className="accent">+ 823</span>
+                <span>OP</span>
               </div>
+              <div className="stat-title">+122 сегодня</div>
+            </div>
+            <div className="stat">
+              <div className="stat-main">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path
+                    d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
+                    stroke="currentColor"
+                  />
+                </svg>
+                <span className="gold">4.8</span>
+              </div>
+              <div className="stat-title">Рейтинг 4.8</div>
             </div>
           </div>
         </section>

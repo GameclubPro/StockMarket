@@ -100,10 +100,19 @@ body::before {
 }
 
 .profile-head {
-  display: grid;
-  grid-template-columns: 74px 1fr;
+  display: flex;
   gap: 16px;
   align-items: center;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.identity {
+  display: grid;
+  gap: 4px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .avatar-ring {
@@ -145,7 +154,7 @@ body::before {
 .sub {
   font-size: 14px;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .stats {
@@ -156,6 +165,7 @@ body::before {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  width: 100%;
 }
 
 .stat {
@@ -182,6 +192,11 @@ body::before {
 
 .stat-main .gold {
   color: var(--gold);
+}
+
+.stat-main svg {
+  width: 14px;
+  height: 14px;
 }
 
 .divider {
@@ -294,12 +309,16 @@ button {
   }
 
   .profile-head {
-    grid-template-columns: 64px 1fr;
+    gap: 12px;
   }
 
   .avatar-ring {
     width: 64px;
     height: 64px;
+  }
+
+  .identity {
+    padding-left: 10px;
   }
 
   .stat-main {
