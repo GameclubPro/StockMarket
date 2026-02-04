@@ -1,107 +1,121 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createOffer, fetchOffers, fetchTasks, respondToOffer, verifyInitData } from './api';
+import type { ApplicationDto, CampaignDto, GroupDto } from './api';
+import {
+  applyCampaign,
+  approveApplication,
+  createCampaign,
+  createGroup,
+  fetchCampaigns,
+  fetchIncomingApplications,
+  fetchMe,
+  fetchMyApplications,
+  fetchMyCampaigns,
+  fetchMyGroups,
+  rejectApplication,
+  verifyInitData,
+} from './api';
 import { getInitDataRaw, getUserLabel, initTelegram, isTelegram } from './telegram';
 
-type Offer = {
-  id: string;
-  platform: 'TELEGRAM' | 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'X';
-  action: 'SUBSCRIBE' | 'SUBSCRIBE_LIKE' | 'LIKE_COMMENT';
-  ratio: 'ONE_ONE' | 'ONE_TWO' | 'TWO_ONE';
-  link: string;
-  note: string;
-  createdAt: string;
-  user?: {
-    username?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-  };
-};
+type TabId = 'market' | 'promote' | 'applications';
 
-type Task = {
-  id: string;
-  slug: string;
+type GroupForm = {
   title: string;
+  username: string;
+  inviteLink: string;
   description: string;
-  points: number;
-  completed: boolean;
+  category: string;
 };
 
-type TabId = 'market' | 'create' | 'tasks';
-
-type OfferForm = {
-  platform: Offer['platform'];
-  action: Offer['action'];
-  ratio: Offer['ratio'];
-  link: string;
-  note: string;
-};
-
-const defaultForm: OfferForm = {
-  platform: 'TELEGRAM',
-  action: 'SUBSCRIBE',
-  ratio: 'ONE_ONE',
-  link: '',
-  note: '',
+type CampaignForm = {
+  groupId: string;
+  rewardPoints: string;
+  totalBudget: string;
 };
 
 const tabs: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'market', label: 'Биржа', hint: 'Предложения' },
-  { id: 'create', label: 'Создать', hint: 'Новый оффер' },
-  { id: 'tasks', label: 'Задания', hint: 'Баллы' },
+  { id: 'market', label: 'Биржа', hint: 'Заработок' },
+  { id: 'promote', label: 'Продвижение', hint: 'Ваши кампании' },
+  { id: 'applications', label: 'Заявки', hint: 'Ваши действия' },
 ];
 
-const platformLabels: Record<Offer['platform'], string> = {
-  TELEGRAM: 'Telegram',
-  YOUTUBE: 'YouTube',
-  TIKTOK: 'TikTok',
-  INSTAGRAM: 'Instagram',
-  X: 'X',
+const statusLabels: Record<ApplicationDto['status'], string> = {
+  PENDING: 'Ожидает',
+  APPROVED: 'Принято',
+  REJECTED: 'Отклонено',
 };
 
-const actionLabels: Record<Offer['action'], string> = {
-  SUBSCRIBE: 'Подписка',
-  SUBSCRIBE_LIKE: 'Подписка + лайк',
-  LIKE_COMMENT: 'Лайк + комментарий',
+const campaignStatusLabels: Record<CampaignDto['status'], string> = {
+  ACTIVE: 'Активна',
+  PAUSED: 'Пауза',
+  COMPLETED: 'Завершена',
 };
 
-const ratioLabels: Record<Offer['ratio'], string> = {
-  ONE_ONE: '1:1',
-  ONE_TWO: '1:2',
-  TWO_ONE: '2:1',
-};
+const categories = ['Все', 'Игры', 'Бизнес', 'Новости', 'Развлечения', 'IT', 'Обучение', 'Другое'];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('market');
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [form, setForm] = useState<OfferForm>(defaultForm);
-  const [filter, setFilter] = useState<'Все' | Offer['platform']>('Все');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [points, setPoints] = useState(0);
-  const [message, setMessage] = useState('');
   const [authState, setAuthState] = useState<'idle' | 'verifying' | 'ok' | 'error'>('idle');
-
+  const [message, setMessage] = useState('');
+  const [balance, setBalance] = useState(0);
+  const [stats, setStats] = useState({ groups: 0, campaigns: 0, applications: 0 });
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
 
-  const level = useMemo(() => Math.max(1, Math.floor(points / 500) + 1), [points]);
-  const nextLevelAt = level * 500;
-  const progress = Math.min(100, Math.round((points / nextLevelAt) * 100));
+  const [marketCampaigns, setMarketCampaigns] = useState<CampaignDto[]>([]);
+  const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
+  const [myCampaigns, setMyCampaigns] = useState<CampaignDto[]>([]);
+  const [myApplications, setMyApplications] = useState<ApplicationDto[]>([]);
+  const [incomingApplications, setIncomingApplications] = useState<ApplicationDto[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('Все');
 
-  const loadOffers = async (platform?: Offer['platform']) => {
-    try {
-      const data = await fetchOffers(platform);
-      setOffers(data.offers ?? []);
-    } catch {
-      setMessage('Не удалось загрузить офферы.');
-    }
+  const [groupForm, setGroupForm] = useState<GroupForm>({
+    title: '',
+    username: '',
+    inviteLink: '',
+    description: '',
+    category: '',
+  });
+  const [campaignForm, setCampaignForm] = useState<CampaignForm>({
+    groupId: '',
+    rewardPoints: '10',
+    totalBudget: '100',
+  });
+
+  const level = useMemo(() => Math.max(1, Math.floor(balance / 500) + 1), [balance]);
+  const nextLevelAt = level * 500;
+  const progress = Math.min(100, Math.round((balance / nextLevelAt) * 100));
+
+  const loadMe = async () => {
+    const data = await fetchMe();
+    setBalance(data.balance ?? 0);
+    setStats(data.stats ?? { groups: 0, campaigns: 0, applications: 0 });
   };
 
-  const loadTasks = async () => {
+  const loadMarket = async (category?: string) => {
+    const data = await fetchCampaigns(category && category !== 'Все' ? category : undefined);
+    setMarketCampaigns(data.campaigns ?? []);
+  };
+
+  const loadPromote = async () => {
+    const [groupsData, campaignsData, incomingData] = await Promise.all([
+      fetchMyGroups(),
+      fetchMyCampaigns(),
+      fetchIncomingApplications(),
+    ]);
+    setMyGroups(groupsData.groups ?? []);
+    setMyCampaigns(campaignsData.campaigns ?? []);
+    setIncomingApplications(incomingData.applications ?? []);
+  };
+
+  const loadApplications = async () => {
+    const data = await fetchMyApplications();
+    setMyApplications(data.applications ?? []);
+  };
+
+  const loadAll = async () => {
     try {
-      const data = await fetchTasks();
-      setTasks(data.tasks ?? []);
-      setPoints(data.points ?? 0);
+      await Promise.all([loadMe(), loadMarket(categoryFilter), loadPromote(), loadApplications()]);
     } catch {
-      setMessage('Не удалось загрузить задания.');
+      setMessage('Не удалось загрузить данные.');
     }
   };
 
@@ -114,63 +128,94 @@ export default function App() {
 
     setAuthState('verifying');
     verifyInitData(initDataRaw)
-      .then(() => {
+      .then((data) => {
         setAuthState('ok');
-        loadTasks();
+        if (data.balance !== undefined) setBalance(data.balance ?? 0);
+        loadAll();
       })
-      .catch(() => setAuthState('error'));
+      .catch(() => {
+        setAuthState('error');
+        setMessage('Авторизация не прошла. Открой через Telegram.');
+      });
   }, []);
 
   useEffect(() => {
-    loadOffers();
-  }, []);
+    loadMarket(categoryFilter);
+  }, [categoryFilter]);
 
-  const visibleOffers = offers.filter((offer) => (filter === 'Все' ? true : offer.platform === filter));
-
-  const handleCreate = async () => {
-    if (!form.link.trim()) return;
+  const handleCreateGroup = async () => {
+    if (!groupForm.title.trim() || !groupForm.inviteLink.trim()) return;
     try {
-      await createOffer({
-        platform: form.platform,
-        action: form.action,
-        ratio: form.ratio,
-        link: form.link.trim(),
-        note: form.note.trim(),
+      await createGroup({
+        title: groupForm.title.trim(),
+        username: groupForm.username.trim() || undefined,
+        inviteLink: groupForm.inviteLink.trim(),
+        description: groupForm.description.trim() || undefined,
+        category: groupForm.category.trim() || undefined,
       });
-      setForm(defaultForm);
-      setActiveTab('market');
-      await loadOffers(filter === 'Все' ? undefined : filter);
-      await loadTasks();
-      setMessage('Оффер опубликован.');
+      setGroupForm({ title: '', username: '', inviteLink: '', description: '', category: '' });
+      await loadPromote();
+      await loadMe();
+      setMessage('Группа добавлена.');
     } catch {
-      setMessage('Не удалось создать оффер.');
+      setMessage('Не удалось добавить группу.');
     }
   };
 
-  const handleRespond = async (id: string) => {
+  const handleCreateCampaign = async () => {
+    if (!campaignForm.groupId) return;
     try {
-      await respondToOffer(id);
-      await loadTasks();
-      setMessage('Отклик отправлен.');
+      await createCampaign({
+        groupId: campaignForm.groupId,
+        rewardPoints: Number(campaignForm.rewardPoints),
+        totalBudget: Number(campaignForm.totalBudget),
+      });
+      await loadPromote();
+      await loadMe();
+      setMessage('Кампания создана.');
     } catch {
-      setMessage('Не удалось откликнуться.');
+      setMessage('Не удалось создать кампанию (проверь баланс).');
     }
   };
 
-  const taskCta = (task: Task) => {
-    if (task.completed) return null;
-    if (task.slug === 'first_offer') return { label: 'Создать', tab: 'create' as const };
-    if (task.slug === 'first_response') return { label: 'Перейти', tab: 'market' as const };
-    return null;
+  const handleApply = async (id: string) => {
+    try {
+      await applyCampaign(id);
+      await loadApplications();
+      setMessage('Заявка отправлена.');
+    } catch {
+      setMessage('Не удалось отправить заявку.');
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await approveApplication(id);
+      await loadPromote();
+      await loadMe();
+      setMessage('Заявка подтверждена, баллы начислены.');
+    } catch {
+      setMessage('Не удалось подтвердить заявку.');
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await rejectApplication(id);
+      await loadPromote();
+      setMessage('Заявка отклонена.');
+    } catch {
+      setMessage('Не удалось отклонить заявку.');
+    }
   };
 
   return (
     <div className="app">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Mini App · Биржа подписок</p>
-          <h1>Биржа взаимных подписок</h1>
-          <p className="subhead">Живые офферы, задания и баллы за активность.</p>
+          <p className="eyebrow">Telegram Mini App · Биржа продвижения</p>
+          <h1>Биржа взаимных вступлений</h1>
+          <p className="subhead">Зарабатывай баллы за вступления и продвигай свои группы.</p>
         </div>
         <div className="chip">Онлайн · {new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
       </header>
@@ -182,14 +227,14 @@ export default function App() {
           <span>Авторизация: {authState === 'ok' ? 'Ok' : authState === 'verifying' ? 'Проверка' : '—'}</span>
         </div>
         <div className="stat">
-          <p>Баллы</p>
-          <strong>{points}</strong>
+          <p>Баланс</p>
+          <strong>{balance}</strong>
           <span>Уровень {level}</span>
         </div>
         <div className="stat">
-          <p>До следующего уровня</p>
-          <strong>{Math.max(0, nextLevelAt - points)}</strong>
-          <span>Прогресс {progress}%</span>
+          <p>Прогресс</p>
+          <strong>{Math.max(0, nextLevelAt - balance)}</strong>
+          <span>До уровня {level + 1} · {progress}%</span>
         </div>
       </section>
 
@@ -211,175 +256,243 @@ export default function App() {
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Свежие предложения</h2>
-              <p>Реальные офферы из базы данных.</p>
+              <h2>Доступные кампании</h2>
+              <p>Выбирай группы и зарабатывай баллы.</p>
             </div>
             <div className="filters">
-              {(['Все', 'TELEGRAM', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'] as const).map((item) => (
+              {categories.map((item) => (
                 <button
                   key={item}
                   type="button"
-                  className={filter === item ? 'filter active' : 'filter'}
-                  onClick={() => {
-                    setFilter(item);
-                    if (item === 'Все') loadOffers();
-                    else loadOffers(item);
-                  }}
+                  className={categoryFilter === item ? 'filter active' : 'filter'}
+                  onClick={() => setCategoryFilter(item)}
                 >
-                  {item === 'Все' ? 'Все' : platformLabels[item]}
+                  {item}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="offers">
-            {visibleOffers.map((offer) => (
-              <article key={offer.id} className="card offer">
+            {marketCampaigns.map((campaign) => (
+              <article key={campaign.id} className="card offer">
                 <div className="offer-head">
                   <div>
-                    <h3>{actionLabels[offer.action]} · {ratioLabels[offer.ratio]}</h3>
-                    <p>{platformLabels[offer.platform]} · {new Date(offer.createdAt).toLocaleString('ru-RU')}</p>
+                    <h3>{campaign.group.title}</h3>
+                    <p>{campaign.group.category || 'Без категории'} · {new Date(campaign.createdAt).toLocaleString('ru-RU')}</p>
                   </div>
+                  <span className="pill active">+{campaign.rewardPoints} баллов</span>
                 </div>
-                <p className="offer-note">{offer.note}</p>
+                <p className="offer-note">{campaign.group.description || 'Описание группы не указано.'}</p>
                 <div className="offer-meta">
-                  <span>Автор: {offer.user?.username ? `@${offer.user.username}` : offer.user?.firstName ?? '—'}</span>
-                  <a href={offer.link} target="_blank" rel="noreferrer">Ссылка</a>
+                  <span>Бюджет: {campaign.remainingBudget}/{campaign.totalBudget}</span>
+                  {campaign.group.username ? (
+                    <a href={`https://t.me/${campaign.group.username}`} target="_blank" rel="noreferrer">@{campaign.group.username}</a>
+                  ) : (
+                    <a href={campaign.group.inviteLink} target="_blank" rel="noreferrer">Ссылка на группу</a>
+                  )}
                 </div>
                 <div className="offer-actions">
-                  <button className="primary" type="button" onClick={() => handleRespond(offer.id)}>
-                    Откликнуться
+                  <button className="primary" type="button" onClick={() => handleApply(campaign.id)}>
+                    Отправить заявку
                   </button>
                 </div>
               </article>
             ))}
-            {!visibleOffers.length && <p className="empty">Пока нет офферов. Создай первый.</p>}
+            {!marketCampaigns.length && <p className="empty">Нет активных кампаний.</p>}
           </div>
         </section>
       )}
 
-      {activeTab === 'create' && (
+      {activeTab === 'promote' && (
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Создать оффер</h2>
-              <p>Собери условия обмена, которые устроят обе стороны.</p>
+              <h2>Продвижение ваших групп</h2>
+              <p>Добавляй группы и запускай кампании.</p>
             </div>
           </div>
-          <form
-            className="card form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleCreate();
-            }}
-          >
-            <label>
-              Платформа
-              <select
-                value={form.platform}
-                onChange={(event) => setForm((prev) => ({ ...prev, platform: event.target.value as Offer['platform'] }))}
-              >
-                {(['TELEGRAM', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'] as const).map((item) => (
-                  <option key={item} value={item}>{platformLabels[item]}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Действие
-              <select
-                value={form.action}
-                onChange={(event) => setForm((prev) => ({ ...prev, action: event.target.value as Offer['action'] }))}
-              >
-                {(['SUBSCRIBE', 'SUBSCRIBE_LIKE', 'LIKE_COMMENT'] as const).map((item) => (
-                  <option key={item} value={item}>{actionLabels[item]}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Обмен
-              <select
-                value={form.ratio}
-                onChange={(event) => setForm((prev) => ({ ...prev, ratio: event.target.value as Offer['ratio'] }))}
-              >
-                {(['ONE_ONE', 'ONE_TWO', 'TWO_ONE'] as const).map((item) => (
-                  <option key={item} value={item}>{ratioLabels[item]}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Ссылка на профиль
-              <input
-                type="url"
-                placeholder="https://t.me/your_channel"
-                value={form.link}
-                onChange={(event) => setForm((prev) => ({ ...prev, link: event.target.value }))}
-                required
-              />
-            </label>
-            <label className="full">
-              Комментарий
-              <textarea
-                rows={4}
-                placeholder="Укажи условия, сроки и формат взаимного обмена."
-                value={form.note}
-                onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
-              />
-            </label>
-            <div className="form-actions">
-              <button className="primary" type="submit">Разместить</button>
-              <button className="ghost" type="button" onClick={() => setForm(defaultForm)}>Очистить</button>
-            </div>
-          </form>
-        </section>
-      )}
 
-      {activeTab === 'tasks' && (
-        <section className="panel">
+          <div className="grid-2">
+            <form
+              className="card form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleCreateGroup();
+              }}
+            >
+              <h3>Новая группа</h3>
+              <label>
+                Название группы
+                <input
+                  value={groupForm.title}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, title: event.target.value }))}
+                  placeholder="Название"
+                  required
+                />
+              </label>
+              <label>
+                Username (если есть)
+                <input
+                  value={groupForm.username}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, username: event.target.value }))}
+                  placeholder="play_team"
+                />
+              </label>
+              <label>
+                Invite link
+                <input
+                  value={groupForm.inviteLink}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, inviteLink: event.target.value }))}
+                  placeholder="https://t.me/+..."
+                  required
+                />
+              </label>
+              <label>
+                Категория
+                <input
+                  value={groupForm.category}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, category: event.target.value }))}
+                  placeholder="Игры, IT, Бизнес"
+                />
+              </label>
+              <label className="full">
+                Описание
+                <textarea
+                  rows={3}
+                  value={groupForm.description}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, description: event.target.value }))}
+                  placeholder="Коротко о группе"
+                />
+              </label>
+              <div className="form-actions">
+                <button className="primary" type="submit">Добавить группу</button>
+              </div>
+            </form>
+
+            <form
+              className="card form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleCreateCampaign();
+              }}
+            >
+              <h3>Новая кампания</h3>
+              <label>
+                Группа
+                <select
+                  value={campaignForm.groupId}
+                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, groupId: event.target.value }))}
+                >
+                  <option value="">Выберите группу</option>
+                  {myGroups.map((group) => (
+                    <option key={group.id} value={group.id}>{group.title}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Баллы за вступление
+                <input
+                  type="number"
+                  min={1}
+                  value={campaignForm.rewardPoints}
+                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, rewardPoints: event.target.value }))}
+                />
+              </label>
+              <label>
+                Общий бюджет
+                <input
+                  type="number"
+                  min={1}
+                  value={campaignForm.totalBudget}
+                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, totalBudget: event.target.value }))}
+                />
+              </label>
+              <p className="helper">Баллы спишутся с твоего баланса при создании кампании.</p>
+              <div className="form-actions">
+                <button className="primary" type="submit">Запустить кампанию</button>
+              </div>
+            </form>
+          </div>
+
           <div className="panel-head">
             <div>
-              <h2>Задания</h2>
-              <p>Выполняй действия и получай баллы.</p>
+              <h2>Мои кампании</h2>
+              <p>Статус и остаток бюджета.</p>
             </div>
           </div>
           <div className="offers">
-            {tasks.map((task) => (
-              <article key={task.id} className="card offer">
+            {myCampaigns.map((campaign) => (
+              <article key={campaign.id} className="card offer">
                 <div className="offer-head">
                   <div>
-                    <h3>{task.title}</h3>
-                    <p>{task.description}</p>
+                    <h3>{campaign.group.title}</h3>
+                    <p>Баллы: {campaign.rewardPoints} · Остаток: {campaign.remainingBudget}</p>
                   </div>
-                  <span className="pill verified">+{task.points}</span>
+                  <span className={`pill ${campaign.status.toLowerCase()}`}>{campaignStatusLabels[campaign.status]}</span>
+                </div>
+                <p className="offer-note">Бюджет: {campaign.totalBudget} · Создано {new Date(campaign.createdAt).toLocaleDateString('ru-RU')}</p>
+              </article>
+            ))}
+            {!myCampaigns.length && <p className="empty">Кампаний пока нет.</p>}
+          </div>
+
+          <div className="panel-head">
+            <div>
+              <h2>Входящие заявки</h2>
+              <p>Подтверди вступления и начисли баллы.</p>
+            </div>
+          </div>
+          <div className="offers">
+            {incomingApplications.map((app) => (
+              <article key={app.id} className="card offer">
+                <div className="offer-head">
+                  <div>
+                    <h3>{app.campaign.group.title}</h3>
+                    <p>Заявка от {app.applicant?.username ? `@${app.applicant.username}` : app.applicant?.firstName || 'пользователь'}</p>
+                  </div>
+                  <span className="pill pending">Ожидает</span>
                 </div>
                 <div className="offer-actions">
-                  {task.completed ? (
-                    <button className="ghost" type="button" disabled>Готово</button>
-                  ) : (
-                    (() => {
-                      const cta = taskCta(task);
-                      if (!cta) return null;
-                      return (
-                        <button
-                          className="primary"
-                          type="button"
-                          onClick={() => setActiveTab(cta.tab)}
-                        >
-                          {cta.label}
-                        </button>
-                      );
-                    })()
-                  )}
+                  <button className="primary" type="button" onClick={() => handleApprove(app.id)}>Подтвердить</button>
+                  <button className="ghost" type="button" onClick={() => handleReject(app.id)}>Отклонить</button>
                 </div>
               </article>
             ))}
-            {!tasks.length && <p className="empty">Нет доступных заданий.</p>}
+            {!incomingApplications.length && <p className="empty">Нет входящих заявок.</p>}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'applications' && (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Мои заявки</h2>
+              <p>История вступлений и начисления баллов.</p>
+            </div>
+          </div>
+          <div className="offers">
+            {myApplications.map((app) => (
+              <article key={app.id} className="card offer">
+                <div className="offer-head">
+                  <div>
+                    <h3>{app.campaign.group.title}</h3>
+                    <p>Создано: {new Date(app.createdAt).toLocaleDateString('ru-RU')}</p>
+                  </div>
+                  <span className={`pill ${app.status.toLowerCase()}`}>{statusLabels[app.status]}</span>
+                </div>
+                <p className="offer-note">Награда: {app.campaign.rewardPoints} баллов</p>
+              </article>
+            ))}
+            {!myApplications.length && <p className="empty">Заявок пока нет.</p>}
           </div>
         </section>
       )}
 
       <footer className="footer">
         <p>Среда: {isTelegram() ? 'Telegram' : 'Браузер (preview)'}</p>
-        <p>{message || 'Готово к работе'}</p>
+        <p>{message || `Группы: ${stats.groups} · Кампании: ${stats.campaigns} · Заявки: ${stats.applications}`}</p>
       </footer>
     </div>
   );

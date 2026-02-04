@@ -1,6 +1,3 @@
-// Если у тебя MySQL/MariaDB, замени provider на "mysql"
-// и обнови DATABASE_URL в .env
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -10,121 +7,94 @@ generator client {
   provider = "prisma-client-js"
 }
 
-enum Platform {
-  TELEGRAM
-  YOUTUBE
-  TIKTOK
-  INSTAGRAM
-  X
-}
-
-enum Action {
-  SUBSCRIBE
-  SUBSCRIBE_LIKE
-  LIKE_COMMENT
-}
-
-enum Ratio {
-  ONE_ONE
-  ONE_TWO
-  TWO_ONE
-}
-
-enum OfferStatus {
-  OPEN
+enum CampaignStatus {
+  ACTIVE
   PAUSED
-  CLOSED
+  COMPLETED
 }
 
-enum RequestStatus {
+enum ApplicationStatus {
   PENDING
-  ACCEPTED
+  APPROVED
   REJECTED
-  COMPLETED
+}
+
+enum LedgerType {
+  EARN
+  SPEND
+  REFUND
+  ADJUST
 }
 
 model User {
-  id          String   @id @default(cuid())
-  telegramId  String   @unique
-  username    String?
-  firstName   String?
-  lastName    String?
-  photoUrl    String?
-  rating      Float    @default(5)
-  points      Int      @default(0)
-  createdAt   DateTime @default(now())
-
-  offers      Offer[]
-  requests    Request[]
-  reviewsFrom Review[] @relation("UserReviewsFrom")
-  reviewsTo   Review[] @relation("UserReviewsTo")
-  tasks       UserTask[]
-}
-
-model Offer {
-  id        String      @id @default(cuid())
-  userId    String
-  user      User        @relation(fields: [userId], references: [id])
-  platform  Platform
-  action    Action
-  ratio     Ratio
-  link      String
-  note      String
-  status    OfferStatus @default(OPEN)
-  createdAt DateTime    @default(now())
-
-  requests  Request[]
-}
-
-model Request {
-  id          String        @id @default(cuid())
-  offerId     String
-  offer       Offer         @relation(fields: [offerId], references: [id])
-  requesterId String
-  requester   User          @relation(fields: [requesterId], references: [id])
-  status      RequestStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-}
-
-enum TaskStatus {
-  PENDING
-  COMPLETED
-}
-
-model Task {
-  id          String     @id @default(cuid())
-  slug        String     @unique
-  title       String
-  description String
-  points      Int
-  active      Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-
-  userTasks   UserTask[]
-}
-
-model UserTask {
-  id          String     @id @default(cuid())
-  userId      String
-  taskId      String
-  status      TaskStatus @default(PENDING)
-  createdAt   DateTime   @default(now())
-  completedAt DateTime?
-
-  user        User       @relation(fields: [userId], references: [id])
-  task        Task       @relation(fields: [taskId], references: [id])
-
-  @@unique([userId, taskId])
-}
-
-model Review {
   id         String   @id @default(cuid())
-  fromUserId String
-  toUserId   String
-  rating     Int
-  comment    String?
+  telegramId String   @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+  photoUrl   String?
+  balance    Int      @default(100)
   createdAt  DateTime @default(now())
 
-  fromUser   User     @relation("UserReviewsFrom", fields: [fromUserId], references: [id])
-  toUser     User     @relation("UserReviewsTo", fields: [toUserId], references: [id])
+  groups       Group[]
+  campaigns    Campaign[]
+  applications Application[]
+  ledger       LedgerEntry[]
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  title       String
+  username    String?
+  inviteLink  String
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+
+  campaigns   Campaign[]
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  groupId         String
+  ownerId         String
+  group           Group          @relation(fields: [groupId], references: [id])
+  owner           User           @relation(fields: [ownerId], references: [id])
+  rewardPoints    Int
+  totalBudget     Int
+  remainingBudget Int
+  status          CampaignStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+
+  applications    Application[]
+  ledgerEntries   LedgerEntry[]
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  campaignId  String
+  applicantId String
+  status      ApplicationStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  reviewedAt  DateTime?
+
+  campaign    Campaign          @relation(fields: [campaignId], references: [id])
+  applicant   User              @relation(fields: [applicantId], references: [id])
+
+  @@unique([campaignId, applicantId])
+}
+
+model LedgerEntry {
+  id         String     @id @default(cuid())
+  userId     String
+  type       LedgerType
+  amount     Int
+  reason     String
+  campaignId String?
+  createdAt  DateTime   @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  campaign   Campaign?  @relation(fields: [campaignId], references: [id])
 }

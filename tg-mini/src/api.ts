@@ -1,41 +1,41 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
-export type VerifyResponse = {
-  ok: boolean;
-  user?: {
-    id: string;
-    telegramId: string;
-    username?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    photoUrl?: string | null;
-  };
-  token?: string;
-  error?: string;
+export type UserDto = {
+  id: string;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  photoUrl?: string | null;
 };
 
-export type OfferDto = {
+export type GroupDto = {
   id: string;
-  platform: 'TELEGRAM' | 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'X';
-  action: 'SUBSCRIBE' | 'SUBSCRIBE_LIKE' | 'LIKE_COMMENT';
-  ratio: 'ONE_ONE' | 'ONE_TWO' | 'TWO_ONE';
-  link: string;
-  note: string;
-  createdAt: string;
-  user: {
-    username?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-  };
-};
-
-export type TaskDto = {
-  id: string;
-  slug: string;
   title: string;
-  description: string;
-  points: number;
-  completed: boolean;
+  username?: string | null;
+  inviteLink: string;
+  description?: string | null;
+  category?: string | null;
+  createdAt: string;
+};
+
+export type CampaignDto = {
+  id: string;
+  rewardPoints: number;
+  totalBudget: number;
+  remainingBudget: number;
+  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+  createdAt: string;
+  group: GroupDto;
+  owner?: UserDto;
+};
+
+export type ApplicationDto = {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  reviewedAt?: string | null;
+  campaign: CampaignDto;
+  applicant?: UserDto;
 };
 
 const request = async (path: string, options: RequestInit = {}) => {
@@ -68,9 +68,9 @@ export const verifyInitData = async (initData: string) => {
     throw new Error('auth failed');
   }
 
-  const data = (await response.json()) as VerifyResponse;
+  const data = (await response.json()) as { ok: boolean; token?: string; balance?: number; user?: UserDto };
   if (!data.ok) {
-    throw new Error(data.error || 'auth failed');
+    throw new Error('auth failed');
   }
 
   if (data.token) {
@@ -80,42 +80,76 @@ export const verifyInitData = async (initData: string) => {
   return data;
 };
 
-export const getSessionToken = () => localStorage.getItem('sessionToken') ?? '';
-
-export const fetchOffers = async (platform?: string) => {
-  const query = platform ? `?platform=${platform}` : '';
-  const data = await request(`/api/offers${query}`);
-  return data as { ok: boolean; offers: OfferDto[] };
+export const fetchMe = async () => {
+  const data = await request('/api/me');
+  return data as { ok: boolean; user: UserDto; balance: number; stats: { groups: number; campaigns: number; applications: number } };
 };
 
-export const createOffer = async (payload: {
-  platform: OfferDto['platform'];
-  action: OfferDto['action'];
-  ratio: OfferDto['ratio'];
-  link: string;
-  note?: string;
+export const fetchCampaigns = async (category?: string) => {
+  const query = category ? `?category=${encodeURIComponent(category)}` : '';
+  const data = await request(`/api/campaigns${query}`);
+  return data as { ok: boolean; campaigns: CampaignDto[] };
+};
+
+export const fetchMyCampaigns = async () => {
+  const data = await request('/api/campaigns/my');
+  return data as { ok: boolean; campaigns: CampaignDto[] };
+};
+
+export const createCampaign = async (payload: {
+  groupId: string;
+  rewardPoints: number;
+  totalBudget: number;
 }) => {
-  const data = await request('/api/offers', {
+  const data = await request('/api/campaigns', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  return data as { ok: boolean; offer: OfferDto };
+  return data as { ok: boolean; campaign: CampaignDto };
 };
 
-export const respondToOffer = async (id: string) => {
-  const data = await request(`/api/offers/${id}/respond`, {
-    method: 'POST',
-  });
+export const applyCampaign = async (id: string) => {
+  const data = await request(`/api/campaigns/${id}/apply`, { method: 'POST' });
   return data as { ok: boolean };
 };
 
-export const fetchTasks = async () => {
-  const data = await request('/api/tasks');
-  return data as { ok: boolean; points: number; tasks: TaskDto[] };
+export const fetchMyApplications = async () => {
+  const data = await request('/api/applications/my');
+  return data as { ok: boolean; applications: ApplicationDto[] };
 };
 
-export const fetchMe = async () => {
-  const data = await request('/api/me');
-  return data as { ok: boolean; points: number; stats: { offers: number; requests: number } };
+export const fetchIncomingApplications = async () => {
+  const data = await request('/api/applications/incoming');
+  return data as { ok: boolean; applications: ApplicationDto[] };
+};
+
+export const approveApplication = async (id: string) => {
+  const data = await request(`/api/applications/${id}/approve`, { method: 'POST' });
+  return data as { ok: boolean };
+};
+
+export const rejectApplication = async (id: string) => {
+  const data = await request(`/api/applications/${id}/reject`, { method: 'POST' });
+  return data as { ok: boolean };
+};
+
+export const createGroup = async (payload: {
+  title: string;
+  username?: string;
+  inviteLink: string;
+  description?: string;
+  category?: string;
+}) => {
+  const data = await request('/api/groups', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return data as { ok: boolean; group: GroupDto };
+};
+
+export const fetchMyGroups = async () => {
+  const data = await request('/api/groups/my');
+  return data as { ok: boolean; groups: GroupDto[] };
 };
