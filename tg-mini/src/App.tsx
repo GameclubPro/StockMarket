@@ -10,9 +10,64 @@ export default function App() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [tasksTab, setTasksTab] = useState<'all' | 'mine'>('all');
+  const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
+  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine' | 'spend'>('place');
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
+
+  const tasks = [
+    {
+      id: 't1',
+      title: 'Ищу работу Ростов',
+      handle: '@work_rostov',
+      points: 1,
+      check: 'бот',
+      type: 'subscribe' as const,
+      initial: 'Р',
+    },
+    {
+      id: 't2',
+      title: 'Чат мастеров маникюра',
+      handle: '@beauty_subchat',
+      points: 1,
+      check: 'бот',
+      type: 'subscribe' as const,
+      initial: 'Б',
+    },
+    {
+      id: 't3',
+      title: 'Сток Fix Price Ростов',
+      handle: '@fixprice_rostov',
+      points: 1,
+      check: 'бот',
+      type: 'subscribe' as const,
+      initial: 'F',
+    },
+    {
+      id: 't4',
+      title: 'Фитнес-клуб Ростов',
+      handle: '@fitness_rostov',
+      points: 1,
+      check: 'бот',
+      type: 'reaction' as const,
+      initial: 'Ф',
+    },
+  ];
+
+  const myTasks = [
+    {
+      id: 'm1',
+      title: 'Канал о фрилансе',
+      handle: '@freelance_daily',
+      points: 2,
+      check: 'бот',
+      type: 'subscribe' as const,
+      initial: 'F',
+    },
+  ];
+
+  const visibleTasks = tasks.filter((task) => task.type === taskFilter);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -193,56 +248,196 @@ export default function App() {
                 Мои задания
               </button>
             </div>
-            <div className="section-card">
-              <div className="section-title">
-                {tasksTab === 'all' ? 'Задания' : 'Мои задания'}
-              </div>
-              <div className="section-text">
-                {tasksTab === 'all'
-                  ? 'Список доступных заданий появится здесь.'
-                  : 'Список ваших заданий появится здесь.'}
-              </div>
-              {tasksTab === 'mine' && (
-                <div className="create-block">
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => setShowCreateTask((prev) => !prev)}
-                  >
-                    {showCreateTask ? 'Скрыть' : 'Создать'}
+
+            {tasksTab === 'all' && (
+              <>
+                <div className="page-header">
+                  <div className="page-title">Задания</div>
+                  <button className="icon-button" type="button" aria-label="Обновить">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M21 12a9 9 0 11-2.6-6.4" />
+                      <path d="M21 3v7h-7" />
+                    </svg>
                   </button>
-                  {showCreateTask && (
-                    <div className="create-form">
-                      <label className="field">
-                        <span>Ссылка</span>
-                        <input
-                          type="url"
-                          placeholder="https://t.me/..."
-                          value={taskLink}
-                          onChange={(event) => setTaskLink(event.target.value)}
-                        />
-                      </label>
-                      <div className="choice-row">
-                        <button
-                          className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
-                          type="button"
-                          onClick={() => setTaskType('subscribe')}
-                        >
-                          Подписка
-                        </button>
-                        <button
-                          className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
-                          type="button"
-                          onClick={() => setTaskType('reaction')}
-                        >
-                          Реакция
-                        </button>
+                </div>
+                <div className="segment">
+                  <button
+                    className={`segment-button ${taskFilter === 'subscribe' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setTaskFilter('subscribe')}
+                  >
+                    Подписки
+                  </button>
+                  <button
+                    className={`segment-button ${taskFilter === 'reaction' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setTaskFilter('reaction')}
+                  >
+                    Реакции
+                  </button>
+                </div>
+                <div className="task-list">
+                  {visibleTasks.map((task) => (
+                    <div className="task-card" key={task.id}>
+                      <div className="task-card-head">
+                        <div className="task-avatar">
+                          <span>{task.initial}</span>
+                        </div>
+                        <div className="task-info">
+                          <div className="task-title">{task.title}</div>
+                          <div className="task-handle">{task.handle}</div>
+                        </div>
+                        <div className="task-actions">
+                          <button className="open-button" type="button">
+                            Открыть
+                          </button>
+                        </div>
+                      </div>
+                      <div className="task-meta">
+                        <span className="badge">+{task.points} балл</span>
+                        <span className="muted">Проверка: {task.check}</span>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              )}
-            </div>
+              </>
+            )}
+
+            {tasksTab === 'mine' && (
+              <>
+                <div className="page-header">
+                  <div className="page-title">Мои задания</div>
+                  <button className="icon-button" type="button" aria-label="Обновить">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M21 12a9 9 0 11-2.6-6.4" />
+                      <path d="M21 3v7h-7" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="segment wide">
+                  <button
+                    className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setMyTasksTab('place')}
+                  >
+                    Разместить
+                  </button>
+                  <button
+                    className={`segment-button ${myTasksTab === 'mine' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setMyTasksTab('mine')}
+                  >
+                    Мои размещенные
+                  </button>
+                  <button
+                    className={`segment-button ${myTasksTab === 'spend' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setMyTasksTab('spend')}
+                  >
+                    Потратить баллы
+                  </button>
+                </div>
+
+                {myTasksTab === 'place' && (
+                  <div className="task-form-card">
+                    <div className="task-form-head">
+                      <div>
+                        <div className="task-form-title">Разместить задание</div>
+                        <div className="task-form-sub">
+                          Создайте задание, чтобы привлечь подписчиков.
+                        </div>
+                      </div>
+                      <button className="icon-button" type="button" aria-label="Меню">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                          <circle cx="12" cy="5" r="1.6" />
+                          <circle cx="12" cy="12" r="1.6" />
+                          <circle cx="12" cy="19" r="1.6" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {showCreateTask ? (
+                      <div className="task-form-body">
+                        <label className="field">
+                          <span>Ссылка</span>
+                          <input
+                            type="url"
+                            placeholder="https://t.me/..."
+                            value={taskLink}
+                            onChange={(event) => setTaskLink(event.target.value)}
+                          />
+                        </label>
+                        <div className="choice-row">
+                          <button
+                            className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTaskType('subscribe')}
+                          >
+                            Подписка
+                          </button>
+                          <button
+                            className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTaskType('reaction')}
+                          >
+                            Реакция
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="task-form-placeholder">
+                        Нажмите «Создать», чтобы открыть форму.
+                      </div>
+                    )}
+
+                    <div className="task-form-actions">
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => setShowCreateTask((prev) => !prev)}
+                      >
+                        {showCreateTask ? 'Скрыть' : 'Создать'}
+                      </button>
+                      <div className="balance-pill">Баланс: {points}</div>
+                    </div>
+                  </div>
+                )}
+
+                {myTasksTab === 'mine' && (
+                  <div className="task-list">
+                    {myTasks.map((task) => (
+                      <div className="task-card" key={task.id}>
+                        <div className="task-card-head">
+                          <div className="task-avatar">
+                            <span>{task.initial}</span>
+                          </div>
+                          <div className="task-info">
+                            <div className="task-title">{task.title}</div>
+                            <div className="task-handle">{task.handle}</div>
+                          </div>
+                          <div className="task-actions">
+                            <button className="open-button" type="button">
+                              Открыть
+                            </button>
+                          </div>
+                        </div>
+                        <div className="task-meta">
+                          <span className="badge">+{task.points} балл</span>
+                          <span className="muted">Проверка: {task.check}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {myTasksTab === 'spend' && (
+                  <div className="section-card">
+                    <div className="section-title">Потратить баллы</div>
+                    <div className="section-text">Раздел появится позже.</div>
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
 
