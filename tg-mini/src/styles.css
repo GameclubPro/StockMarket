@@ -54,16 +54,19 @@ body::before {
   width: 100%;
   display: flex;
   justify-content: center;
+  min-height: 100vh;
 }
 
 .screen {
   width: min(420px, 100%);
   background: linear-gradient(180deg, rgba(16, 16, 26, 0.95), rgba(12, 12, 20, 0.98));
   border-radius: 36px;
-  padding: 18px 18px 24px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .screen::before {
@@ -75,64 +78,12 @@ body::before {
   opacity: 0.6;
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 6px 14px;
-  font-size: 14px;
-  color: #cfd2e0;
+.content {
+  padding: 18px 18px 12px;
+  display: grid;
+  gap: 16px;
   position: relative;
   z-index: 1;
-}
-
-.status .icons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.pill {
-  height: 12px;
-  width: 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  position: relative;
-}
-
-.pill::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: 999px;
-  background: #52d68a;
-}
-
-.topbar {
-  display: grid;
-  grid-template-columns: 40px 1fr 40px;
-  align-items: center;
-  padding: 0 6px 18px;
-  position: relative;
-  z-index: 1;
-}
-
-.title {
-  text-align: center;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  font-size: 20px;
-}
-
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: var(--card);
-  border: 1px solid var(--stroke);
-  display: grid;
-  place-items: center;
-  color: #cbd0e0;
 }
 
 .profile-card {
@@ -237,7 +188,6 @@ body::before {
 }
 
 .menu {
-  margin-top: 16px;
   display: grid;
   gap: 12px;
 }
@@ -276,8 +226,7 @@ body::before {
   place-items: center;
 }
 
-.menu-item svg,
-.topbar svg {
+.menu-item svg {
   width: 18px;
   height: 18px;
 }
@@ -287,8 +236,8 @@ body::before {
 }
 
 .bottom-nav {
-  margin-top: 26px;
-  padding-top: 12px;
+  margin-top: auto;
+  padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -296,6 +245,8 @@ body::before {
   gap: 4px;
   color: var(--muted);
   font-size: 12px;
+  background: linear-gradient(180deg, rgba(12, 12, 20, 0.4), rgba(12, 12, 20, 0.95));
+  backdrop-filter: blur(12px);
 }
 
 .bottom-nav .nav-item {
