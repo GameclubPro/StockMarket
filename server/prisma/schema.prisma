@@ -51,12 +51,14 @@ model User {
   lastName    String?
   photoUrl    String?
   rating      Float    @default(5)
+  points      Int      @default(0)
   createdAt   DateTime @default(now())
 
   offers      Offer[]
   requests    Request[]
   reviewsFrom Review[] @relation("UserReviewsFrom")
   reviewsTo   Review[] @relation("UserReviewsTo")
+  tasks       UserTask[]
 }
 
 model Offer {
@@ -82,6 +84,37 @@ model Request {
   requester   User          @relation(fields: [requesterId], references: [id])
   status      RequestStatus @default(PENDING)
   createdAt   DateTime      @default(now())
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  description String
+  points      Int
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+
+  userTasks   UserTask[]
+}
+
+model UserTask {
+  id          String     @id @default(cuid())
+  userId      String
+  taskId      String
+  status      TaskStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  user        User       @relation(fields: [userId], references: [id])
+  task        Task       @relation(fields: [taskId], references: [id])
+
+  @@unique([userId, taskId])
 }
 
 model Review {

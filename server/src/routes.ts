@@ -5,6 +5,21 @@ import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
 
+const DEFAULT_TASKS = [
+  {
+    slug: 'first_offer',
+    title: 'Создай первый оффер',
+    description: 'Размести первое предложение в бирже.',
+    points: 120,
+  },
+  {
+    slug: 'first_response',
+    title: 'Откликнись на оффер',
+    description: 'Найди подходящее предложение и откликнись.',
+    points: 80,
+  },
+];
+
 const authBodySchema = z.object({
   initData: z.string().min(1),
 });
@@ -21,6 +36,56 @@ const offerQuerySchema = z.object({
   platform: z.enum(['TELEGRAM', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X']).optional(),
   limit: z.coerce.number().min(1).max(50).optional(),
 });
+
+const ensureDefaultTasks = async () => {
+  await Promise.all(
+    DEFAULT_TASKS.map((task) =>
+      prisma.task.upsert({
+        where: { slug: task.slug },
+        update: {
+          title: task.title,
+          description: task.description,
+          points: task.points,
+          active: true,
+        },
+        create: {
+          slug: task.slug,
+          title: task.title,
+          description: task.description,
+          points: task.points,
+          active: true,
+        },
+      })
+    )
+  );
+};
+
+const completeTaskBySlug = async (userId: string, slug: string) => {
+  const task = await prisma.task.findUnique({ where: { slug } });
+  if (!task || !task.active) return null;
+
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.userTask.findUnique({
+      where: { userId_taskId: { userId, taskId: task.id } },
+    });
+    if (existing?.status === 'COMPLETED') {
+      return { task, pointsAdded: 0 };
+    }
+
+    await tx.userTask.upsert({
+      where: { userId_taskId: { userId, taskId: task.id } },
+      update: { status: 'COMPLETED', completedAt: new Date() },
+      create: { userId, taskId: task.id, status: 'COMPLETED', completedAt: new Date() },
+    });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { points: { increment: task.points } },
+    });
+
+    return { task, pointsAdded: task.points };
+  });
+};
 
 const getToken = (authHeader?: string) => {
   if (!authHeader) return '';
@@ -138,6 +203,9 @@ export const registerRoutes = (app: FastifyInstance) => {
         },
       });
 
+      await ensureDefaultTasks();
+      await completeTaskBySlug(user.id, 'first_offer');
+
       return { ok: true, offer };
     } catch (error: any) {
       return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
@@ -163,7 +231,43 @@ export const registerRoutes = (app: FastifyInstance) => {
         },
       });
 
+      await ensureDefaultTasks();
+      await completeTaskBySlug(user.id, 'first_response');
+
       return { ok: true, request: reqEntry };
+    } catch (error: any) {
+      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    }
+  });
+
+  app.get('/tasks', async (request, reply) => {
+    try {
+      await ensureDefaultTasks();
+      const user = await requireUser(request);
+
+      const tasks = await prisma.task.findMany({
+        where: { active: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      const userTasks = await prisma.userTask.findMany({
+        where: { userId: user.id },
+      });
+      const completed = new Set(
+        userTasks.filter((item) => item.status === 'COMPLETED').map((item) => item.taskId)
+      );
+
+      return {
+        ok: true,
+        points: user.points,
+        tasks: tasks.map((task) => ({
+          id: task.id,
+          slug: task.slug,
+          title: task.title,
+          description: task.description,
+          points: task.points,
+          completed: completed.has(task.id),
+        })),
+      };
     } catch (error: any) {
       return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
     }
@@ -174,7 +278,7 @@ export const registerRoutes = (app: FastifyInstance) => {
       const user = await requireUser(request);
       const offers = await prisma.offer.count({ where: { userId: user.id } });
       const requests = await prisma.request.count({ where: { requesterId: user.id } });
-      return { ok: true, user, stats: { offers, requests } };
+      return { ok: true, user, stats: { offers, requests }, points: user.points };
     } catch (error: any) {
       return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
     }

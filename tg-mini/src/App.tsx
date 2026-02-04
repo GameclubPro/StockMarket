@@ -1,20 +1,32 @@
-import { useEffect, useState } from 'react';
-import { verifyInitData } from './api';
+import { useEffect, useMemo, useState } from 'react';
+import { createOffer, fetchOffers, fetchTasks, respondToOffer, verifyInitData } from './api';
 import { getInitDataRaw, getUserLabel, initTelegram, isTelegram } from './telegram';
 
 type Offer = {
   id: string;
-  author: string;
-  platform: 'Telegram' | 'YouTube' | 'TikTok' | 'Instagram' | 'X';
-  action: 'Подписка' | 'Подписка + лайк' | 'Лайк + комментарий';
-  ratio: '1:1' | '1:2' | '2:1';
+  platform: 'TELEGRAM' | 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'X';
+  action: 'SUBSCRIBE' | 'SUBSCRIBE_LIKE' | 'LIKE_COMMENT';
+  ratio: 'ONE_ONE' | 'ONE_TWO' | 'TWO_ONE';
+  link: string;
   note: string;
-  rating: number;
-  status: 'new' | 'hot' | 'verified';
-  time: string;
+  createdAt: string;
+  user?: {
+    username?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  };
 };
 
-type TabId = 'market' | 'create' | 'profile';
+type Task = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  points: number;
+  completed: boolean;
+};
+
+type TabId = 'market' | 'create' | 'tasks';
 
 type OfferForm = {
   platform: Offer['platform'];
@@ -24,70 +36,74 @@ type OfferForm = {
   note: string;
 };
 
-const initialOffers: Offer[] = [
-  {
-    id: 'of-001',
-    author: 'play.team',
-    platform: 'Telegram',
-    action: 'Подписка',
-    ratio: '1:1',
-    note: 'Взаимный рост каналов. Тематика: игры, киберспорт, гаджеты. Ответ в течение 24ч.',
-    rating: 4.9,
-    status: 'verified',
-    time: '5 мин назад',
-  },
-  {
-    id: 'of-002',
-    author: 'zen.market',
-    platform: 'YouTube',
-    action: 'Подписка + лайк',
-    ratio: '1:2',
-    note: 'Подписка + лайк на последний ролик. Взаимный обмен по расписанию.',
-    rating: 4.6,
-    status: 'hot',
-    time: '12 мин назад',
-  },
-  {
-    id: 'of-003',
-    author: 'visual.labs',
-    platform: 'Instagram',
-    action: 'Лайк + комментарий',
-    ratio: '1:1',
-    note: 'Фокус на фото/дизайн. Комментарий от 4 слов, без спама.',
-    rating: 4.8,
-    status: 'new',
-    time: '28 мин назад',
-  },
-];
-
 const defaultForm: OfferForm = {
-  platform: 'Telegram',
-  action: 'Подписка',
-  ratio: '1:1',
+  platform: 'TELEGRAM',
+  action: 'SUBSCRIBE',
+  ratio: 'ONE_ONE',
   link: '',
   note: '',
 };
 
 const tabs: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'market', label: 'Лента', hint: 'Все офферы' },
-  { id: 'create', label: 'Создать', hint: 'Новый обмен' },
-  { id: 'profile', label: 'Профиль', hint: 'Статистика' },
+  { id: 'market', label: 'Биржа', hint: 'Предложения' },
+  { id: 'create', label: 'Создать', hint: 'Новый оффер' },
+  { id: 'tasks', label: 'Задания', hint: 'Баллы' },
 ];
 
-const statusLabels: Record<Offer['status'], string> = {
-  new: 'Новый',
-  hot: 'Горячий',
-  verified: 'Проверен',
+const platformLabels: Record<Offer['platform'], string> = {
+  TELEGRAM: 'Telegram',
+  YOUTUBE: 'YouTube',
+  TIKTOK: 'TikTok',
+  INSTAGRAM: 'Instagram',
+  X: 'X',
+};
+
+const actionLabels: Record<Offer['action'], string> = {
+  SUBSCRIBE: 'Подписка',
+  SUBSCRIBE_LIKE: 'Подписка + лайк',
+  LIKE_COMMENT: 'Лайк + комментарий',
+};
+
+const ratioLabels: Record<Offer['ratio'], string> = {
+  ONE_ONE: '1:1',
+  ONE_TWO: '1:2',
+  TWO_ONE: '2:1',
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('market');
-  const [offers, setOffers] = useState<Offer[]>(initialOffers);
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [form, setForm] = useState<OfferForm>(defaultForm);
   const [filter, setFilter] = useState<'Все' | Offer['platform']>('Все');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [points, setPoints] = useState(0);
+  const [message, setMessage] = useState('');
   const [authState, setAuthState] = useState<'idle' | 'verifying' | 'ok' | 'error'>('idle');
 
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
+
+  const level = useMemo(() => Math.max(1, Math.floor(points / 500) + 1), [points]);
+  const nextLevelAt = level * 500;
+  const progress = Math.min(100, Math.round((points / nextLevelAt) * 100));
+
+  const loadOffers = async (platform?: Offer['platform']) => {
+    try {
+      const data = await fetchOffers(platform);
+      setOffers(data.offers ?? []);
+    } catch {
+      setMessage('Не удалось загрузить офферы.');
+    }
+  };
+
+  const loadTasks = async () => {
+    try {
+      const data = await fetchTasks();
+      setTasks(data.tasks ?? []);
+      setPoints(data.points ?? 0);
+    } catch {
+      setMessage('Не удалось загрузить задания.');
+    }
+  };
 
   useEffect(() => {
     initTelegram();
@@ -98,28 +114,54 @@ export default function App() {
 
     setAuthState('verifying');
     verifyInitData(initDataRaw)
-      .then(() => setAuthState('ok'))
+      .then(() => {
+        setAuthState('ok');
+        loadTasks();
+      })
       .catch(() => setAuthState('error'));
+  }, []);
+
+  useEffect(() => {
+    loadOffers();
   }, []);
 
   const visibleOffers = offers.filter((offer) => (filter === 'Все' ? true : offer.platform === filter));
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.link.trim()) return;
-    const next: Offer = {
-      id: `of-${Date.now()}`,
-      author: userLabel || 'Вы',
-      platform: form.platform,
-      action: form.action,
-      ratio: form.ratio,
-      note: form.note || 'Без дополнительных условий.',
-      rating: 5.0,
-      status: 'new',
-      time: 'только что',
-    };
-    setOffers((prev) => [next, ...prev]);
-    setForm(defaultForm);
-    setActiveTab('market');
+    try {
+      await createOffer({
+        platform: form.platform,
+        action: form.action,
+        ratio: form.ratio,
+        link: form.link.trim(),
+        note: form.note.trim(),
+      });
+      setForm(defaultForm);
+      setActiveTab('market');
+      await loadOffers(filter === 'Все' ? undefined : filter);
+      await loadTasks();
+      setMessage('Оффер опубликован.');
+    } catch {
+      setMessage('Не удалось создать оффер.');
+    }
+  };
+
+  const handleRespond = async (id: string) => {
+    try {
+      await respondToOffer(id);
+      await loadTasks();
+      setMessage('Отклик отправлен.');
+    } catch {
+      setMessage('Не удалось откликнуться.');
+    }
+  };
+
+  const taskCta = (task: Task) => {
+    if (task.completed) return null;
+    if (task.slug === 'first_offer') return { label: 'Создать', tab: 'create' as const };
+    if (task.slug === 'first_response') return { label: 'Перейти', tab: 'market' as const };
+    return null;
   };
 
   return (
@@ -127,27 +169,27 @@ export default function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Mini App · Биржа подписок</p>
-          <h1>Биржа взаимной подписки</h1>
-          <p className="subhead">Честный обмен подписками с репутацией и безопасными правилами.</p>
+          <h1>Биржа взаимных подписок</h1>
+          <p className="subhead">Живые офферы, задания и баллы за активность.</p>
         </div>
         <div className="chip">Онлайн · {new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
       </header>
 
       <section className="stats">
         <div className="stat">
-          <p>Офферов</p>
-          <strong>{offers.length}</strong>
-          <span>+12% за сутки</span>
-        </div>
-        <div className="stat">
-          <p>Сделок</p>
-          <strong>1 284</strong>
-          <span>Рейтинг 4.8</span>
-        </div>
-        <div className="stat">
-          <p>Ваш статус</p>
+          <p>Пользователь</p>
           <strong>{userLabel}</strong>
-          <span>Уровень: Alpha</span>
+          <span>Авторизация: {authState === 'ok' ? 'Ok' : authState === 'verifying' ? 'Проверка' : '—'}</span>
+        </div>
+        <div className="stat">
+          <p>Баллы</p>
+          <strong>{points}</strong>
+          <span>Уровень {level}</span>
+        </div>
+        <div className="stat">
+          <p>До следующего уровня</p>
+          <strong>{Math.max(0, nextLevelAt - points)}</strong>
+          <span>Прогресс {progress}%</span>
         </div>
       </section>
 
@@ -170,17 +212,21 @@ export default function App() {
           <div className="panel-head">
             <div>
               <h2>Свежие предложения</h2>
-              <p>Выбирай обмен по интересам и репутации.</p>
+              <p>Реальные офферы из базы данных.</p>
             </div>
             <div className="filters">
-              {(['Все', 'Telegram', 'YouTube', 'TikTok', 'Instagram', 'X'] as const).map((item) => (
+              {(['Все', 'TELEGRAM', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'] as const).map((item) => (
                 <button
                   key={item}
                   type="button"
                   className={filter === item ? 'filter active' : 'filter'}
-                  onClick={() => setFilter(item)}
+                  onClick={() => {
+                    setFilter(item);
+                    if (item === 'Все') loadOffers();
+                    else loadOffers(item);
+                  }}
                 >
-                  {item}
+                  {item === 'Все' ? 'Все' : platformLabels[item]}
                 </button>
               ))}
             </div>
@@ -191,22 +237,23 @@ export default function App() {
               <article key={offer.id} className="card offer">
                 <div className="offer-head">
                   <div>
-                    <h3>{offer.action} · {offer.ratio}</h3>
-                    <p>{offer.platform} · {offer.time}</p>
+                    <h3>{actionLabels[offer.action]} · {ratioLabels[offer.ratio]}</h3>
+                    <p>{platformLabels[offer.platform]} · {new Date(offer.createdAt).toLocaleString('ru-RU')}</p>
                   </div>
-                  <span className={`pill ${offer.status}`}>{statusLabels[offer.status]}</span>
                 </div>
                 <p className="offer-note">{offer.note}</p>
                 <div className="offer-meta">
-                  <span>Автор: {offer.author}</span>
-                  <span>Рейтинг: {offer.rating.toFixed(1)}</span>
+                  <span>Автор: {offer.user?.username ? `@${offer.user.username}` : offer.user?.firstName ?? '—'}</span>
+                  <a href={offer.link} target="_blank" rel="noreferrer">Ссылка</a>
                 </div>
                 <div className="offer-actions">
-                  <button className="primary" type="button">Откликнуться</button>
-                  <button className="ghost" type="button">Смотреть профиль</button>
+                  <button className="primary" type="button" onClick={() => handleRespond(offer.id)}>
+                    Откликнуться
+                  </button>
                 </div>
               </article>
             ))}
+            {!visibleOffers.length && <p className="empty">Пока нет офферов. Создай первый.</p>}
           </div>
         </section>
       )}
@@ -232,8 +279,8 @@ export default function App() {
                 value={form.platform}
                 onChange={(event) => setForm((prev) => ({ ...prev, platform: event.target.value as Offer['platform'] }))}
               >
-                {(['Telegram', 'YouTube', 'TikTok', 'Instagram', 'X'] as const).map((item) => (
-                  <option key={item} value={item}>{item}</option>
+                {(['TELEGRAM', 'YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'] as const).map((item) => (
+                  <option key={item} value={item}>{platformLabels[item]}</option>
                 ))}
               </select>
             </label>
@@ -243,8 +290,8 @@ export default function App() {
                 value={form.action}
                 onChange={(event) => setForm((prev) => ({ ...prev, action: event.target.value as Offer['action'] }))}
               >
-                {(['Подписка', 'Подписка + лайк', 'Лайк + комментарий'] as const).map((item) => (
-                  <option key={item} value={item}>{item}</option>
+                {(['SUBSCRIBE', 'SUBSCRIBE_LIKE', 'LIKE_COMMENT'] as const).map((item) => (
+                  <option key={item} value={item}>{actionLabels[item]}</option>
                 ))}
               </select>
             </label>
@@ -254,8 +301,8 @@ export default function App() {
                 value={form.ratio}
                 onChange={(event) => setForm((prev) => ({ ...prev, ratio: event.target.value as Offer['ratio'] }))}
               >
-                {(['1:1', '1:2', '2:1'] as const).map((item) => (
-                  <option key={item} value={item}>{item}</option>
+                {(['ONE_ONE', 'ONE_TWO', 'TWO_ONE'] as const).map((item) => (
+                  <option key={item} value={item}>{ratioLabels[item]}</option>
                 ))}
               </select>
             </label>
@@ -286,63 +333,53 @@ export default function App() {
         </section>
       )}
 
-      {activeTab === 'profile' && (
+      {activeTab === 'tasks' && (
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Ваш профиль</h2>
-              <p>Текущие сделки, рейтинг и лимиты.</p>
-            </div>
-          </div>
-          <div className="profile-grid">
-            <article className="card">
-              <h3>Репутация</h3>
-              <p className="big">4.8</p>
-              <span>Выше среднего по рынку</span>
-            </article>
-            <article className="card">
-              <h3>Активные сделки</h3>
-              <p className="big">6</p>
-              <span>Скорость ответа 2ч</span>
-            </article>
-            <article className="card">
-              <h3>Лимит публикаций</h3>
-              <p className="big">12/20</p>
-              <span>Обновится через 3ч</span>
-            </article>
-          </div>
-
-          <div className="panel-head">
-            <div>
-              <h2>Мои офферы</h2>
-              <p>Управляй размещениями и их статусом.</p>
+              <h2>Задания</h2>
+              <p>Выполняй действия и получай баллы.</p>
             </div>
           </div>
           <div className="offers">
-            {offers.slice(0, 2).map((offer) => (
-              <article key={offer.id} className="card offer">
+            {tasks.map((task) => (
+              <article key={task.id} className="card offer">
                 <div className="offer-head">
                   <div>
-                    <h3>{offer.action} · {offer.ratio}</h3>
-                    <p>{offer.platform} · {offer.time}</p>
+                    <h3>{task.title}</h3>
+                    <p>{task.description}</p>
                   </div>
-                  <span className={`pill ${offer.status}`}>{statusLabels[offer.status]}</span>
+                  <span className="pill verified">+{task.points}</span>
                 </div>
-                <p className="offer-note">{offer.note}</p>
                 <div className="offer-actions">
-                  <button className="ghost" type="button">Редактировать</button>
-                  <button className="danger" type="button">Снять</button>
+                  {task.completed ? (
+                    <button className="ghost" type="button" disabled>Готово</button>
+                  ) : (
+                    (() => {
+                      const cta = taskCta(task);
+                      if (!cta) return null;
+                      return (
+                        <button
+                          className="primary"
+                          type="button"
+                          onClick={() => setActiveTab(cta.tab)}
+                        >
+                          {cta.label}
+                        </button>
+                      );
+                    })()
+                  )}
                 </div>
               </article>
             ))}
+            {!tasks.length && <p className="empty">Нет доступных заданий.</p>}
           </div>
         </section>
       )}
 
       <footer className="footer">
-        <p>Мини‑апп подключён: {isTelegram() ? 'Telegram' : 'Браузер (preview)'}</p>
-        <p>Auth: {authState === 'ok' ? 'Проверено' : authState === 'verifying' ? 'Проверка...' : authState === 'error' ? 'Ошибка' : '—'}</p>
-        <p>Поддержка: @play_team</p>
+        <p>Среда: {isTelegram() ? 'Telegram' : 'Браузер (preview)'}</p>
+        <p>{message || 'Готово к работе'}</p>
       </footer>
     </div>
   );
