@@ -85,9 +85,4 @@ export const initTelegram = () => {
     // noop
   }
 
-  try {
-    if (miniApp.expand?.isAvailable?.()) miniApp.expand();
-  } catch {
-    // noop
-  }
 };
