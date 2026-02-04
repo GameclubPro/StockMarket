@@ -44,6 +44,28 @@ export const getUserLabel = () => {
   return fullName || 'Гость';
 };
 
+export const getInitDataRaw = () => {
+  try {
+    const raw = initData.raw?.();
+    if (raw) return raw;
+  } catch {
+    // noop
+  }
+
+  try {
+    const params: any = retrieveLaunchParams();
+    return (
+      params?.tgWebAppDataRaw ||
+      params?.tgWebAppData?.raw ||
+      params?.tgWebAppDataUnsafe?.raw ||
+      params?.tgWebAppDataUnsafe?.initData ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+};
+
 export const initTelegram = () => {
   if (initialized || !isTelegram()) return;
 

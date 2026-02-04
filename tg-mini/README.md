@@ -15,12 +15,16 @@ npm run build
 ```
 
 ## Деплой на VPS
-1. Скопировать сборку:
+1. Собрать:
 ```
-rsync -a --delete dist/ root@cv5335909:/var/www/www-root/data/www/tg.play-team.ru/
+npm run build
 ```
-2. Проверить, что в nginx для домена есть `try_files $uri $uri/ /index.html;`.
+2. Убедиться, что nginx раздаёт `dist` и есть `try_files $uri $uri/ /index.html;`.
 
 ## Telegram Mini App
 - Нужно HTTPS и валидный SSL.
 - В проде указывать URL `https://tg.play-team.ru/`.
+
+## API
+- По умолчанию фронт ждёт backend на том же домене через `/api`.
+- Если API на другом домене, задай `VITE_API_BASE` (например `https://api.play-team.ru`).

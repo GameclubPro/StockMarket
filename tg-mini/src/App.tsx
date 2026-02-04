@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getUserLabel, initTelegram, isTelegram } from './telegram';
+import { verifyInitData } from './api';
+import { getInitDataRaw, getUserLabel, initTelegram, isTelegram } from './telegram';
 
 type Offer = {
   id: string;
@@ -84,12 +85,21 @@ export default function App() {
   const [offers, setOffers] = useState<Offer[]>(initialOffers);
   const [form, setForm] = useState<OfferForm>(defaultForm);
   const [filter, setFilter] = useState<'Все' | Offer['platform']>('Все');
+  const [authState, setAuthState] = useState<'idle' | 'verifying' | 'ok' | 'error'>('idle');
 
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
 
   useEffect(() => {
     initTelegram();
     setUserLabel(getUserLabel());
+
+    const initDataRaw = getInitDataRaw();
+    if (!initDataRaw) return;
+
+    setAuthState('verifying');
+    verifyInitData(initDataRaw)
+      .then(() => setAuthState('ok'))
+      .catch(() => setAuthState('error'));
   }, []);
 
   const visibleOffers = offers.filter((offer) => (filter === 'Все' ? true : offer.platform === filter));
@@ -331,6 +341,7 @@ export default function App() {
 
       <footer className="footer">
         <p>Мини‑апп подключён: {isTelegram() ? 'Telegram' : 'Браузер (preview)'}</p>
+        <p>Auth: {authState === 'ok' ? 'Проверено' : authState === 'verifying' ? 'Проверка...' : authState === 'error' ? 'Ошибка' : '—'}</p>
         <p>Поддержка: @play_team</p>
       </footer>
     </div>

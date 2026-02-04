@@ -1,0 +1,97 @@
+// Если у тебя MySQL/MariaDB, замени provider на "mysql"
+// и обнови DATABASE_URL в .env
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Platform {
+  TELEGRAM
+  YOUTUBE
+  TIKTOK
+  INSTAGRAM
+  X
+}
+
+enum Action {
+  SUBSCRIBE
+  SUBSCRIBE_LIKE
+  LIKE_COMMENT
+}
+
+enum Ratio {
+  ONE_ONE
+  ONE_TWO
+  TWO_ONE
+}
+
+enum OfferStatus {
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
+model User {
+  id          String   @id @default(cuid())
+  telegramId  String   @unique
+  username    String?
+  firstName   String?
+  lastName    String?
+  photoUrl    String?
+  rating      Float    @default(5)
+  createdAt   DateTime @default(now())
+
+  offers      Offer[]
+  requests    Request[]
+  reviewsFrom Review[] @relation("UserReviewsFrom")
+  reviewsTo   Review[] @relation("UserReviewsTo")
+}
+
+model Offer {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  platform  Platform
+  action    Action
+  ratio     Ratio
+  link      String
+  note      String
+  status    OfferStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+
+  requests  Request[]
+}
+
+model Request {
+  id          String        @id @default(cuid())
+  offerId     String
+  offer       Offer         @relation(fields: [offerId], references: [id])
+  requesterId String
+  requester   User          @relation(fields: [requesterId], references: [id])
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  fromUser   User     @relation("UserReviewsFrom", fields: [fromUserId], references: [id])
+  toUser     User     @relation("UserReviewsTo", fields: [toUserId], references: [id])
+}
