@@ -294,13 +294,14 @@ body::before {
 
 .segment {
   margin: 10px 6px 0;
-  padding: 4px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .segment.wide {
@@ -315,21 +316,37 @@ body::before {
 
 .segment-button {
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 8px 10px;
+  border: 0;
+  border-radius: 999px;
+  height: 32px;
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
-  transition: 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
 }
 
 .segment-button.active {
-  background: rgba(124, 255, 178, 0.24);
+  background: linear-gradient(180deg, rgba(124, 255, 178, 0.35), rgba(124, 255, 178, 0.16));
   color: #ffffff;
-  border: 1px solid rgba(124, 255, 178, 0.35);
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 255, 178, 0.45),
+    0 6px 14px rgba(124, 255, 178, 0.18);
+}
+
+.segment-button:focus-visible {
+  outline: 2px solid rgba(138, 210, 255, 0.5);
+  outline-offset: 2px;
 }
 
 .section-card {
