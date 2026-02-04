@@ -10,7 +10,7 @@ export default function App() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
-  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine' | 'spend'>('place');
+  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -245,13 +245,6 @@ export default function App() {
               >
                 Мои размещенные
               </button>
-              <button
-                className={`segment-button ${myTasksTab === 'spend' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setMyTasksTab('spend')}
-              >
-                Потратить баллы
-              </button>
             </div>
 
             {myTasksTab === 'place' && (
@@ -346,12 +339,6 @@ export default function App() {
               </div>
             )}
 
-            {myTasksTab === 'spend' && (
-              <div className="section-card">
-                <div className="section-title">Потратить баллы</div>
-                <div className="section-text">Раздел появится позже.</div>
-              </div>
-            )}
           </>
         )}
 
