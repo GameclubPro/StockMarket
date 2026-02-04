@@ -12,11 +12,6 @@ export default function App() {
     return trimmed ? trimmed[0].toUpperCase() : 'A';
   }, [userLabel]);
 
-  const pointsLabel = useMemo(() => {
-    const value = Math.abs(points);
-    return value % 10 === 1 && value % 100 !== 11 ? 'БАЛЛ' : 'БАЛЛА';
-  }, [points]);
-
   useEffect(() => {
     initTelegram();
     setUserLabel(getUserLabel());
@@ -46,7 +41,7 @@ export default function App() {
             <div className="stat divider">
               <div className="stat-main">
                 <span className="accent">{points >= 0 ? `+ ${points}` : `${points}`}</span>
-                <span>{pointsLabel}</span>
+                <span>Балл</span>
               </div>
               <div className="stat-title">{pointsToday >= 0 ? `+${pointsToday}` : pointsToday} сегодня</div>
             </div>
