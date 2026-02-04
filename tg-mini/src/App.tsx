@@ -1,4 +1,14 @@
+import { useEffect, useState } from 'react';
+import { getUserLabel, initTelegram } from './telegram';
+
 export default function App() {
+  const [userLabel, setUserLabel] = useState(() => getUserLabel());
+
+  useEffect(() => {
+    initTelegram();
+    setUserLabel(getUserLabel());
+  }, []);
+
   return (
     <div className="screen">
       <div className="content">
@@ -8,7 +18,7 @@ export default function App() {
               <div className="avatar">A</div>
             </div>
             <div>
-              <div className="user-name">@QwertyuiooopSd</div>
+              <div className="user-name">{userLabel}</div>
               <div className="sub">Уровень: Alpha</div>
               <div className="stats">
                 <div className="stat divider">

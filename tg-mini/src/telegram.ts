@@ -39,9 +39,10 @@ export const getUserLabel = () => {
 
   if (!user) user = getUserFromLaunchParams();
   if (!user) return 'Гость';
-  if (user.username) return `@${user.username}`;
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-  return fullName || 'Гость';
+  if (fullName) return fullName;
+  if (user.username) return user.username;
+  return 'Гость';
 };
 
 export const getInitDataRaw = () => {
