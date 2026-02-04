@@ -1,499 +1,175 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ApplicationDto, CampaignDto, GroupDto } from './api';
-import {
-  applyCampaign,
-  approveApplication,
-  createCampaign,
-  createGroup,
-  fetchCampaigns,
-  fetchIncomingApplications,
-  fetchMe,
-  fetchMyApplications,
-  fetchMyCampaigns,
-  fetchMyGroups,
-  rejectApplication,
-  verifyInitData,
-} from './api';
-import { getInitDataRaw, getUserLabel, initTelegram, isTelegram } from './telegram';
-
-type TabId = 'market' | 'promote' | 'applications';
-
-type GroupForm = {
-  title: string;
-  username: string;
-  inviteLink: string;
-  description: string;
-  category: string;
-};
-
-type CampaignForm = {
-  groupId: string;
-  rewardPoints: string;
-  totalBudget: string;
-};
-
-const tabs: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'market', label: 'Биржа', hint: 'Заработок' },
-  { id: 'promote', label: 'Продвижение', hint: 'Ваши кампании' },
-  { id: 'applications', label: 'Заявки', hint: 'Ваши действия' },
-];
-
-const statusLabels: Record<ApplicationDto['status'], string> = {
-  PENDING: 'Ожидает',
-  APPROVED: 'Принято',
-  REJECTED: 'Отклонено',
-};
-
-const campaignStatusLabels: Record<CampaignDto['status'], string> = {
-  ACTIVE: 'Активна',
-  PAUSED: 'Пауза',
-  COMPLETED: 'Завершена',
-};
-
-const categories = ['Все', 'Игры', 'Бизнес', 'Новости', 'Развлечения', 'IT', 'Обучение', 'Другое'];
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('market');
-  const [authState, setAuthState] = useState<'idle' | 'verifying' | 'ok' | 'error'>('idle');
-  const [message, setMessage] = useState('');
-  const [balance, setBalance] = useState(0);
-  const [stats, setStats] = useState({ groups: 0, campaigns: 0, applications: 0 });
-  const [userLabel, setUserLabel] = useState(() => getUserLabel());
-
-  const [marketCampaigns, setMarketCampaigns] = useState<CampaignDto[]>([]);
-  const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
-  const [myCampaigns, setMyCampaigns] = useState<CampaignDto[]>([]);
-  const [myApplications, setMyApplications] = useState<ApplicationDto[]>([]);
-  const [incomingApplications, setIncomingApplications] = useState<ApplicationDto[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState('Все');
-
-  const [groupForm, setGroupForm] = useState<GroupForm>({
-    title: '',
-    username: '',
-    inviteLink: '',
-    description: '',
-    category: '',
-  });
-  const [campaignForm, setCampaignForm] = useState<CampaignForm>({
-    groupId: '',
-    rewardPoints: '10',
-    totalBudget: '100',
-  });
-
-  const level = useMemo(() => Math.max(1, Math.floor(balance / 500) + 1), [balance]);
-  const nextLevelAt = level * 500;
-  const progress = Math.min(100, Math.round((balance / nextLevelAt) * 100));
-
-  const loadMe = async () => {
-    const data = await fetchMe();
-    setBalance(data.balance ?? 0);
-    setStats(data.stats ?? { groups: 0, campaigns: 0, applications: 0 });
-  };
-
-  const loadMarket = async (category?: string) => {
-    const data = await fetchCampaigns(category && category !== 'Все' ? category : undefined);
-    setMarketCampaigns(data.campaigns ?? []);
-  };
-
-  const loadPromote = async () => {
-    const [groupsData, campaignsData, incomingData] = await Promise.all([
-      fetchMyGroups(),
-      fetchMyCampaigns(),
-      fetchIncomingApplications(),
-    ]);
-    setMyGroups(groupsData.groups ?? []);
-    setMyCampaigns(campaignsData.campaigns ?? []);
-    setIncomingApplications(incomingData.applications ?? []);
-  };
-
-  const loadApplications = async () => {
-    const data = await fetchMyApplications();
-    setMyApplications(data.applications ?? []);
-  };
-
-  const loadAll = async () => {
-    try {
-      await Promise.all([loadMe(), loadMarket(categoryFilter), loadPromote(), loadApplications()]);
-    } catch {
-      setMessage('Не удалось загрузить данные.');
-    }
-  };
-
-  useEffect(() => {
-    initTelegram();
-    setUserLabel(getUserLabel());
-
-    const initDataRaw = getInitDataRaw();
-    if (!initDataRaw) return;
-
-    setAuthState('verifying');
-    verifyInitData(initDataRaw)
-      .then((data) => {
-        setAuthState('ok');
-        if (data.balance !== undefined) setBalance(data.balance ?? 0);
-        loadAll();
-      })
-      .catch(() => {
-        setAuthState('error');
-        setMessage('Авторизация не прошла. Открой через Telegram.');
-      });
-  }, []);
-
-  useEffect(() => {
-    loadMarket(categoryFilter);
-  }, [categoryFilter]);
-
-  const handleCreateGroup = async () => {
-    if (!groupForm.title.trim() || !groupForm.inviteLink.trim()) return;
-    try {
-      await createGroup({
-        title: groupForm.title.trim(),
-        username: groupForm.username.trim() || undefined,
-        inviteLink: groupForm.inviteLink.trim(),
-        description: groupForm.description.trim() || undefined,
-        category: groupForm.category.trim() || undefined,
-      });
-      setGroupForm({ title: '', username: '', inviteLink: '', description: '', category: '' });
-      await loadPromote();
-      await loadMe();
-      setMessage('Группа добавлена.');
-    } catch {
-      setMessage('Не удалось добавить группу.');
-    }
-  };
-
-  const handleCreateCampaign = async () => {
-    if (!campaignForm.groupId) return;
-    try {
-      await createCampaign({
-        groupId: campaignForm.groupId,
-        rewardPoints: Number(campaignForm.rewardPoints),
-        totalBudget: Number(campaignForm.totalBudget),
-      });
-      await loadPromote();
-      await loadMe();
-      setMessage('Кампания создана.');
-    } catch {
-      setMessage('Не удалось создать кампанию (проверь баланс).');
-    }
-  };
-
-  const handleApply = async (id: string) => {
-    try {
-      await applyCampaign(id);
-      await loadApplications();
-      setMessage('Заявка отправлена.');
-    } catch {
-      setMessage('Не удалось отправить заявку.');
-    }
-  };
-
-  const handleApprove = async (id: string) => {
-    try {
-      await approveApplication(id);
-      await loadPromote();
-      await loadMe();
-      setMessage('Заявка подтверждена, баллы начислены.');
-    } catch {
-      setMessage('Не удалось подтвердить заявку.');
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    try {
-      await rejectApplication(id);
-      await loadPromote();
-      setMessage('Заявка отклонена.');
-    } catch {
-      setMessage('Не удалось отклонить заявку.');
-    }
-  };
-
   return (
-    <div className="app">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Telegram Mini App · Биржа продвижения</p>
-          <h1>Биржа взаимных вступлений</h1>
-          <p className="subhead">Зарабатывай баллы за вступления и продвигай свои группы.</p>
+    <div className="screen">
+      <div className="status">
+        <div>20:43</div>
+        <div className="icons">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M7 17c5-5 7-7 10-10" />
+            <path d="M7 7h10v10" />
+          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <rect x="3" y="6" width="18" height="12" rx="2" />
+            <path d="M7 10h4" />
+          </svg>
+          <div className="pill" />
         </div>
-        <div className="chip">Онлайн · {new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
-      </header>
+      </div>
 
-      <section className="stats">
-        <div className="stat">
-          <p>Пользователь</p>
-          <strong>{userLabel}</strong>
-          <span>Авторизация: {authState === 'ok' ? 'Ok' : authState === 'verifying' ? 'Проверка' : '—'}</span>
-        </div>
-        <div className="stat">
-          <p>Баланс</p>
-          <strong>{balance}</strong>
-          <span>Уровень {level}</span>
-        </div>
-        <div className="stat">
-          <p>Прогресс</p>
-          <strong>{Math.max(0, nextLevelAt - balance)}</strong>
-          <span>До уровня {level + 1} · {progress}%</span>
+      <div className="topbar">
+        <button className="icon-btn" type="button" aria-label="Назад">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <div className="title">Профиль</div>
+        <button className="icon-btn" type="button" aria-label="Поиск">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+        </button>
+      </div>
+
+      <section className="profile-card">
+        <div className="profile-head">
+          <div className="avatar-ring">
+            <div className="avatar">A</div>
+          </div>
+          <div>
+            <div className="user-name">@QwertyuiooopSd</div>
+            <div className="sub">Уровень: Alpha</div>
+            <div className="stats">
+              <div className="stat divider">
+                <div className="stat-main">
+                  <span className="accent">+ 823</span>
+                  <span>OP</span>
+                </div>
+                <div className="stat-title">+122 сегодня</div>
+              </div>
+              <div className="stat">
+                <div className="stat-main">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <path
+                      d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
+                      stroke="currentColor"
+                    />
+                  </svg>
+                  <span className="gold">4.8</span>
+                </div>
+                <div className="stat-title">Рейтинг 4.8</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <nav className="tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={activeTab === tab.id ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span>{tab.label}</span>
-            <small>{tab.hint}</small>
-          </button>
-        ))}
-      </nav>
+      <div className="menu">
+        <button className="menu-item" type="button">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#79f0b6" strokeWidth="1.6">
+              <path d="M3 12l18-9-6 18-3-7-9-2z" />
+            </svg>
+          </div>
+          <div>
+            <div className="label">Создать задание</div>
+            <div className="desc">4 861 подписчик</div>
+          </div>
+          <div className="chev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </div>
+        </button>
 
-      {activeTab === 'market' && (
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Доступные кампании</h2>
-              <p>Выбирай группы и зарабатывай баллы.</p>
-            </div>
-            <div className="filters">
-              {categories.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={categoryFilter === item ? 'filter active' : 'filter'}
-                  onClick={() => setCategoryFilter(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+        <button className="menu-item" type="button">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#b6a9ff" strokeWidth="1.6">
+              <circle cx="9" cy="9" r="3" />
+              <circle cx="16" cy="10" r="2.5" />
+              <path d="M3 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5" />
+            </svg>
           </div>
+          <div>
+            <div className="label">Биржа взаимной подписки</div>
+            <div className="desc">4 861 подписчик</div>
+          </div>
+          <div className="chev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </div>
+        </button>
 
-          <div className="offers">
-            {marketCampaigns.map((campaign) => (
-              <article key={campaign.id} className="card offer">
-                <div className="offer-head">
-                  <div>
-                    <h3>{campaign.group.title}</h3>
-                    <p>{campaign.group.category || 'Без категории'} · {new Date(campaign.createdAt).toLocaleString('ru-RU')}</p>
-                  </div>
-                  <span className="pill active">+{campaign.rewardPoints} баллов</span>
-                </div>
-                <p className="offer-note">{campaign.group.description || 'Описание группы не указано.'}</p>
-                <div className="offer-meta">
-                  <span>Бюджет: {campaign.remainingBudget}/{campaign.totalBudget}</span>
-                  {campaign.group.username ? (
-                    <a href={`https://t.me/${campaign.group.username}`} target="_blank" rel="noreferrer">@{campaign.group.username}</a>
-                  ) : (
-                    <a href={campaign.group.inviteLink} target="_blank" rel="noreferrer">Ссылка на группу</a>
-                  )}
-                </div>
-                <div className="offer-actions">
-                  <button className="primary" type="button" onClick={() => handleApply(campaign.id)}>
-                    Отправить заявку
-                  </button>
-                </div>
-              </article>
-            ))}
-            {!marketCampaigns.length && <p className="empty">Нет активных кампаний.</p>}
+        <button className="menu-item" type="button">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#9ad8ff" strokeWidth="1.6">
+              <rect x="4" y="4" width="4" height="4" rx="1" />
+              <rect x="4" y="10" width="4" height="4" rx="1" />
+              <rect x="4" y="16" width="4" height="4" rx="1" />
+              <path d="M11 6h9M11 12h9M11 18h9" />
+            </svg>
           </div>
-        </section>
-      )}
+          <div>
+            <div className="label">Мои задания</div>
+            <div className="desc">268 активных выполнения</div>
+          </div>
+          <div className="chev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </div>
+        </button>
 
-      {activeTab === 'promote' && (
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Продвижение ваших групп</h2>
-              <p>Добавляй группы и запускай кампании.</p>
-            </div>
+        <button className="menu-item" type="button">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#c8c8ff" strokeWidth="1.6">
+              <circle cx="12" cy="12" r="3.5" />
+              <path
+                d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z"
+              />
+            </svg>
           </div>
+          <div>
+            <div className="label">Настройки</div>
+          </div>
+          <div className="chev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </div>
+        </button>
+      </div>
 
-          <div className="grid-2">
-            <form
-              className="card form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleCreateGroup();
-              }}
-            >
-              <h3>Новая группа</h3>
-              <label>
-                Название группы
-                <input
-                  value={groupForm.title}
-                  onChange={(event) => setGroupForm((prev) => ({ ...prev, title: event.target.value }))}
-                  placeholder="Название"
-                  required
-                />
-              </label>
-              <label>
-                Username (если есть)
-                <input
-                  value={groupForm.username}
-                  onChange={(event) => setGroupForm((prev) => ({ ...prev, username: event.target.value }))}
-                  placeholder="play_team"
-                />
-              </label>
-              <label>
-                Invite link
-                <input
-                  value={groupForm.inviteLink}
-                  onChange={(event) => setGroupForm((prev) => ({ ...prev, inviteLink: event.target.value }))}
-                  placeholder="https://t.me/+..."
-                  required
-                />
-              </label>
-              <label>
-                Категория
-                <input
-                  value={groupForm.category}
-                  onChange={(event) => setGroupForm((prev) => ({ ...prev, category: event.target.value }))}
-                  placeholder="Игры, IT, Бизнес"
-                />
-              </label>
-              <label className="full">
-                Описание
-                <textarea
-                  rows={3}
-                  value={groupForm.description}
-                  onChange={(event) => setGroupForm((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="Коротко о группе"
-                />
-              </label>
-              <div className="form-actions">
-                <button className="primary" type="submit">Добавить группу</button>
-              </div>
-            </form>
-
-            <form
-              className="card form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleCreateCampaign();
-              }}
-            >
-              <h3>Новая кампания</h3>
-              <label>
-                Группа
-                <select
-                  value={campaignForm.groupId}
-                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, groupId: event.target.value }))}
-                >
-                  <option value="">Выберите группу</option>
-                  {myGroups.map((group) => (
-                    <option key={group.id} value={group.id}>{group.title}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Баллы за вступление
-                <input
-                  type="number"
-                  min={1}
-                  value={campaignForm.rewardPoints}
-                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, rewardPoints: event.target.value }))}
-                />
-              </label>
-              <label>
-                Общий бюджет
-                <input
-                  type="number"
-                  min={1}
-                  value={campaignForm.totalBudget}
-                  onChange={(event) => setCampaignForm((prev) => ({ ...prev, totalBudget: event.target.value }))}
-                />
-              </label>
-              <p className="helper">Баллы спишутся с твоего баланса при создании кампании.</p>
-              <div className="form-actions">
-                <button className="primary" type="submit">Запустить кампанию</button>
-              </div>
-            </form>
-          </div>
-
-          <div className="panel-head">
-            <div>
-              <h2>Мои кампании</h2>
-              <p>Статус и остаток бюджета.</p>
-            </div>
-          </div>
-          <div className="offers">
-            {myCampaigns.map((campaign) => (
-              <article key={campaign.id} className="card offer">
-                <div className="offer-head">
-                  <div>
-                    <h3>{campaign.group.title}</h3>
-                    <p>Баллы: {campaign.rewardPoints} · Остаток: {campaign.remainingBudget}</p>
-                  </div>
-                  <span className={`pill ${campaign.status.toLowerCase()}`}>{campaignStatusLabels[campaign.status]}</span>
-                </div>
-                <p className="offer-note">Бюджет: {campaign.totalBudget} · Создано {new Date(campaign.createdAt).toLocaleDateString('ru-RU')}</p>
-              </article>
-            ))}
-            {!myCampaigns.length && <p className="empty">Кампаний пока нет.</p>}
-          </div>
-
-          <div className="panel-head">
-            <div>
-              <h2>Входящие заявки</h2>
-              <p>Подтверди вступления и начисли баллы.</p>
-            </div>
-          </div>
-          <div className="offers">
-            {incomingApplications.map((app) => (
-              <article key={app.id} className="card offer">
-                <div className="offer-head">
-                  <div>
-                    <h3>{app.campaign.group.title}</h3>
-                    <p>Заявка от {app.applicant?.username ? `@${app.applicant.username}` : app.applicant?.firstName || 'пользователь'}</p>
-                  </div>
-                  <span className="pill pending">Ожидает</span>
-                </div>
-                <div className="offer-actions">
-                  <button className="primary" type="button" onClick={() => handleApprove(app.id)}>Подтвердить</button>
-                  <button className="ghost" type="button" onClick={() => handleReject(app.id)}>Отклонить</button>
-                </div>
-              </article>
-            ))}
-            {!incomingApplications.length && <p className="empty">Нет входящих заявок.</p>}
-          </div>
-        </section>
-      )}
-
-      {activeTab === 'applications' && (
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Мои заявки</h2>
-              <p>История вступлений и начисления баллов.</p>
-            </div>
-          </div>
-          <div className="offers">
-            {myApplications.map((app) => (
-              <article key={app.id} className="card offer">
-                <div className="offer-head">
-                  <div>
-                    <h3>{app.campaign.group.title}</h3>
-                    <p>Создано: {new Date(app.createdAt).toLocaleDateString('ru-RU')}</p>
-                  </div>
-                  <span className={`pill ${app.status.toLowerCase()}`}>{statusLabels[app.status]}</span>
-                </div>
-                <p className="offer-note">Награда: {app.campaign.rewardPoints} баллов</p>
-              </article>
-            ))}
-            {!myApplications.length && <p className="empty">Заявок пока нет.</p>}
-          </div>
-        </section>
-      )}
-
-      <footer className="footer">
-        <p>Среда: {isTelegram() ? 'Telegram' : 'Браузер (preview)'}</p>
-        <p>{message || `Группы: ${stats.groups} · Кампании: ${stats.campaigns} · Заявки: ${stats.applications}`}</p>
-      </footer>
+      <div className="bottom-nav">
+        <div className="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M3 11l9-7 9 7" />
+            <path d="M5 10v9h5v-5h4v5h5v-9" />
+          </svg>
+          <span>Главная</span>
+        </div>
+        <div className="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M12 20s-7-4.6-7-10a4 4 0 017-2 4 4 0 017 2c0 5.4-7 10-7 10z" />
+          </svg>
+          <span>Взаимка</span>
+        </div>
+        <div className="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <rect x="4" y="5" width="16" height="14" rx="2" />
+            <path d="M8 9h8M8 13h6" />
+          </svg>
+          <span>Задания</span>
+        </div>
+        <div className="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z" />
+          </svg>
+          <span>Настройки</span>
+        </div>
+      </div>
     </div>
   );
 }
