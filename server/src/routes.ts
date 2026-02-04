@@ -64,6 +64,8 @@ const requireUser = async (request: any) => {
         firstName: tgUser.first_name,
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
+        balance: 0,
+        rating: 0,
       },
     });
 
@@ -98,6 +100,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         firstName: tgUser.first_name,
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
+        balance: 0,
+        rating: 0,
       },
     });
 

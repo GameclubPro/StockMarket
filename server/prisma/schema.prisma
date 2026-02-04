@@ -33,7 +33,8 @@ model User {
   firstName  String?
   lastName   String?
   photoUrl   String?
-  balance    Int      @default(100)
+  balance    Int      @default(0)
+  rating     Float    @default(0)
   createdAt  DateTime @default(now())
 
   groups       Group[]

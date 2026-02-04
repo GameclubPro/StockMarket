@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
+import { verifyInitData } from './api';
+import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
-  const points = 823;
-  const pointsToday = 122;
+  const [points, setPoints] = useState(0);
+  const [pointsToday] = useState(0);
+  const [rating, setRating] = useState(0);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -16,6 +18,21 @@ export default function App() {
     initTelegram();
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
+
+    const loadProfile = async () => {
+      const initData = getInitDataRaw();
+      if (!initData) return;
+
+      try {
+        const data = await verifyInitData(initData);
+        if (typeof data.balance === 'number') setPoints(data.balance);
+        if (typeof data.user?.rating === 'number') setRating(data.user.rating);
+      } catch {
+        // Keep default zeros on auth failure.
+      }
+    };
+
+    void loadProfile();
   }, []);
 
   return (
@@ -53,9 +70,9 @@ export default function App() {
                     stroke="currentColor"
                   />
                 </svg>
-                <span className="gold">4.8</span>
+                <span className="gold">{rating.toFixed(1)}</span>
               </div>
-              <div className="stat-title">Рейтинг 4.8</div>
+              <div className="stat-title">Рейтинг {rating.toFixed(1)}</div>
             </div>
           </div>
         </section>

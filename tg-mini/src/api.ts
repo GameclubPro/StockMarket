@@ -6,6 +6,7 @@ export type UserDto = {
   firstName?: string | null;
   lastName?: string | null;
   photoUrl?: string | null;
+  rating?: number | null;
 };
 
 export type GroupDto = {
