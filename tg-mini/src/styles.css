@@ -308,8 +308,8 @@ body::before {
 }
 
 .segment.center {
-  grid-template-columns: repeat(2, max-content);
-  width: fit-content;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(360px, 100%);
   margin: 10px auto 0;
 }
 
@@ -414,16 +414,23 @@ body::before {
 .task-info {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .task-title {
   font-size: 15px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-handle {
   font-size: 13px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-actions {
@@ -444,9 +451,11 @@ body::before {
 
 .task-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   font-size: 12px;
+  min-width: 0;
 }
 
 .badge {
