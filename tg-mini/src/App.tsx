@@ -232,16 +232,16 @@ export default function App() {
 
         {activeTab === 'tasks' && (
           <>
-            <div className="tabs-row">
+            <div className="segment">
               <button
-                className={`tab-button ${tasksTab === 'all' ? 'active' : ''}`}
+                className={`segment-button ${tasksTab === 'all' ? 'active' : ''}`}
                 type="button"
                 onClick={() => setTasksTab('all')}
               >
                 Задания
               </button>
               <button
-                className={`tab-button ${tasksTab === 'mine' ? 'active' : ''}`}
+                className={`segment-button ${tasksTab === 'mine' ? 'active' : ''}`}
                 type="button"
                 onClick={() => setTasksTab('mine')}
               >
