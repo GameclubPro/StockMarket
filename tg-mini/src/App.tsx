@@ -8,6 +8,8 @@ export default function App() {
   const [points, setPoints] = useState(0);
   const [pointsToday] = useState(0);
   const [rating, setRating] = useState(0);
+  const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
+  const [tasksTab, setTasksTab] = useState<'all' | 'mine'>('all');
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -38,151 +40,224 @@ export default function App() {
   return (
     <div className="screen">
       <div className="content">
-        <section className="profile-card">
-          <div className="profile-head">
-            <div className="avatar-ring">
-              <div className="avatar">
-                {userPhoto ? (
-                  <img src={userPhoto} alt={userLabel} />
-                ) : (
-                  <span>{initialLetter}</span>
-                )}
+        {activeTab === 'home' && (
+          <>
+            <section className="profile-card">
+              <div className="profile-head">
+                <div className="avatar-ring">
+                  <div className="avatar">
+                    {userPhoto ? (
+                      <img src={userPhoto} alt={userLabel} />
+                    ) : (
+                      <span>{initialLetter}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="identity">
+                  <div className="user-name">{userLabel}</div>
+                  <div className="sub">Уровень: Alpha</div>
+                </div>
+              </div>
+              <div className="stats">
+                <div className="stat divider">
+                  <div className="stat-main">
+                    <span className="accent">{points >= 0 ? `+ ${points}` : `${points}`}</span>
+                    <span>Балл</span>
+                  </div>
+                  <div className="stat-title">
+                    {pointsToday >= 0 ? `+${pointsToday}` : pointsToday} сегодня
+                  </div>
+                </div>
+                <div className="stat">
+                  <div className="stat-main">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                      <path
+                        d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
+                        stroke="currentColor"
+                      />
+                    </svg>
+                    <span className="gold">{rating.toFixed(1)}</span>
+                  </div>
+                  <div className="stat-title">Рейтинг {rating.toFixed(1)}</div>
+                </div>
+              </div>
+            </section>
+
+            <div className="menu">
+              <button className="menu-item" type="button">
+                <div className="menu-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#79f0b6" strokeWidth="1.6">
+                    <path d="M3 12l18-9-6 18-3-7-9-2z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="label">Создать задание</div>
+                  <div className="desc">4 861 подписчик</div>
+                </div>
+                <div className="chev">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </button>
+
+              <button className="menu-item" type="button">
+                <div className="menu-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#b6a9ff" strokeWidth="1.6">
+                    <circle cx="9" cy="9" r="3" />
+                    <circle cx="16" cy="10" r="2.5" />
+                    <path d="M3 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="label">Биржа продвижения</div>
+                  <div className="desc">4 861 подписчик</div>
+                </div>
+                <div className="chev">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </button>
+
+              <button className="menu-item" type="button">
+                <div className="menu-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#9ad8ff" strokeWidth="1.6">
+                    <rect x="4" y="4" width="4" height="4" rx="1" />
+                    <rect x="4" y="10" width="4" height="4" rx="1" />
+                    <rect x="4" y="16" width="4" height="4" rx="1" />
+                    <path d="M11 6h9M11 12h9M11 18h9" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="label">Мои задания</div>
+                  <div className="desc">268 активных выполнения</div>
+                </div>
+                <div className="chev">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </button>
+
+              <button className="menu-item" type="button">
+                <div className="menu-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#c8c8ff" strokeWidth="1.6">
+                    <circle cx="12" cy="12" r="3.5" />
+                    <path
+                      d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <div className="label">Настройки</div>
+                </div>
+                <div className="chev">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'promo' && (
+          <>
+            <div className="page-title">Продвижение</div>
+            <div className="section-card">
+              <div className="section-title">Биржа продвижения</div>
+              <div className="section-text">Здесь появятся кампании и доступные задания.</div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'tasks' && (
+          <>
+            <div className="tabs-row">
+              <button
+                className={`tab-button ${tasksTab === 'all' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksTab('all')}
+              >
+                Задания
+              </button>
+              <button
+                className={`tab-button ${tasksTab === 'mine' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksTab('mine')}
+              >
+                Мои задания
+              </button>
+            </div>
+            <div className="section-card">
+              <div className="section-title">
+                {tasksTab === 'all' ? 'Задания' : 'Мои задания'}
+              </div>
+              <div className="section-text">
+                {tasksTab === 'all'
+                  ? 'Список доступных заданий появится здесь.'
+                  : 'Список ваших заданий появится здесь.'}
               </div>
             </div>
-            <div className="identity">
-              <div className="user-name">{userLabel}</div>
-              <div className="sub">Уровень: Alpha</div>
-            </div>
-          </div>
-          <div className="stats">
-            <div className="stat divider">
-              <div className="stat-main">
-                <span className="accent">{points >= 0 ? `+ ${points}` : `${points}`}</span>
-                <span>Балл</span>
-              </div>
-              <div className="stat-title">{pointsToday >= 0 ? `+${pointsToday}` : pointsToday} сегодня</div>
-            </div>
-            <div className="stat">
-              <div className="stat-main">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <path
-                    d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
-                    stroke="currentColor"
-                  />
-                </svg>
-                <span className="gold">{rating.toFixed(1)}</span>
-              </div>
-              <div className="stat-title">Рейтинг {rating.toFixed(1)}</div>
-            </div>
-          </div>
-        </section>
+          </>
+        )}
 
-        <div className="menu">
-          <button className="menu-item" type="button">
-            <div className="menu-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#79f0b6" strokeWidth="1.6">
-                <path d="M3 12l18-9-6 18-3-7-9-2z" />
-              </svg>
+        {activeTab === 'settings' && (
+          <>
+            <div className="page-title">Настройки</div>
+            <div className="section-card">
+              <div className="section-title">Профиль и уведомления</div>
+              <div className="section-text">Настройте аккаунт, уведомления и безопасность.</div>
             </div>
-            <div>
-              <div className="label">Создать задание</div>
-              <div className="desc">4 861 подписчик</div>
-            </div>
-            <div className="chev">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </div>
-          </button>
-
-          <button className="menu-item" type="button">
-            <div className="menu-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#b6a9ff" strokeWidth="1.6">
-                <circle cx="9" cy="9" r="3" />
-                <circle cx="16" cy="10" r="2.5" />
-                <path d="M3 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5" />
-              </svg>
-            </div>
-            <div>
-              <div className="label">Биржа продвижения</div>
-              <div className="desc">4 861 подписчик</div>
-            </div>
-            <div className="chev">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </div>
-          </button>
-
-          <button className="menu-item" type="button">
-            <div className="menu-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#9ad8ff" strokeWidth="1.6">
-                <rect x="4" y="4" width="4" height="4" rx="1" />
-                <rect x="4" y="10" width="4" height="4" rx="1" />
-                <rect x="4" y="16" width="4" height="4" rx="1" />
-                <path d="M11 6h9M11 12h9M11 18h9" />
-              </svg>
-            </div>
-            <div>
-              <div className="label">Мои задания</div>
-              <div className="desc">268 активных выполнения</div>
-            </div>
-            <div className="chev">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </div>
-          </button>
-
-          <button className="menu-item" type="button">
-            <div className="menu-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#c8c8ff" strokeWidth="1.6">
-                <circle cx="12" cy="12" r="3.5" />
-                <path
-                  d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z"
-                />
-              </svg>
-            </div>
-            <div>
-              <div className="label">Настройки</div>
-            </div>
-            <div className="chev">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </div>
-          </button>
-        </div>
+          </>
+        )}
       </div>
 
       <div className="bottom-nav">
-        <div className="nav-item active">
+        <button
+          className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setActiveTab('home')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M3 11l9-7 9 7" />
             <path d="M5 10v9h5v-5h4v5h5v-9" />
           </svg>
           <span>Главная</span>
-        </div>
-        <div className="nav-item">
+        </button>
+        <button
+          className={`nav-item ${activeTab === 'promo' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setActiveTab('promo')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M12 20s-7-4.6-7-10a4 4 0 017-2 4 4 0 017 2c0 5.4-7 10-7 10z" />
           </svg>
           <span>Продвижение</span>
-        </div>
-        <div className="nav-item">
+        </button>
+        <button
+          className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setActiveTab('tasks')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="4" y="5" width="16" height="14" rx="2" />
             <path d="M8 9h8M8 13h6" />
           </svg>
           <span>Задания</span>
-        </div>
-        <div className="nav-item">
+        </button>
+        <button
+          className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setActiveTab('settings')}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <circle cx="12" cy="12" r="3.5" />
             <path d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z" />
           </svg>
           <span>Настройки</span>
-        </div>
+        </button>
       </div>
     </div>
   );

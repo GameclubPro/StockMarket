@@ -258,6 +258,57 @@ body::before {
   height: 18px;
 }
 
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  padding: 2px 6px 0;
+}
+
+.section-card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.section-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.tabs-row {
+  display: inline-flex;
+  gap: 8px;
+  padding: 2px 6px 0;
+}
+
+.tab-button {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.tab-button.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
 .chev {
   color: rgba(255, 255, 255, 0.6);
 }
@@ -281,6 +332,8 @@ body::before {
   gap: 6px;
   justify-items: center;
   padding: 8px 0 2px;
+  cursor: pointer;
+  color: inherit;
 }
 
 .bottom-nav svg {
