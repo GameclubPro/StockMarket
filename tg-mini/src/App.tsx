@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react';
-import { getUserLabel, initTelegram } from './telegram';
+import { useEffect, useMemo, useState } from 'react';
+import { getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
+  const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
+
+  const initialLetter = useMemo(() => {
+    const trimmed = userLabel.trim();
+    return trimmed ? trimmed[0].toUpperCase() : 'A';
+  }, [userLabel]);
 
   useEffect(() => {
     initTelegram();
     setUserLabel(getUserLabel());
+    setUserPhoto(getUserPhotoUrl());
   }, []);
 
   return (
@@ -15,7 +22,13 @@ export default function App() {
         <section className="profile-card">
           <div className="profile-head">
             <div className="avatar-ring">
-              <div className="avatar">A</div>
+              <div className="avatar">
+                {userPhoto ? (
+                  <img src={userPhoto} alt={userLabel} />
+                ) : (
+                  <span>{initialLetter}</span>
+                )}
+              </div>
             </div>
             <div>
               <div className="user-name">{userLabel}</div>

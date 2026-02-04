@@ -4,6 +4,7 @@ type User = {
   username?: string;
   first_name?: string;
   last_name?: string;
+  photo_url?: string;
 };
 
 let initialized = false;
@@ -43,6 +44,20 @@ export const getUserLabel = () => {
   if (fullName) return fullName;
   if (user.username) return user.username;
   return 'Гость';
+};
+
+export const getUserPhotoUrl = () => {
+  let user: User | undefined;
+
+  try {
+    const maybeUser = initData.user?.();
+    if (maybeUser) user = maybeUser as User;
+  } catch {
+    user = undefined;
+  }
+
+  if (!user) user = getUserFromLaunchParams();
+  return user?.photo_url || '';
 };
 
 export const getInitDataRaw = () => {
