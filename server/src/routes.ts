@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { prisma } from './db';
-import { config } from './config';
-import { signSession, verifySession } from './auth';
-import { verifyInitData } from './telegram';
+import { prisma } from './db.js';
+import { config } from './config.js';
+import { signSession, verifySession } from './auth.js';
+import { verifyInitData } from './telegram.js';
 
 const authBodySchema = z.object({
   initData: z.string().min(1),

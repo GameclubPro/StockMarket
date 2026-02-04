@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { config } from './config';
+import { config } from './config.js';
 
 const encoder = new TextEncoder();
 

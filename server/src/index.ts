@@ -2,8 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { config } from './config';
-import { registerRoutes } from './routes';
+import { config } from './config.js';
+import { registerRoutes } from './routes.js';
 
 const app = Fastify({
   logger: true,

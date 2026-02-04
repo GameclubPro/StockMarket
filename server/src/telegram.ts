@@ -12,7 +12,7 @@ export type TelegramAuthData = {
   user?: TelegramUser;
   auth_date?: string;
   hash?: string;
-  [key: string]: string | undefined;
+  [key: string]: string | TelegramUser | undefined;
 };
 
 const buildDataCheckString = (data: URLSearchParams) => {
@@ -52,9 +52,9 @@ export const verifyInitData = (initData: string, botToken: string, maxAgeSec: nu
     data[key] = value;
   });
 
-  if (data.user) {
+  if (typeof data.user === 'string') {
     try {
-      data.user = JSON.parse(data.user as string) as TelegramUser;
+      data.user = JSON.parse(data.user) as TelegramUser;
     } catch {
       // ignore parse errors
     }
