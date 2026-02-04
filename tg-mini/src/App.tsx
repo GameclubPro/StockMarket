@@ -87,7 +87,7 @@ export default function App() {
               </svg>
             </div>
             <div>
-              <div className="label">Биржа взаимной подписки</div>
+              <div className="label">Биржа продвижения</div>
               <div className="desc">4 861 подписчик</div>
             </div>
             <div className="chev">
@@ -150,7 +150,7 @@ export default function App() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M12 20s-7-4.6-7-10a4 4 0 017-2 4 4 0 017 2c0 5.4-7 10-7 10z" />
           </svg>
-          <span>Взаимка</span>
+          <span>Продвижение</span>
         </div>
         <div className="nav-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
