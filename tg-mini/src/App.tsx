@@ -256,13 +256,6 @@ export default function App() {
                       Создайте задание, чтобы привлечь подписчиков.
                     </div>
                   </div>
-                  <button className="icon-button" type="button" aria-label="Меню">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <circle cx="12" cy="5" r="1.6" />
-                      <circle cx="12" cy="12" r="1.6" />
-                      <circle cx="12" cy="19" r="1.6" />
-                    </svg>
-                  </button>
                 </div>
 
                 <div className="task-form-body">
