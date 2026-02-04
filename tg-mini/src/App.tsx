@@ -1,6 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
-import { verifyInitData } from './api';
+import { readTextFromClipboard } from '@telegram-apps/sdk';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchMyGroups, type GroupDto, verifyInitData } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
+
+const QUICK_LINKS = [
+  {
+    id: 'quick-1',
+    title: 'Канал о фрилансе',
+    handle: '@freelance_daily',
+    url: 'https://t.me/freelance_daily',
+  },
+  {
+    id: 'quick-2',
+    title: 'Чат мастеров маникюра',
+    handle: '@beauty_subchat',
+    url: 'https://t.me/beauty_subchat',
+  },
+  {
+    id: 'quick-3',
+    title: 'Сток Fix Price Ростов',
+    handle: '@fixprice_rostov',
+    url: 'https://t.me/fixprice_rostov',
+  },
+  {
+    id: 'quick-4',
+    title: 'Фитнес-клуб Ростов',
+    handle: '@fitness_rostov',
+    url: 'https://t.me/fitness_rostov',
+  },
+];
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
@@ -14,6 +42,12 @@ export default function App() {
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [subscriberCount, setSubscriberCount] = useState(10);
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [linkHint, setLinkHint] = useState('');
+  const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
+  const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
+  const [myGroupsLoading, setMyGroupsLoading] = useState(false);
+  const [myGroupsError, setMyGroupsError] = useState('');
 
   const tasks = [
     {
@@ -93,6 +127,69 @@ export default function App() {
 
     void loadProfile();
   }, []);
+
+  const loadMyGroups = useCallback(async () => {
+    setMyGroupsError('');
+    setMyGroupsLoading(true);
+
+    try {
+      const data = await fetchMyGroups();
+      if (data.ok && Array.isArray(data.groups)) {
+        setMyGroups(data.groups);
+      } else {
+        setMyGroups([]);
+        setMyGroupsError('Не удалось загрузить список групп.');
+      }
+    } catch {
+      setMyGroups([]);
+      setMyGroupsError('Не удалось загрузить список групп.');
+    } finally {
+      setMyGroupsLoaded(true);
+      setMyGroupsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!linkPickerOpen) return;
+    if (myGroupsLoaded || myGroupsLoading) return;
+    void loadMyGroups();
+  }, [linkPickerOpen, loadMyGroups, myGroupsLoaded, myGroupsLoading]);
+
+  const handleQuickLinkSelect = (url: string) => {
+    setTaskLink(url);
+    setLinkPickerOpen(false);
+    setLinkHint('');
+  };
+
+  const handlePasteLink = async () => {
+    setLinkHint('');
+    let text = '';
+
+    if (readTextFromClipboard.isAvailable()) {
+      const value = await readTextFromClipboard();
+      if (typeof value === 'string') text = value;
+    } else if (navigator.clipboard?.readText) {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        text = '';
+      }
+    }
+
+    if (text) {
+      setTaskLink(text.trim());
+      setLinkPickerOpen(false);
+      return;
+    }
+
+    setLinkHint('Не удалось прочитать буфер обмена.');
+  };
+
+  const getGroupSecondaryLabel = (group: GroupDto) => {
+    const username = group.username?.trim();
+    if (username) return username.startsWith('@') ? username : `@${username}`;
+    return group.inviteLink;
+  };
 
   return (
     <div className="screen">
@@ -268,6 +365,81 @@ export default function App() {
                       onChange={(event) => setTaskLink(event.target.value)}
                     />
                   </label>
+                  <div className="link-tools">
+                    <button
+                      className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
+                      type="button"
+                      aria-expanded={linkPickerOpen}
+                      aria-controls="quick-link-picker"
+                      onClick={() => setLinkPickerOpen((prev) => !prev)}
+                    >
+                      Быстрый выбор
+                    </button>
+                    <button
+                      className="link-tool secondary"
+                      type="button"
+                      onClick={() => void handlePasteLink()}
+                    >
+                      Вставить из буфера
+                    </button>
+                  </div>
+                  {linkHint && <div className="link-hint">{linkHint}</div>}
+                  {linkPickerOpen && (
+                    <div className="link-picker" id="quick-link-picker">
+                      <div className="link-picker-head">
+                        <span className="link-picker-title">Мои группы</span>
+                        <button
+                          className="link-picker-refresh"
+                          type="button"
+                          aria-label="Обновить список групп"
+                          disabled={myGroupsLoading}
+                          onClick={() => void loadMyGroups()}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M21 12a9 9 0 11-2.6-6.4" />
+                            <path d="M21 3v7h-7" />
+                          </svg>
+                        </button>
+                      </div>
+                      {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
+                      {!myGroupsLoading && myGroupsError && (
+                        <div className="link-picker-status error">{myGroupsError}</div>
+                      )}
+                      {!myGroupsLoading &&
+                        !myGroupsError &&
+                        myGroupsLoaded &&
+                        myGroups.length === 0 && (
+                          <div className="link-picker-status">Пока нет добавленных групп.</div>
+                        )}
+                      {!myGroupsLoading &&
+                        !myGroupsError &&
+                        myGroups.map((group) => (
+                          <button
+                            className="link-option"
+                            key={group.id}
+                            type="button"
+                            onClick={() => handleQuickLinkSelect(group.inviteLink)}
+                          >
+                            <span className="link-option-title">{group.title}</span>
+                            <span className="link-option-handle">{getGroupSecondaryLabel(group)}</span>
+                          </button>
+                        ))}
+
+                      <div className="link-picker-divider" role="separator" aria-hidden="true" />
+                      <div className="link-picker-subtitle">Подсказки</div>
+                      {QUICK_LINKS.map((item) => (
+                        <button
+                          className="link-option"
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleQuickLinkSelect(item.url)}
+                        >
+                          <span className="link-option-title">{item.title}</span>
+                          <span className="link-option-handle">{item.handle}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="choice-row">
                     <button
                       className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}

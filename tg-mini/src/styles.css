@@ -545,6 +545,148 @@ body::before {
   flex-wrap: wrap;
 }
 
+.link-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.link-tool {
+  flex: 1;
+  min-width: 140px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: 0.2s ease;
+}
+
+.link-tool.active {
+  background: rgba(138, 210, 255, 0.2);
+  border-color: rgba(138, 210, 255, 0.35);
+}
+
+.link-tool.secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+
+.link-picker {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.link-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.link-picker-title,
+.link-picker-subtitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.link-picker-subtitle {
+  padding: 2px 4px 0;
+}
+
+.link-picker-refresh {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.link-picker-refresh:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.link-picker-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.link-picker-refresh svg {
+  width: 16px;
+  height: 16px;
+}
+
+.link-picker-status {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 2px 4px;
+}
+
+.link-picker-status.error {
+  color: rgba(255, 138, 138, 0.9);
+}
+
+.link-picker-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
+}
+
+.link-option {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  transition: 0.2s ease;
+}
+
+.link-option:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.link-option-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.link-option-handle {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .choice-pill {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
