@@ -10,6 +10,9 @@ export default function App() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [tasksTab, setTasksTab] = useState<'all' | 'mine'>('all');
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [taskLink, setTaskLink] = useState('');
+  const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -199,6 +202,46 @@ export default function App() {
                   ? 'Список доступных заданий появится здесь.'
                   : 'Список ваших заданий появится здесь.'}
               </div>
+              {tasksTab === 'mine' && (
+                <div className="create-block">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => setShowCreateTask((prev) => !prev)}
+                  >
+                    {showCreateTask ? 'Скрыть' : 'Создать'}
+                  </button>
+                  {showCreateTask && (
+                    <div className="create-form">
+                      <label className="field">
+                        <span>Ссылка</span>
+                        <input
+                          type="url"
+                          placeholder="https://t.me/..."
+                          value={taskLink}
+                          onChange={(event) => setTaskLink(event.target.value)}
+                        />
+                      </label>
+                      <div className="choice-row">
+                        <button
+                          className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => setTaskType('subscribe')}
+                        >
+                          Подписка
+                        </button>
+                        <button
+                          className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => setTaskType('reaction')}
+                        >
+                          Реакция
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}

@@ -309,6 +309,80 @@ body::before {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
+.create-block {
+  margin-top: 10px;
+  display: grid;
+  gap: 12px;
+}
+
+.primary-button {
+  background: rgba(138, 210, 255, 0.18);
+  border: 1px solid rgba(138, 210, 255, 0.35);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: 0.2s ease;
+  width: fit-content;
+}
+
+.primary-button:hover {
+  background: rgba(138, 210, 255, 0.26);
+}
+
+.create-form {
+  display: grid;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field input {
+  background: rgba(8, 8, 14, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(138, 210, 255, 0.45);
+  box-shadow: 0 0 0 2px rgba(138, 210, 255, 0.2);
+}
+
+.choice-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.choice-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.choice-pill.active {
+  background: rgba(124, 255, 178, 0.2);
+  border-color: rgba(124, 255, 178, 0.35);
+  color: #ffffff;
+}
+
 .chev {
   color: rgba(255, 255, 255, 0.6);
 }
