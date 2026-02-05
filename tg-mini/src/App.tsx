@@ -91,8 +91,15 @@ export default function App() {
   const [applications, setApplications] = useState<ApplicationDto[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
+  const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
+  const balanceValueRef = useRef<HTMLSpanElement | null>(null);
+  const historyTabRef = useRef<HTMLButtonElement | null>(null);
+  const taskCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const taskBadgeRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const approvalTrackerRef = useRef<Map<string, ApplicationDto['status']>>(new Map());
+  const animatingOutRef = useRef<Set<string>>(new Set());
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -127,13 +134,14 @@ export default function App() {
     [taskPrice]
   );
   const activeCampaigns = useMemo(() => {
+    const animatingSet = new Set(animatingOutIds);
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
-      if (status === 'APPROVED') return false;
+      if (status === 'APPROVED' && !animatingSet.has(campaign.id)) return false;
       if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
-  }, [applicationsByCampaign, campaigns, userId]);
+  }, [applicationsByCampaign, campaigns, userId, animatingOutIds]);
   const visibleCampaigns = useMemo(() => {
     if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
@@ -395,11 +403,97 @@ export default function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const registerTaskCardRef = useCallback((id: string, node: HTMLDivElement | null) => {
+    if (node) {
+      taskCardRefs.current.set(id, node);
+      return;
+    }
+    taskCardRefs.current.delete(id);
+  }, []);
+
+  const registerTaskBadgeRef = useCallback((id: string, node: HTMLSpanElement | null) => {
+    if (node) {
+      taskBadgeRefs.current.set(id, node);
+      return;
+    }
+    taskBadgeRefs.current.delete(id);
+  }, []);
+
+  const animateFlyout = useCallback(
+    (source: HTMLElement, target: HTMLElement, className: string, scale: number) => {
+      const sourceRect = source.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const clone = source.cloneNode(true) as HTMLElement;
+
+      clone.classList.add(className);
+      clone.style.position = 'fixed';
+      clone.style.left = `${sourceRect.left}px`;
+      clone.style.top = `${sourceRect.top}px`;
+      clone.style.width = `${sourceRect.width}px`;
+      clone.style.height = `${sourceRect.height}px`;
+      clone.style.margin = '0';
+      clone.style.zIndex = '9999';
+      clone.style.pointerEvents = 'none';
+      clone.style.transform = 'translate(0px, 0px) scale(1)';
+      clone.style.opacity = '1';
+
+      document.body.appendChild(clone);
+
+      const dx = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
+      const dy = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+
+      requestAnimationFrame(() => {
+        clone.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        clone.style.opacity = '0';
+      });
+
+      clone.addEventListener(
+        'transitionend',
+        () => {
+          clone.remove();
+        },
+        { once: true }
+      );
+    },
+    []
+  );
+
+  const triggerCompletionAnimation = useCallback(
+    (campaignId: string) => {
+      const card = taskCardRefs.current.get(campaignId);
+      const badge = taskBadgeRefs.current.get(campaignId);
+      const historyTab = historyTabRef.current;
+      const balanceValue = balanceValueRef.current;
+      const finish = () => {
+        animatingOutRef.current.delete(campaignId);
+        setAnimatingOutIds((prev) => prev.filter((item) => item !== campaignId));
+      };
+
+      if (!card || !badge || !historyTab || !balanceValue) {
+        window.setTimeout(finish, 300);
+        return;
+      }
+
+      animateFlyout(card, historyTab, 'flyout-card', 0.2);
+      animateFlyout(badge, balanceValue, 'flyout-badge', 0.4);
+
+      balanceValue.classList.remove('balance-pulse');
+      void balanceValue.offsetWidth;
+      balanceValue.classList.add('balance-pulse');
+      window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 650);
+
+      window.setTimeout(finish, 750);
+    },
+    [animateFlyout]
+  );
+
   const BalanceHeader = () => (
     <div className="balance-header">
       <div className="balance-header-metrics">
         <div className="metric-card compact">
-          <span className="metric-value">{points}</span>
+          <span className="metric-value" ref={balanceValueRef}>
+            {points}
+          </span>
           <span className="metric-unit">{formatPointsLabel(points)}</span>
           <button className="metric-plus" type="button" aria-label="Пополнить баланс">
             +
@@ -488,6 +582,44 @@ export default function App() {
       setActionLoadingId('');
     }
   };
+
+  const handleOpenCampaign = async (campaign: CampaignDto, status?: ApplicationDto['status']) => {
+    if (!status && actionLoadingId !== campaign.id) {
+      void handleApplyCampaign(campaign.id);
+    }
+    openCampaignLink(campaign);
+  };
+
+  useEffect(() => {
+    const previous = approvalTrackerRef.current;
+    const next = new Map<string, ApplicationDto['status']>();
+    const newlyApproved: ApplicationDto[] = [];
+
+    applications.forEach((application) => {
+      next.set(application.campaign.id, application.status);
+      const prevStatus = previous.get(application.campaign.id);
+      if (application.status === 'APPROVED' && prevStatus !== 'APPROVED') {
+        newlyApproved.push(application);
+      }
+    });
+
+    approvalTrackerRef.current = next;
+    if (newlyApproved.length === 0) return;
+    if (activeTab !== 'tasks' || taskListFilter === 'history') return;
+
+    newlyApproved.forEach((application) => {
+      const campaignId = application.campaign.id;
+      if (animatingOutRef.current.has(campaignId)) return;
+
+      animatingOutRef.current.add(campaignId);
+      setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          triggerCompletionAnimation(campaignId);
+        });
+      });
+    });
+  }, [applications, activeTab, taskListFilter, triggerCompletionAnimation]);
 
 
   return (
@@ -941,6 +1073,7 @@ export default function App() {
                   role="tab"
                   aria-selected={taskListFilter === 'history'}
                   onClick={() => setTaskListFilter('history')}
+                  ref={historyTabRef}
                 >
                   История
                 </button>
@@ -968,18 +1101,12 @@ export default function App() {
                     const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
                       calculatePayout(campaign.rewardPoints)
                     )}`;
-                    const actionLabel =
-                      status === 'APPROVED'
-                        ? 'Получено'
-                        : status === 'PENDING'
-                          ? 'Ожидание'
-                          : 'Получить';
-                    const disabled =
-                      status === 'APPROVED' ||
-                      status === 'PENDING' ||
-                      actionLoadingId === campaign.id;
                     return (
-                      <div className="task-card" key={campaign.id}>
+                      <div
+                        className={`task-card ${animatingOutIds.includes(campaign.id) ? 'is-leaving' : ''}`}
+                        key={campaign.id}
+                        ref={(node) => registerTaskCardRef(campaign.id, node)}
+                      >
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -987,7 +1114,12 @@ export default function App() {
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
-                              <span className="badge sticker">{badgeLabel}</span>
+                              <span
+                                className="badge sticker"
+                                ref={(node) => registerTaskBadgeRef(campaign.id, node)}
+                              >
+                                {badgeLabel}
+                              </span>
                             </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
@@ -997,8 +1129,9 @@ export default function App() {
                             <button
                               className="open-button icon"
                               type="button"
-                              onClick={() => openCampaignLink(campaign)}
-                              aria-label="Открыть"
+                              onClick={() => void handleOpenCampaign(campaign, status)}
+                              aria-label={status ? 'Открыть' : 'Получить и открыть'}
+                              disabled={actionLoadingId === campaign.id}
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
                                 <path d="M9 5h10v10" />
@@ -1006,28 +1139,12 @@ export default function App() {
                                 <path d="M5 19h10" />
                               </svg>
                             </button>
-                            <button
-                              className="open-button secondary icon"
-                              type="button"
-                              onClick={() => void handleApplyCampaign(campaign.id)}
-                              disabled={disabled}
-                              aria-label={actionLabel}
-                            >
-                              {status === 'APPROVED' ? (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                  <path d="M5 12l4 4L19 7" />
-                                </svg>
-                              ) : status === 'PENDING' ? (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                                  <circle cx="12" cy="12" r="7" />
-                                  <path d="M12 8v4l3 2" />
-                                </svg>
-                              ) : (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                  <path d="M12 5v14M5 12h14" />
-                                </svg>
-                              )}
-                            </button>
+                            {status === 'PENDING' && (
+                              <span className="status-badge pending">Ожидание</span>
+                            )}
+                            {status === 'APPROVED' && (
+                              <span className="status-badge approved">Получено</span>
+                            )}
                           </div>
                         </div>
                       </div>
