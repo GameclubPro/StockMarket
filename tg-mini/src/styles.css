@@ -687,7 +687,7 @@ body::before {
   display: grid;
   gap: 8px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.55s ease, transform 0.55s ease;
   will-change: transform, opacity;
 }
 

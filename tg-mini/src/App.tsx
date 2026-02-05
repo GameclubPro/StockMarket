@@ -490,7 +490,7 @@ export default function App() {
         ],
         {
           duration: durationMs,
-          easing: 'cubic-bezier(0.12, 0.86, 0.18, 1)',
+          easing: 'cubic-bezier(0.18, 0.84, 0.22, 1)',
           fill: 'forwards',
         }
       );
@@ -521,8 +521,8 @@ export default function App() {
         return;
       }
 
-      const cardDuration = 1700;
-      const badgeDuration = 1300;
+      const cardDuration = 2400;
+      const badgeDuration = 2000;
       const cardAnim = animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
       const badgeAnim = animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
 
