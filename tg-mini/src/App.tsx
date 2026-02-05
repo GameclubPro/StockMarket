@@ -219,7 +219,9 @@ export default function App() {
                 </div>
                 <div className="identity">
                   <div className="user-name">{userLabel}</div>
-                  <div className="sub">Уровень: Alpha</div>
+                  <button className="sub" type="button">
+                    Пополнить баланс
+                  </button>
                 </div>
               </div>
               <div className="stats">
