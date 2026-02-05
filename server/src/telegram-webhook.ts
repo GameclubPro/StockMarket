@@ -35,8 +35,8 @@ type TelegramChatMemberUpdate = {
 };
 
 type TelegramReaction = {
-  type: 'emoji';
-  emoji: string;
+  type: string;
+  emoji?: string;
 };
 
 type TelegramMessageReactionUpdate = {
@@ -49,11 +49,24 @@ type TelegramMessageReactionUpdate = {
   new_reaction?: TelegramReaction[];
 };
 
+type TelegramReactionCount = {
+  type: TelegramReaction;
+  total_count: number;
+};
+
+type TelegramMessageReactionCountUpdate = {
+  chat: TelegramChat;
+  message_id: number;
+  date?: number;
+  reactions?: TelegramReactionCount[];
+};
+
 export type TelegramUpdate = {
   update_id: number;
   my_chat_member?: TelegramMyChatMemberUpdate;
   chat_member?: TelegramChatMemberUpdate;
   message_reaction?: TelegramMessageReactionUpdate;
+  message_reaction_count?: TelegramMessageReactionCountUpdate;
 };
 
 type UpsertGroupPayload = {
@@ -72,6 +85,11 @@ export const handleBotWebhookUpdate = async (
       messageId: number;
       emoji?: string;
     }) => Promise<void>;
+    handleReactionCount?: (payload: {
+      chat: TelegramChat;
+      messageId: number;
+      totalCount: number;
+    }) => Promise<void>;
     handleChatMember?: (payload: {
       chat: TelegramChat;
       user: TelegramUser;
@@ -81,6 +99,7 @@ export const handleBotWebhookUpdate = async (
 ) => {
   const payload = update.my_chat_member;
   const reaction = update.message_reaction;
+  const reactionCount = update.message_reaction_count;
   const chatMember = update.chat_member;
 
   if (reaction && reaction.user && reaction.chat) {
@@ -92,6 +111,20 @@ export const handleBotWebhookUpdate = async (
         emoji: reaction.new_reaction[0]?.emoji,
       });
     }
+  }
+
+  if (reactionCount && reactionCount.chat) {
+    const totalCount = Array.isArray(reactionCount.reactions)
+      ? reactionCount.reactions.reduce(
+          (sum, item) => sum + (Number.isFinite(item.total_count) ? item.total_count : 0),
+          0
+        )
+      : 0;
+    await deps.handleReactionCount?.({
+      chat: reactionCount.chat,
+      messageId: reactionCount.message_id,
+      totalCount,
+    });
   }
 
   if (chatMember && chatMember.new_chat_member?.user && chatMember.chat) {

@@ -72,6 +72,7 @@ model Campaign {
   owner           User           @relation(fields: [ownerId], references: [id])
   actionType      CampaignType   @default(SUBSCRIBE)
   targetMessageId Int?
+  reactionCount   Int?
   rewardPoints    Int
   totalBudget     Int
   remainingBudget Int

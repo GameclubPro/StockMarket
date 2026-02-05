@@ -11,7 +11,10 @@ if (!token || !webhookUrl) {
 
 const params = new URLSearchParams();
 params.set('url', webhookUrl);
-params.set('allowed_updates', JSON.stringify(['my_chat_member', 'message_reaction', 'chat_member']));
+params.set(
+  'allowed_updates',
+  JSON.stringify(['my_chat_member', 'message_reaction', 'message_reaction_count', 'chat_member'])
+);
 if (secret) params.set('secret_token', secret);
 
 const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {

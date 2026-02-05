@@ -368,6 +368,82 @@ export const registerRoutes = (app: FastifyInstance) => {
             });
           });
         },
+        handleReactionCount: async ({ chat, messageId, totalCount }) => {
+          if (!chat.username) return;
+          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          if (!group) return;
+
+          const campaigns = await prisma.campaign.findMany({
+            where: {
+              groupId: group.id,
+              actionType: 'REACTION',
+              targetMessageId: messageId,
+              status: 'ACTIVE',
+              remainingBudget: { gt: 0 },
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (campaigns.length === 0) return;
+
+          for (const campaign of campaigns) {
+            await prisma.$transaction(async (tx) => {
+              const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+              if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+
+              const lastCount = freshCampaign.reactionCount;
+              await tx.campaign.update({
+                where: { id: freshCampaign.id },
+                data: { reactionCount: totalCount },
+              });
+
+              if (chat.type !== 'channel') return;
+              if (lastCount === null || lastCount === undefined) return;
+
+              const delta = totalCount - lastCount;
+              if (delta <= 0) return;
+
+              const maxByBudget = Math.floor(
+                freshCampaign.remainingBudget / freshCampaign.rewardPoints
+              );
+              if (maxByBudget <= 0) return;
+
+              const pending = await tx.application.findMany({
+                where: { campaignId: freshCampaign.id, status: 'PENDING' },
+                orderBy: { createdAt: 'asc' },
+                take: Math.min(delta, maxByBudget),
+              });
+              if (pending.length === 0) return;
+
+              const approveCount = Math.min(delta, pending.length, maxByBudget);
+              const toApprove = pending.slice(0, approveCount);
+              const now = new Date();
+
+              await tx.application.updateMany({
+                where: { id: { in: toApprove.map((item) => item.id) } },
+                data: { status: 'APPROVED', reviewedAt: now },
+              });
+
+              const spend = freshCampaign.rewardPoints * approveCount;
+              const newRemaining = freshCampaign.remainingBudget - spend;
+
+              await tx.campaign.update({
+                where: { id: freshCampaign.id },
+                data: {
+                  remainingBudget: { decrement: spend },
+                  status: newRemaining <= 0 ? 'COMPLETED' : freshCampaign.status,
+                },
+              });
+
+              for (const application of toApprove) {
+                await creditUserForCampaign(tx, {
+                  userId: application.applicantId,
+                  campaign: freshCampaign,
+                  reason: 'Реакция на пост',
+                });
+              }
+            });
+          }
+        },
         handleChatMember: async ({ chat, user, status }) => {
           if (!chat.username) return;
           if (user.is_bot) return;
