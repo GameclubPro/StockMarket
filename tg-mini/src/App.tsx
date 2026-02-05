@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
   createCampaign,
@@ -93,6 +93,7 @@ export default function App() {
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
   const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
+  const [animationQueueTick, setAnimationQueueTick] = useState(0);
   const resumeRefreshAtRef = useRef(0);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
@@ -506,7 +507,7 @@ export default function App() {
   );
 
   const triggerCompletionAnimation = useCallback(
-    (campaignId: string, attempt = 0) => {
+    (campaignId: string) => {
       const card = taskCardRefs.current.get(campaignId);
       const badge = taskBadgeRefs.current.get(campaignId);
       const historyTab = historyTabRef.current;
@@ -517,13 +518,7 @@ export default function App() {
       };
 
       if (!card || !badge || !historyTab || !balanceValue) {
-        if (attempt < 10) {
-          window.setTimeout(() => {
-            triggerCompletionAnimation(campaignId, attempt + 1);
-          }, 180);
-        } else {
-          window.setTimeout(finish, 200);
-        }
+        window.setTimeout(finish, 200);
         return;
       }
 
@@ -661,7 +656,10 @@ export default function App() {
     approvalTrackerRef.current = next;
     if (newlyApproved.length === 0) return;
 
-    const canAnimateNow = activeTab === 'tasks' && taskListFilter !== 'history';
+    const isVisible =
+      typeof document === 'undefined' ? true : document.visibilityState === 'visible';
+    const canAnimateNow = activeTab === 'tasks' && taskListFilter !== 'history' && isVisible;
+    let queued = false;
 
     newlyApproved.forEach((application) => {
       const campaignId = application.campaign.id;
@@ -669,19 +667,15 @@ export default function App() {
 
       animatingOutRef.current.add(campaignId);
       setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
-
-      if (canAnimateNow) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            triggerCompletionAnimation(campaignId);
-          });
-        });
-      } else {
-        pendingApprovalIdsRef.current.add(campaignId);
-      }
+      pendingApprovalIdsRef.current.add(campaignId);
+      queued = true;
     });
 
-    if (!canAnimateNow && !autoRevealApprovalRef.current) {
+    if (queued) {
+      setAnimationQueueTick((tick) => tick + 1);
+    }
+
+    if (!canAnimateNow && isVisible && !autoRevealApprovalRef.current) {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         autoRevealApprovalRef.current = true;
         setActiveTab('tasks');
@@ -690,27 +684,44 @@ export default function App() {
         }
       }
     }
-  }, [applications, activeTab, taskListFilter, triggerCompletionAnimation]);
+  }, [applications, activeTab, taskListFilter]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeTab !== 'tasks' || taskListFilter === 'history') return;
     if (pendingApprovalIdsRef.current.size === 0) {
       autoRevealApprovalRef.current = false;
       return;
     }
 
-    const pending = Array.from(pendingApprovalIdsRef.current);
-    pendingApprovalIdsRef.current.clear();
-    pending.forEach((campaignId) => {
-      if (!animatingOutRef.current.has(campaignId)) return;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          triggerCompletionAnimation(campaignId);
-        });
-      });
+    const visibleIds = new Set(visibleCampaigns.map((campaign) => campaign.id));
+    const pendingIds = Array.from(pendingApprovalIdsRef.current);
+    let hasRenderablePending = false;
+    let missingRefs = false;
+
+    pendingIds.forEach((campaignId) => {
+      if (!visibleIds.has(campaignId)) return;
+      hasRenderablePending = true;
+      const card = taskCardRefs.current.get(campaignId);
+      const badge = taskBadgeRefs.current.get(campaignId);
+      const historyTab = historyTabRef.current;
+      const balanceValue = balanceValueRef.current;
+      if (!card || !badge || !historyTab || !balanceValue) {
+        missingRefs = true;
+        return;
+      }
+      pendingApprovalIdsRef.current.delete(campaignId);
+      triggerCompletionAnimation(campaignId);
     });
-    autoRevealApprovalRef.current = false;
-  }, [activeTab, taskListFilter, triggerCompletionAnimation]);
+
+    if (pendingApprovalIdsRef.current.size === 0) {
+      autoRevealApprovalRef.current = false;
+      return;
+    }
+
+    if (hasRenderablePending && missingRefs) {
+      requestAnimationFrame(() => setAnimationQueueTick((tick) => tick + 1));
+    }
+  }, [activeTab, taskListFilter, visibleCampaigns, animationQueueTick, triggerCompletionAnimation]);
 
 
   return (
