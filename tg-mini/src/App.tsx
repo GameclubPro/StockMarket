@@ -489,10 +489,14 @@ export default function App() {
       const length = Math.hypot(dx, dy) || 1;
       const nx = -dy / length;
       const ny = dx / length;
-      const curve = Math.min(140, length * 0.28);
-      const midX = dx * 0.55 + nx * curve;
-      const midY = dy * 0.55 + ny * curve;
-      const midScale = 1 - (1 - scale) * 0.45;
+      const curve = Math.min(180, length * 0.35);
+      const dip = Math.min(140, Math.max(60, length * 0.3));
+      const midX = dx * 0.25 + nx * curve * 0.35;
+      const midY = dy * 0.15 + dip;
+      const mid2X = dx * 0.7 - nx * curve * 0.15;
+      const mid2Y = dy * 0.7 - dip * 0.12;
+      const midScale = 1 - (1 - scale) * 0.35;
+      const mid2Scale = 1 - (1 - scale) * 0.7;
 
       const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
       if (reduceMotion || !clone.animate) {
@@ -505,8 +509,13 @@ export default function App() {
           { transform: 'translate(0px, 0px) scale(1)', opacity: 1, offset: 0 },
           {
             transform: `translate(${midX}px, ${midY}px) scale(${midScale})`,
-            opacity: 0.72,
-            offset: 0.6,
+            opacity: 0.82,
+            offset: 0.38,
+          },
+          {
+            transform: `translate(${mid2X}px, ${mid2Y}px) scale(${mid2Scale})`,
+            opacity: 0.68,
+            offset: 0.74,
           },
           {
             transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
@@ -516,7 +525,7 @@ export default function App() {
         ],
         {
           duration: durationMs,
-          easing: 'cubic-bezier(0.16, 0.84, 0.44, 1)',
+          easing: 'cubic-bezier(0.12, 0.86, 0.18, 1)',
           fill: 'forwards',
         }
       );
@@ -548,8 +557,8 @@ export default function App() {
         return;
       }
 
-      const cardDuration = 1200;
-      const badgeDuration = 900;
+      const cardDuration = 1700;
+      const badgeDuration = 1300;
       animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
       animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
 
