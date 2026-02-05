@@ -6,7 +6,7 @@ export type UserDto = {
   firstName?: string | null;
   lastName?: string | null;
   photoUrl?: string | null;
-  rating?: number | null;
+  totalEarned?: number | null;
 };
 
 export type GroupDto = {
@@ -34,7 +34,7 @@ export type CampaignDto = {
 
 export type ApplicationDto = {
   id: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
   createdAt: string;
   reviewedAt?: string | null;
   campaign: CampaignDto;

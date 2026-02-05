@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "webhook:set": "node scripts/set-webhook.mjs",
-    "balance:backfill": "node scripts/backfill-start-balance.mjs"
+    "balance:backfill": "node scripts/backfill-start-balance.mjs",
+    "total:backfill": "node scripts/backfill-total-earned.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

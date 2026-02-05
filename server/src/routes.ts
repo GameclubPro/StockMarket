@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './db.js';
+import { type Prisma, type User } from '@prisma/client';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
@@ -34,9 +35,32 @@ const campaignQuerySchema = z.object({
 });
 
 const PLATFORM_FEE_RATE = 0.3;
-const calculatePayout = (rewardPoints: number) => {
+const RANKS = [
+  { level: 0, minTotal: 0, title: 'Новичок', bonusRate: 0 },
+  { level: 1, minTotal: 100, title: 'Бронза', bonusRate: 0.05 },
+  { level: 2, minTotal: 300, title: 'Серебро', bonusRate: 0.1 },
+  { level: 3, minTotal: 1000, title: 'Золото', bonusRate: 0.15 },
+  { level: 4, minTotal: 3000, title: 'Платина', bonusRate: 0.2 },
+  { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
+];
+
+const getRankByTotal = (totalEarned: number) => {
+  let current = RANKS[0];
+  for (const rank of RANKS) {
+    if (totalEarned >= rank.minTotal) current = rank;
+  }
+  return current;
+};
+
+const calculateBasePayout = (rewardPoints: number) => {
   const payout = Math.round(rewardPoints * (1 - PLATFORM_FEE_RATE));
   return Math.max(1, Math.min(rewardPoints, payout));
+};
+
+const calculatePayoutWithBonus = (rewardPoints: number, bonusRate: number) => {
+  const base = calculateBasePayout(rewardPoints);
+  const bonus = Math.round(base * bonusRate);
+  return Math.max(1, Math.min(rewardPoints, base + bonus));
 };
 
 const parseMessageLink = (value: string) => {
@@ -65,15 +89,104 @@ const getToken = (authHeader?: string) => {
   return token ?? '';
 };
 
-const ensureLegacyBalance = async <T extends { id: string; balance: number }>(user: T) => {
-  if (user.balance !== 0) return user;
-  const hasLedger = await prisma.ledgerEntry.findFirst({
-    where: { userId: user.id },
-    select: { id: true },
+const creditUserForCampaign = async (
+  tx: Prisma.TransactionClient,
+  payload: { userId: string; campaign: { id: string; rewardPoints: number }; reason: string }
+) => {
+  const user = await tx.user.findUnique({
+    where: { id: payload.userId },
+    select: { totalEarned: true },
   });
-  if (hasLedger) return user;
-  await prisma.user.update({ where: { id: user.id }, data: { balance: 30 } });
-  return { ...user, balance: 30 };
+  if (!user) throw new Error('user not found');
+
+  const bonusRate = getRankByTotal(user.totalEarned).bonusRate;
+  const payout = calculatePayoutWithBonus(payload.campaign.rewardPoints, bonusRate);
+
+  await tx.user.update({
+    where: { id: payload.userId },
+    data: {
+      balance: { increment: payout },
+      totalEarned: { increment: payout },
+    },
+  });
+
+  await tx.ledgerEntry.create({
+    data: {
+      userId: payload.userId,
+      type: 'EARN',
+      amount: payout,
+      reason: payload.reason,
+      campaignId: payload.campaign.id,
+    },
+  });
+
+  return payout;
+};
+
+const applyUnsubscribePenalty = async (
+  tx: Prisma.TransactionClient,
+  payload: { userId: string; campaignId: string }
+) => {
+  const [user, earnedEntry] = await Promise.all([
+    tx.user.findUnique({ where: { id: payload.userId }, select: { totalEarned: true } }),
+    tx.ledgerEntry.findFirst({
+      where: { userId: payload.userId, campaignId: payload.campaignId, type: 'EARN' },
+      orderBy: { createdAt: 'desc' },
+      select: { amount: true },
+    }),
+  ]);
+
+  if (!user || !earnedEntry) return null;
+
+  const earnedAmount = Math.max(0, Math.abs(earnedEntry.amount));
+  if (earnedAmount === 0) return null;
+
+  const penalty = earnedAmount * 2;
+  const newTotalEarned = Math.max(0, user.totalEarned - penalty);
+
+  await tx.user.update({
+    where: { id: payload.userId },
+    data: {
+      balance: { decrement: penalty },
+      totalEarned: newTotalEarned,
+    },
+  });
+
+  await tx.ledgerEntry.create({
+    data: {
+      userId: payload.userId,
+      type: 'ADJUST',
+      amount: -penalty,
+      reason: 'Отписка от группы',
+      campaignId: payload.campaignId,
+    },
+  });
+
+  return penalty;
+};
+
+const ensureLegacyStats = async (user: User) => {
+  const data: Prisma.UserUpdateInput = {};
+
+  if (user.balance === 0) {
+    const hasLedger = await prisma.ledgerEntry.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (!hasLedger) data.balance = 30;
+  }
+
+  if (user.totalEarned === 0) {
+    const aggregate = await prisma.ledgerEntry.aggregate({
+      where: { userId: user.id, type: { in: ['EARN', 'ADJUST'] } },
+      _sum: { amount: true },
+    });
+    const total = Math.max(0, aggregate._sum.amount ?? 0);
+    if (total > 0) data.totalEarned = total;
+  }
+
+  if (Object.keys(data).length === 0) return user;
+  return await prisma.user.update({ where: { id: user.id }, data });
 };
 
 const requireUser = async (request: any) => {
@@ -82,7 +195,7 @@ const requireUser = async (request: any) => {
     const payload = await verifySession(bearer);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) throw new Error('user not found');
-    return await ensureLegacyBalance(user);
+    return await ensureLegacyStats(user);
   }
 
   const initData = request.headers['x-init-data'];
@@ -106,11 +219,12 @@ const requireUser = async (request: any) => {
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
         balance: 30,
+        totalEarned: 0,
         rating: 0,
       },
     });
 
-    return await ensureLegacyBalance(user);
+    return await ensureLegacyStats(user);
   }
 
   throw new Error('unauthorized');
@@ -150,10 +264,11 @@ export const registerRoutes = (app: FastifyInstance) => {
             lastName: user.last_name,
             photoUrl: user.photo_url,
             balance: 30,
+            totalEarned: 0,
             rating: 0,
           },
         });
-        return ensureLegacyBalance(created);
+        return ensureLegacyStats(created);
       };
 
       const result = await handleBotWebhookUpdate(update, {
@@ -217,8 +332,6 @@ export const registerRoutes = (app: FastifyInstance) => {
             if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
             if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
 
-            const payout = calculatePayout(freshCampaign.rewardPoints);
-
             await tx.application.update({
               where: { id: application.id },
               data: { status: 'APPROVED', reviewedAt: new Date() },
@@ -235,86 +348,104 @@ export const registerRoutes = (app: FastifyInstance) => {
               },
             });
 
-            await tx.user.update({
-              where: { id: applicant.id },
-              data: { balance: { increment: payout } },
-            });
-
-            await tx.ledgerEntry.create({
-              data: {
-                userId: applicant.id,
-                type: 'EARN',
-                amount: payout,
-                reason: 'Реакция на пост',
-                campaignId: freshCampaign.id,
-              },
+            await creditUserForCampaign(tx, {
+              userId: applicant.id,
+              campaign: freshCampaign,
+              reason: 'Реакция на пост',
             });
           });
         },
         handleChatMember: async ({ chat, user, status }) => {
           if (!chat.username) return;
           if (user.is_bot) return;
-          if (status !== 'member' && status !== 'administrator' && status !== 'creator') return;
+          const isJoinStatus =
+            status === 'member' || status === 'administrator' || status === 'creator';
+          const isLeaveStatus = status === 'left' || status === 'kicked';
+          if (!isJoinStatus && !isLeaveStatus) return;
 
           const group = await prisma.group.findFirst({ where: { username: chat.username } });
           if (!group) return;
 
           const applicant = await upsertUser(user);
-          const application = await prisma.application.findFirst({
-            where: {
-              applicantId: applicant.id,
-              status: 'PENDING',
-              campaign: {
-                groupId: group.id,
-                actionType: 'SUBSCRIBE',
-                status: 'ACTIVE',
-                remainingBudget: { gt: 0 },
+          if (isJoinStatus) {
+            const application = await prisma.application.findFirst({
+              where: {
+                applicantId: applicant.id,
+                status: 'PENDING',
+                campaign: {
+                  groupId: group.id,
+                  actionType: 'SUBSCRIBE',
+                  status: 'ACTIVE',
+                  remainingBudget: { gt: 0 },
+                },
               },
-            },
-            orderBy: { createdAt: 'desc' },
-          });
-          if (!application) return;
-
-          await prisma.$transaction(async (tx) => {
-            const freshCampaign = await tx.campaign.findUnique({
-              where: { id: application.campaignId },
+              orderBy: { createdAt: 'desc' },
             });
-            if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
-            if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
+            if (!application) return;
 
-            const payout = calculatePayout(freshCampaign.rewardPoints);
+            await prisma.$transaction(async (tx) => {
+              const freshCampaign = await tx.campaign.findUnique({
+                where: { id: application.campaignId },
+              });
+              if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+              if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
 
-            await tx.application.update({
-              where: { id: application.id },
-              data: { status: 'APPROVED', reviewedAt: new Date() },
-            });
+              await tx.application.update({
+                where: { id: application.id },
+                data: { status: 'APPROVED', reviewedAt: new Date() },
+              });
 
-            await tx.campaign.update({
-              where: { id: freshCampaign.id },
-              data: {
-                remainingBudget: { decrement: freshCampaign.rewardPoints },
-                status:
-                  freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
-                    ? 'COMPLETED'
-                    : freshCampaign.status,
-              },
-            });
+              await tx.campaign.update({
+                where: { id: freshCampaign.id },
+                data: {
+                  remainingBudget: { decrement: freshCampaign.rewardPoints },
+                  status:
+                    freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                      ? 'COMPLETED'
+                      : freshCampaign.status,
+                },
+              });
 
-            await tx.user.update({
-              where: { id: applicant.id },
-              data: { balance: { increment: payout } },
-            });
-
-            await tx.ledgerEntry.create({
-              data: {
+              await creditUserForCampaign(tx, {
                 userId: applicant.id,
-                type: 'EARN',
-                amount: payout,
+                campaign: freshCampaign,
                 reason: 'Вступление в группу',
-                campaignId: freshCampaign.id,
-              },
+              });
             });
-          });
+            return;
+          }
+
+          if (isLeaveStatus) {
+            const application = await prisma.application.findFirst({
+              where: {
+                applicantId: applicant.id,
+                status: 'APPROVED',
+                campaign: {
+                  groupId: group.id,
+                  actionType: 'SUBSCRIBE',
+                },
+              },
+              orderBy: { reviewedAt: 'desc' },
+            });
+            if (!application) return;
+
+            await prisma.$transaction(async (tx) => {
+              const freshApplication = await tx.application.findUnique({
+                where: { id: application.id },
+              });
+              if (!freshApplication || freshApplication.status !== 'APPROVED') return;
+
+              await tx.application.update({
+                where: { id: application.id },
+                data: { status: 'REVOKED', reviewedAt: new Date() },
+              });
+
+              await applyUnsubscribePenalty(tx, {
+                userId: applicant.id,
+                campaignId: application.campaignId,
+              });
+            });
+          }
         },
       });
       return reply.send(result);
@@ -346,11 +477,12 @@ export const registerRoutes = (app: FastifyInstance) => {
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
         balance: 30,
+        totalEarned: 0,
         rating: 0,
       },
     });
 
-    const ensuredUser = await ensureLegacyBalance(user);
+    const ensuredUser = await ensureLegacyStats(user);
 
     let token = '';
     if (config.appSecret) {
@@ -596,7 +728,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'Задание приостановлено или бюджет исчерпан.' });
       }
 
-      const existing = await prisma.application.findUnique({
+      let existing = await prisma.application.findUnique({
         where: { campaignId_applicantId: { campaignId, applicantId: user.id } },
       });
       if (existing?.status === 'APPROVED') {
@@ -605,6 +737,12 @@ export const registerRoutes = (app: FastifyInstance) => {
       }
       if (existing?.status === 'REJECTED') {
         return reply.code(400).send({ ok: false, error: 'Заявка отклонена.' });
+      }
+      if (existing?.status === 'REVOKED') {
+        existing = await prisma.application.update({
+          where: { id: existing.id },
+          data: { status: 'PENDING', reviewedAt: null },
+        });
       }
 
       if (campaign.actionType === 'REACTION') {
@@ -650,8 +788,6 @@ export const registerRoutes = (app: FastifyInstance) => {
         if (!freshCampaign || freshCampaign.status !== 'ACTIVE') throw new Error('campaign paused');
         if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) throw new Error('budget empty');
 
-        const payout = calculatePayout(freshCampaign.rewardPoints);
-
         const application = existing
           ? await tx.application.update({
               where: { id: existing.id },
@@ -677,19 +813,10 @@ export const registerRoutes = (app: FastifyInstance) => {
           },
         });
 
-        await tx.user.update({
-          where: { id: user.id },
-          data: { balance: { increment: payout } },
-        });
-
-        await tx.ledgerEntry.create({
-          data: {
-            userId: user.id,
-            type: 'EARN',
-            amount: payout,
-            reason: freshCampaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
-            campaignId: freshCampaign.id,
-          },
+        await creditUserForCampaign(tx, {
+          userId: user.id,
+          campaign: freshCampaign,
+          reason: freshCampaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
         });
 
         return { application, campaign: updatedCampaign };
@@ -774,21 +901,10 @@ export const registerRoutes = (app: FastifyInstance) => {
           },
         });
 
-        const payout = calculatePayout(campaign.rewardPoints);
-
-        await tx.user.update({
-          where: { id: application.applicantId },
-          data: { balance: { increment: payout } },
-        });
-
-        await tx.ledgerEntry.create({
-          data: {
-            userId: application.applicantId,
-            type: 'EARN',
-            amount: payout,
-            reason: campaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
-            campaignId: campaign.id,
-          },
+        await creditUserForCampaign(tx, {
+          userId: application.applicantId,
+          campaign,
+          reason: campaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
         });
 
         return updatedCampaign;

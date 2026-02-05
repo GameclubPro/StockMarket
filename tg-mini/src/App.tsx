@@ -14,12 +14,42 @@ import {
 } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
+const PLATFORM_FEE_RATE = 0.3;
+const RANKS = [
+  { level: 0, minTotal: 0, title: 'Новичок', bonusRate: 0 },
+  { level: 1, minTotal: 100, title: 'Бронза', bonusRate: 0.05 },
+  { level: 2, minTotal: 300, title: 'Серебро', bonusRate: 0.1 },
+  { level: 3, minTotal: 1000, title: 'Золото', bonusRate: 0.15 },
+  { level: 4, minTotal: 3000, title: 'Платина', bonusRate: 0.2 },
+  { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
+];
+const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
+
+const getRankTier = (totalEarned: number) => {
+  let current = RANKS[0];
+  for (const rank of RANKS) {
+    if (totalEarned >= rank.minTotal) current = rank;
+  }
+  return current;
+};
+
+const calculateBasePayout = (value: number) => {
+  const payout = Math.round(value * (1 - PLATFORM_FEE_RATE));
+  return Math.max(1, Math.min(value, payout));
+};
+
+const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
+  const base = calculateBasePayout(value);
+  const bonus = Math.round(base * bonusRate);
+  return Math.max(1, Math.min(value, base + bonus));
+};
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
   const [points, setPoints] = useState(30);
   const [pointsToday] = useState(0);
-  const [rating, setRating] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
@@ -59,16 +89,18 @@ export default function App() {
     });
     return map;
   }, [applications]);
-  const platformFeeRate = 0.3;
+  const rankTier = useMemo(() => getRankTier(totalEarned), [totalEarned]);
+  const bonusPercent = Math.round(rankTier.bonusRate * 100);
   const calculatePayout = useCallback(
-    (value: number) => {
-      const payout = Math.round(value * (1 - platformFeeRate));
-      return Math.max(1, Math.min(value, payout));
-    },
-    [platformFeeRate]
+    (value: number) => calculatePayoutWithBonus(value, rankTier.bonusRate),
+    [rankTier.bonusRate]
   );
   const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
-  const payoutPreview = useMemo(() => calculatePayout(taskPrice), [calculatePayout, taskPrice]);
+  const minPayoutPreview = useMemo(() => calculateBasePayout(taskPrice), [taskPrice]);
+  const maxPayoutPreview = useMemo(
+    () => calculatePayoutWithBonus(taskPrice, MAX_BONUS_RATE),
+    [taskPrice]
+  );
   const activeCampaigns = useMemo(() => {
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
@@ -117,7 +149,7 @@ export default function App() {
       try {
         const data = await verifyInitData(initData);
         if (typeof data.balance === 'number') setPoints(data.balance);
-        if (typeof data.user?.rating === 'number') setRating(data.user.rating);
+        if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
       } catch {
         // Keep default zeros on auth failure.
       }
@@ -350,8 +382,9 @@ export default function App() {
           <span className="metric-value">{points} баллов</span>
         </div>
         <div className="metric-card">
-          <span className="metric-label">Рейтинг</span>
-          <span className="metric-value">{rating.toFixed(1)}</span>
+          <span className="metric-label">Ранг</span>
+          <span className="metric-value">{rankTier.title}</span>
+          <span className="metric-sub">Бонус +{bonusPercent}%</span>
         </div>
       </div>
       <button className="topup-button" type="button">
@@ -478,9 +511,9 @@ export default function App() {
                         stroke="currentColor"
                       />
                     </svg>
-                    <span className="gold">{rating.toFixed(1)}</span>
+                    <span className="gold">{rankTier.title}</span>
                   </div>
-                  <div className="stat-title">Рейтинг {rating.toFixed(1)}</div>
+                  <div className="stat-title">Ранг · бонус +{bonusPercent}%</div>
                 </div>
               </div>
             </section>
@@ -737,7 +770,8 @@ export default function App() {
                       onChange={(event) => setTaskPrice(Number(event.target.value))}
                     />
                     <div className="range-hint">
-                      Ставка {taskPrice} баллов · Исполнитель получит {payoutPreview} баллов
+                      Ставка {taskPrice} баллов · Исполнитель получит {minPayoutPreview}–{maxPayoutPreview}{' '}
+                      баллов (зависит от ранга)
                     </div>
                   </label>
                   <label className="field">
@@ -784,7 +818,11 @@ export default function App() {
                 {!myCampaignsLoading &&
                   !myCampaignsError &&
                   myCampaigns.map((campaign) => {
-                    const payout = calculatePayout(campaign.rewardPoints);
+                    const minPayout = calculateBasePayout(campaign.rewardPoints);
+                    const maxPayout = calculatePayoutWithBonus(
+                      campaign.rewardPoints,
+                      MAX_BONUS_RATE
+                    );
                     return (
                       <div className="task-card" key={campaign.id}>
                         <div className="task-card-head">
@@ -809,7 +847,9 @@ export default function App() {
                         </div>
                         <div className="task-meta">
                           <span className="badge">Ставка: {campaign.rewardPoints}</span>
-                          <span className="muted">Исполнитель: {payout}</span>
+                          <span className="muted">
+                            Исполнитель: {minPayout}–{maxPayout}
+                          </span>
                           <span className="muted">
                             Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
                           </span>
