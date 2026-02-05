@@ -361,12 +361,12 @@ export const registerRoutes = (app: FastifyInstance) => {
       const balance = await prisma.user.findUnique({ where: { id: user.id } });
       return { ok: true, campaign, balance: balance?.balance ?? user.balance };
     } catch (error: any) {
-      const message =
-        error?.message === 'insufficient_balance' ? 'Недостаточно баллов.' : 'unauthorized';
+      const rawMessage = String(error?.message ?? 'unauthorized');
       const status =
-        message === 'unauthorized' || message === 'user not found' || message === 'no user'
+        rawMessage === 'unauthorized' || rawMessage === 'user not found' || rawMessage === 'no user'
           ? 401
           : 400;
+      const message = rawMessage === 'insufficient_balance' ? 'Недостаточно баллов.' : rawMessage;
       return reply.code(status).send({ ok: false, error: message });
     }
   });
