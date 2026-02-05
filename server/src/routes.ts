@@ -404,17 +404,22 @@ export const registerRoutes = (app: FastifyInstance) => {
               );
               if (maxByBudget <= 0) return;
 
+              const delta =
+                lastCount === null || lastCount === undefined ? 1 : totalCount - lastCount;
+              if (delta <= 0) return;
+
               const pending = await tx.application.findMany({
-                where: { campaignId: freshCampaign.id, status: 'PENDING' },
+                where: {
+                  campaignId: freshCampaign.id,
+                  status: 'PENDING',
+                  OR: [{ reactionBaseline: null }, { reactionBaseline: { lt: totalCount } }],
+                },
                 orderBy: { createdAt: 'asc' },
-                take: maxByBudget,
+                take: Math.min(delta, maxByBudget),
               });
               if (pending.length === 0) return;
 
-              const approveCount =
-                lastCount === null || lastCount === undefined
-                  ? Math.min(1, pending.length, maxByBudget)
-                  : Math.min(totalCount - lastCount, pending.length, maxByBudget);
+              const approveCount = Math.min(delta, pending.length, maxByBudget);
               if (approveCount <= 0) return;
               const toApprove = pending.slice(0, approveCount);
               const now = new Date();
@@ -831,10 +836,14 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'Заявка отклонена.' });
       }
       if (existing?.status === 'REVOKED') {
-        existing = await prisma.application.update({
-          where: { id: existing.id },
-          data: { status: 'PENDING', reviewedAt: null },
-        });
+        const data: Prisma.ApplicationUpdateInput = {
+          status: 'PENDING',
+          reviewedAt: null,
+        };
+        if (campaign.actionType === 'REACTION') {
+          data.reactionBaseline = campaign.reactionCount ?? null;
+        }
+        existing = await prisma.application.update({ where: { id: existing.id }, data });
       }
 
       if (campaign.actionType === 'REACTION') {
@@ -843,6 +852,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           data: {
             campaignId,
             applicantId: user.id,
+            reactionBaseline: campaign.reactionCount ?? null,
           },
         });
         return { ok: true, application };
