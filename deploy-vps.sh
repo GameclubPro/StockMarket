@@ -12,6 +12,7 @@ npm install
 npx prisma db push --accept-data-loss
 npx prisma generate
 npm run build
+npm run webhook:set
 
 pm2 restart tg-mini-api --update-env
 
