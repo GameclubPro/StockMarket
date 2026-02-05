@@ -342,6 +342,24 @@ export default function App() {
     return date.toLocaleDateString('ru-RU');
   };
 
+  const BalanceHeader = () => (
+    <div className="balance-header">
+      <div className="balance-header-metrics">
+        <div className="metric-card">
+          <span className="metric-label">Баланс</span>
+          <span className="metric-value">{points} баллов</span>
+        </div>
+        <div className="metric-card">
+          <span className="metric-label">Рейтинг</span>
+          <span className="metric-value">{rating.toFixed(1)}</span>
+        </div>
+      </div>
+      <button className="topup-button" type="button">
+        Пополнить баланс
+      </button>
+    </div>
+  );
+
   const handleCreateCampaign = async () => {
     setCreateError('');
     const groupId = resolveGroupId();
@@ -548,15 +566,7 @@ export default function App() {
 
         {activeTab === 'promo' && (
           <>
-            <div className="page-header">
-              <div className="page-title">Мои задания</div>
-              <button className="icon-button" type="button" aria-label="Обновить">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M21 12a9 9 0 11-2.6-6.4" />
-                  <path d="M21 3v7h-7" />
-                </svg>
-              </button>
-            </div>
+            <BalanceHeader />
             <div className="segment center">
               <button
                 className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
@@ -816,23 +826,7 @@ export default function App() {
 
         {activeTab === 'tasks' && (
           <>
-            <div className="page-header">
-              <div className="page-title">Задания</div>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Обновить"
-                onClick={() => {
-                  void loadCampaigns();
-                  if (activeTab === 'tasks') void loadMyApplications();
-                }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M21 12a9 9 0 11-2.6-6.4" />
-                  <path d="M21 3v7h-7" />
-                </svg>
-              </button>
-            </div>
+            <BalanceHeader />
             <div className={`segment filters ${taskTypeFilter}`}>
               <span className="filter-toggle-indicator" aria-hidden="true" />
               <button
