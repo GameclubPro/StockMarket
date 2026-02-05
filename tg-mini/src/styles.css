@@ -1000,6 +1000,18 @@ body::before {
   color: var(--muted);
 }
 
+.link-tool.highlight {
+  background: linear-gradient(135deg, rgba(138, 210, 255, 0.3), rgba(124, 255, 178, 0.18));
+  border-color: rgba(124, 255, 178, 0.55);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.link-tool.highlight:hover {
+  background: linear-gradient(135deg, rgba(138, 210, 255, 0.4), rgba(124, 255, 178, 0.26));
+  border-color: rgba(124, 255, 178, 0.7);
+}
+
 .link-picker {
   display: grid;
   gap: 8px;

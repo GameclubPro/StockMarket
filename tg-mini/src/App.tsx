@@ -44,6 +44,7 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   const bonus = Math.round(base * bonusRate);
   return Math.max(1, Math.min(value, base + bonus));
 };
+const BOT_SETUP_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
 const formatPointsLabel = (value: number) => {
   const abs = Math.abs(value);
   const mod100 = abs % 100;
@@ -441,6 +442,10 @@ export default function App() {
         : campaign.group.inviteLink;
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openBotSetup = () => {
+    window.open(BOT_SETUP_URL, '_blank', 'noopener,noreferrer');
   };
 
   const registerTaskCardRef = useCallback((id: string, node: HTMLDivElement | null) => {
@@ -941,6 +946,12 @@ export default function App() {
                     >
                       Вставить из буфера
                     </button>
+                    <button className="link-tool highlight" type="button" onClick={openBotSetup}>
+                      Подключить канал
+                    </button>
+                  </div>
+                  <div className="link-hint">
+                    Быстро добавит бота администратором в канал/группу.
                   </div>
                   {linkHint && <div className="link-hint">{linkHint}</div>}
                   {linkPickerOpen && (
