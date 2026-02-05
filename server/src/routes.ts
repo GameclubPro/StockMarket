@@ -39,13 +39,23 @@ const getToken = (authHeader?: string) => {
   return token ?? '';
 };
 
+const ensureLegacyBalance = async (user: { id: string; balance: number }) => {
+  if (user.balance !== 0) return user;
+  const hasLedger = await prisma.ledgerEntry.findFirst({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  if (hasLedger) return user;
+  return prisma.user.update({ where: { id: user.id }, data: { balance: 30 } });
+};
+
 const requireUser = async (request: any) => {
   const bearer = getToken(request.headers.authorization);
   if (bearer) {
     const payload = await verifySession(bearer);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) throw new Error('user not found');
-    return user;
+    return await ensureLegacyBalance(user);
   }
 
   const initData = request.headers['x-init-data'];
@@ -73,7 +83,7 @@ const requireUser = async (request: any) => {
       },
     });
 
-    return user;
+    return await ensureLegacyBalance(user);
   }
 
   throw new Error('unauthorized');
@@ -93,7 +103,7 @@ export const registerRoutes = (app: FastifyInstance) => {
     try {
       const result = await handleBotWebhookUpdate(update, {
         upsertUser: async (user) => {
-          return prisma.user.upsert({
+          const created = await prisma.user.upsert({
             where: { telegramId: String(user.id) },
             update: {
               username: user.username,
@@ -111,6 +121,7 @@ export const registerRoutes = (app: FastifyInstance) => {
               rating: 0,
             },
           });
+          return ensureLegacyBalance(created);
         },
         upsertGroup: async ({ ownerId, chat }) => {
           const username = chat.username ?? '';
@@ -174,16 +185,18 @@ export const registerRoutes = (app: FastifyInstance) => {
       },
     });
 
+    const ensuredUser = await ensureLegacyBalance(user);
+
     let token = '';
     if (config.appSecret) {
       token = await signSession({
-        sub: user.id,
-        tid: user.telegramId,
-        username: user.username ?? undefined,
+        sub: ensuredUser.id,
+        tid: ensuredUser.telegramId,
+        username: ensuredUser.username ?? undefined,
       });
     }
 
-    return { ok: true, user, balance: user.balance, token };
+    return { ok: true, user: ensuredUser, balance: ensuredUser.balance, token };
   });
 
   app.get('/me', async (request, reply) => {

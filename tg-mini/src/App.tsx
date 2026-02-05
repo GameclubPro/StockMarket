@@ -2,14 +2,11 @@ import { readTextFromClipboard } from '@telegram-apps/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
-  approveApplication,
   createCampaign,
   fetchCampaigns,
-  fetchIncomingApplications,
   fetchMyApplications,
   fetchMyCampaigns,
   fetchMyGroups,
-  rejectApplication,
   type ApplicationDto,
   type CampaignDto,
   type GroupDto,
@@ -25,7 +22,7 @@ export default function App() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
-  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine' | 'incoming'>('place');
+  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskPrice, setTaskPrice] = useState(10);
@@ -51,9 +48,6 @@ export default function App() {
   const [applications, setApplications] = useState<ApplicationDto[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
-  const [incomingApplications, setIncomingApplications] = useState<ApplicationDto[]>([]);
-  const [incomingLoading, setIncomingLoading] = useState(false);
-  const [incomingError, setIncomingError] = useState('');
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const visibleCampaigns = campaigns.filter(
@@ -176,26 +170,6 @@ export default function App() {
     }
   }, []);
 
-  const loadIncomingApplications = useCallback(async () => {
-    setIncomingError('');
-    setIncomingLoading(true);
-
-    try {
-      const data = await fetchIncomingApplications();
-      if (data.ok && Array.isArray(data.applications)) {
-        setIncomingApplications(data.applications);
-      } else {
-        setIncomingApplications([]);
-        setIncomingError('Не удалось загрузить входящие заявки.');
-      }
-    } catch {
-      setIncomingApplications([]);
-      setIncomingError('Не удалось загрузить входящие заявки.');
-    } finally {
-      setIncomingLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
@@ -208,8 +182,7 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== 'promo') return;
     if (myTasksTab === 'mine') void loadMyCampaigns();
-    if (myTasksTab === 'incoming') void loadIncomingApplications();
-  }, [activeTab, loadIncomingApplications, loadMyCampaigns, myTasksTab]);
+  }, [activeTab, loadMyCampaigns, myTasksTab]);
 
   useEffect(() => {
     setActionError('');
@@ -389,32 +362,6 @@ export default function App() {
     }
   };
 
-  const handleApproveApplication = async (applicationId: string) => {
-    setActionError('');
-    setActionLoadingId(applicationId);
-    try {
-      await approveApplication(applicationId);
-      await loadIncomingApplications();
-      await loadMyCampaigns();
-    } catch (error: any) {
-      setActionError(error?.message ?? 'Не удалось одобрить заявку.');
-    } finally {
-      setActionLoadingId('');
-    }
-  };
-
-  const handleRejectApplication = async (applicationId: string) => {
-    setActionError('');
-    setActionLoadingId(applicationId);
-    try {
-      await rejectApplication(applicationId);
-      await loadIncomingApplications();
-    } catch (error: any) {
-      setActionError(error?.message ?? 'Не удалось отклонить заявку.');
-    } finally {
-      setActionLoadingId('');
-    }
-  };
 
   return (
     <div className="screen">
@@ -554,7 +501,7 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <div className="segment center wide">
+            <div className="segment center">
               <button
                 className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
                 type="button"
@@ -568,13 +515,6 @@ export default function App() {
                 onClick={() => setMyTasksTab('mine')}
               >
                 Мои размещенные
-              </button>
-              <button
-                className={`segment-button ${myTasksTab === 'incoming' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setMyTasksTab('incoming')}
-              >
-                Входящие
               </button>
             </div>
 
@@ -790,74 +730,6 @@ export default function App() {
                       </div>
                     </div>
                   ))}
-              </div>
-            )}
-
-            {myTasksTab === 'incoming' && (
-              <div className="task-list">
-                {actionError && <div className="form-status error">{actionError}</div>}
-                {incomingLoading && <div className="task-form-placeholder">Загрузка…</div>}
-                {!incomingLoading && incomingError && (
-                  <div className="task-form-placeholder error">{incomingError}</div>
-                )}
-                {!incomingLoading && !incomingError && incomingApplications.length === 0 && (
-                  <div className="task-form-placeholder">Пока нет входящих заявок.</div>
-                )}
-                {!incomingLoading &&
-                  !incomingError &&
-                  incomingApplications.map((application) => {
-                    const applicantLabel =
-                      [application.applicant?.firstName, application.applicant?.lastName]
-                        .filter(Boolean)
-                        .join(' ')
-                        .trim() ||
-                      application.applicant?.username ||
-                      'Пользователь';
-                    const initial = applicantLabel ? applicantLabel[0].toUpperCase() : 'П';
-                    return (
-                      <div className="task-card" key={application.id}>
-                        <div className="task-card-head">
-                          <div className="task-avatar">
-                            <span>{initial}</span>
-                          </div>
-                          <div className="task-info">
-                            <div className="task-title">{applicantLabel}</div>
-                            <div className="task-handle">
-                              {application.campaign.group.title}
-                            </div>
-                          </div>
-                          <div className="task-actions">
-                            <button
-                              className="open-button"
-                              type="button"
-                              onClick={() => void handleApproveApplication(application.id)}
-                              disabled={actionLoadingId === application.id}
-                            >
-                              Одобрить
-                            </button>
-                            <button
-                              className="open-button secondary"
-                              type="button"
-                              onClick={() => void handleRejectApplication(application.id)}
-                              disabled={actionLoadingId === application.id}
-                            >
-                              Отклонить
-                            </button>
-                          </div>
-                        </div>
-                        <div className="task-meta">
-                          <span className="badge">
-                            +{application.campaign.rewardPoints} балл
-                          </span>
-                          <span className="muted">
-                            {application.campaign.actionType === 'SUBSCRIBE'
-                              ? 'Подписка'
-                              : 'Реакция'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
               </div>
             )}
 
