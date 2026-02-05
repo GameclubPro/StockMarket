@@ -4,6 +4,7 @@ import {
   applyCampaign,
   createCampaign,
   fetchCampaigns,
+  fetchMe,
   fetchMyApplications,
   fetchMyCampaigns,
   fetchMyGroups,
@@ -92,6 +93,7 @@ export default function App() {
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
   const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
+  const resumeRefreshAtRef = useRef(0);
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
@@ -275,6 +277,19 @@ export default function App() {
     }
   }, []);
 
+  const loadMe = useCallback(async () => {
+    try {
+      const data = await fetchMe();
+      if (data.ok) {
+        if (typeof data.balance === 'number') setPoints(data.balance);
+        if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
+        if (typeof data.user?.id === 'string') setUserId(data.user.id);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
@@ -283,6 +298,31 @@ export default function App() {
     if (activeTab !== 'tasks') return;
     void loadMyApplications();
   }, [activeTab, loadMyApplications]);
+
+  const refreshTasksOnResume = useCallback(() => {
+    if (activeTab !== 'tasks') return;
+    const now = Date.now();
+    if (now - resumeRefreshAtRef.current < 1200) return;
+    resumeRefreshAtRef.current = now;
+    void loadCampaigns();
+    void loadMyApplications();
+    void loadMe();
+  }, [activeTab, loadCampaigns, loadMyApplications, loadMe]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshTasksOnResume();
+    };
+    const handleFocus = () => refreshTasksOnResume();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handleFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handleFocus);
+    };
+  }, [refreshTasksOnResume]);
 
   useEffect(() => {
     if (activeTab !== 'promo') return;
