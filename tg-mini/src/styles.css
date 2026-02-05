@@ -170,11 +170,6 @@ body::before {
   color: #eafff1;
   background: linear-gradient(120deg, rgba(12, 48, 26, 0.95), rgba(8, 28, 18, 0.95));
   border: 1px solid rgba(124, 255, 178, 0.65);
-  box-shadow:
-    0 0 10px rgba(124, 255, 178, 0.45),
-    0 0 24px rgba(124, 255, 178, 0.28),
-    inset 0 0 10px rgba(124, 255, 178, 0.18);
-  text-shadow: 0 0 8px rgba(124, 255, 178, 0.75);
   margin-bottom: 0;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -183,10 +178,6 @@ body::before {
 .sub:hover {
   transform: translateY(-1px);
   border-color: rgba(140, 255, 200, 0.9);
-  box-shadow:
-    0 0 12px rgba(124, 255, 178, 0.6),
-    0 0 30px rgba(124, 255, 178, 0.35),
-    inset 0 0 12px rgba(124, 255, 178, 0.22);
 }
 
 .sub:active {
