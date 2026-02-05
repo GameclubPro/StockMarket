@@ -348,6 +348,7 @@ body::before {
   padding: 8px 10px;
   display: grid;
   gap: 4px;
+  position: relative;
 }
 
 .metric-label {
@@ -399,21 +400,28 @@ body::before {
   white-space: nowrap;
 }
 
-.topup-button {
-  border: none;
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-size: 12px;
+.metric-plus {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 255, 178, 0.35);
+  background: rgba(124, 255, 178, 0.12);
+  color: #eafff4;
+  font-size: 16px;
   font-weight: 600;
-  color: #e8fff2;
-  background: linear-gradient(135deg, rgba(72, 168, 126, 0.9), rgba(54, 128, 98, 0.9));
-  box-shadow: 0 6px 14px rgba(40, 120, 90, 0.18);
+  line-height: 1;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-.topup-button:active {
+.metric-plus:active {
   transform: translateY(1px);
+  border-color: rgba(124, 255, 178, 0.6);
 }
 
 .segment {

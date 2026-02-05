@@ -394,6 +394,9 @@ export default function App() {
         <div className="metric-card">
           <span className="metric-label">Баланс</span>
           <span className="metric-value">{points} баллов</span>
+          <button className="metric-plus" type="button" aria-label="Пополнить баланс">
+            +
+          </button>
         </div>
         <div className="metric-card">
           <span className="metric-label">Ранг</span>
@@ -401,9 +404,6 @@ export default function App() {
           <span className="metric-sub">Бонус +{bonusPercent}%</span>
         </div>
       </div>
-      <button className="topup-button" type="button">
-        Пополнить баланс
-      </button>
     </div>
   );
 
