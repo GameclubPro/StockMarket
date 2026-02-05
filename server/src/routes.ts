@@ -39,14 +39,14 @@ const getToken = (authHeader?: string) => {
   return token ?? '';
 };
 
-const ensureLegacyBalance = async (user: { id: string; balance: number }) => {
+const ensureLegacyBalance = async <T extends { id: string; balance: number }>(user: T) => {
   if (user.balance !== 0) return user;
   const hasLedger = await prisma.ledgerEntry.findFirst({
     where: { userId: user.id },
     select: { id: true },
   });
   if (hasLedger) return user;
-  return prisma.user.update({ where: { id: user.id }, data: { balance: 30 } });
+  return (await prisma.user.update({ where: { id: user.id }, data: { balance: 30 } })) as T;
 };
 
 const requireUser = async (request: any) => {
