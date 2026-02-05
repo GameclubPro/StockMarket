@@ -1,4 +1,3 @@
-import { readTextFromClipboard } from '@telegram-apps/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
@@ -67,7 +66,6 @@ export default function App() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
-  const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPrice, setTaskPrice] = useState(10);
@@ -79,7 +77,6 @@ export default function App() {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [selectedGroupTitle, setSelectedGroupTitle] = useState('');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
-  const [linkHint, setLinkHint] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
@@ -95,7 +92,6 @@ export default function App() {
   const [applicationsError, setApplicationsError] = useState('');
   const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
   const resumeRefreshAtRef = useRef(0);
-  const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
   const historyTabRef = useRef<HTMLButtonElement | null>(null);
@@ -349,64 +345,9 @@ export default function App() {
   }, [linkPickerOpen]);
 
   const handleQuickLinkSelect = (group: GroupDto) => {
-    setTaskLink(group.inviteLink);
     setSelectedGroupId(group.id);
     setSelectedGroupTitle(group.title);
     setLinkPickerOpen(false);
-    setLinkHint('');
-    requestAnimationFrame(() => {
-      taskLinkInputRef.current?.focus();
-      taskLinkInputRef.current?.select();
-    });
-  };
-
-  const handlePasteLink = async () => {
-    setLinkHint('');
-    setSelectedGroupId('');
-    setSelectedGroupTitle('');
-    let text = '';
-
-    const readViaNavigator = async () => {
-      if (!window.isSecureContext) return '';
-      if (!navigator.clipboard?.readText) return '';
-      try {
-        return await navigator.clipboard.readText();
-      } catch {
-        return '';
-      }
-    };
-
-    try {
-      if (readTextFromClipboard.isAvailable()) {
-        const value = await readTextFromClipboard();
-        if (typeof value === 'string') text = value;
-      } else {
-        text = await readViaNavigator();
-      }
-    } catch {
-      text = await readViaNavigator();
-    }
-
-    if (text) {
-      setTaskLink(text.trim());
-      setLinkPickerOpen(false);
-      requestAnimationFrame(() => {
-        taskLinkInputRef.current?.focus();
-        taskLinkInputRef.current?.select();
-      });
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      taskLinkInputRef.current?.focus();
-      taskLinkInputRef.current?.select();
-    });
-
-    setLinkHint(
-      window.isSecureContext
-        ? 'Не удалось прочитать буфер обмена. Нажмите на поле и вставьте вручную.'
-        : 'Буфер обмена доступен только по HTTPS/localhost или в Telegram.'
-    );
   };
 
   const getGroupSecondaryLabel = (group: GroupDto) => {
@@ -416,22 +357,7 @@ export default function App() {
   };
 
   const resolveGroupId = () => {
-    if (selectedGroupId) return selectedGroupId;
-    const raw = taskLink.trim();
-    if (!raw) return '';
-    const normalized = raw
-      .replace(/^https?:\/\//i, '')
-      .replace(/^t\.me\//i, '')
-      .replace(/^telegram\.me\//i, '')
-      .replace(/^@/, '')
-      .split('/')[0]
-      .toLowerCase();
-    const match = myGroups.find((group) => {
-      const username = group.username?.trim().toLowerCase();
-      if (username && username === normalized) return true;
-      return group.inviteLink.trim().toLowerCase() === raw.toLowerCase();
-    });
-    return match?.id ?? '';
+    return selectedGroupId;
   };
 
   const openCampaignLink = (campaign: CampaignDto) => {
@@ -599,12 +525,8 @@ export default function App() {
   const handleCreateCampaign = async () => {
     setCreateError('');
     const groupId = resolveGroupId();
-    if (!taskLink.trim()) {
-      setCreateError('Укажите ссылку на группу.');
-      return;
-    }
     if (!groupId) {
-      setCreateError('Сначала добавьте бота в группу и выберите ее из списка.');
+      setCreateError('Сначала подключите канал/группу и выберите ее из списка.');
       return;
     }
     if (!Number.isFinite(taskPrice) || taskPrice < 1) {
@@ -878,42 +800,6 @@ export default function App() {
                 </div>
 
                 <div className="task-form-body">
-                  <label className="field">
-                    <span>Ссылка на группу</span>
-                    <input
-                      type="text"
-                      placeholder="https://t.me/... или @username"
-                      ref={taskLinkInputRef}
-                      value={taskLink}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setTaskLink(value);
-                        setSelectedGroupId('');
-                        setSelectedGroupTitle('');
-                        setLinkHint('');
-                        if (!myGroupsLoaded) return;
-                        const normalized = value
-                          .replace(/^https?:\/\//i, '')
-                          .replace(/^t\.me\//i, '')
-                          .replace(/^telegram\.me\//i, '')
-                          .replace(/^@/, '')
-                          .split('/')[0]
-                          .toLowerCase();
-                        const match = myGroups.find((group) => {
-                          const username = group.username?.trim().toLowerCase();
-                          if (username && username === normalized) return true;
-                          return group.inviteLink.trim().toLowerCase() === value.trim().toLowerCase();
-                        });
-                        if (match) {
-                          setSelectedGroupId(match.id);
-                          setSelectedGroupTitle(match.title);
-                        }
-                      }}
-                    />
-                  </label>
-                  {selectedGroupTitle && (
-                    <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
-                  )}
                   {taskType === 'reaction' && (
                     <label className="field">
                       <span>Ссылка на пост</span>
@@ -933,18 +819,10 @@ export default function App() {
                       aria-expanded={linkPickerOpen}
                       aria-controls="quick-link-picker"
                       onClick={() => {
-                        setLinkHint('');
                         setLinkPickerOpen((prev) => !prev);
                       }}
                     >
                       Быстрый выбор
-                    </button>
-                    <button
-                      className="link-tool secondary"
-                      type="button"
-                      onClick={() => void handlePasteLink()}
-                    >
-                      Вставить из буфера
                     </button>
                     <button className="link-tool highlight" type="button" onClick={openBotSetup}>
                       Подключить канал
@@ -953,7 +831,9 @@ export default function App() {
                   <div className="link-hint">
                     Быстро добавит бота администратором в канал/группу.
                   </div>
-                  {linkHint && <div className="link-hint">{linkHint}</div>}
+                  {selectedGroupTitle && (
+                    <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
+                  )}
                   {linkPickerOpen && (
                     <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
                       <div className="link-picker-head">
