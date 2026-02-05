@@ -853,25 +853,20 @@ export default function App() {
                 {!myCampaignsLoading &&
                   !myCampaignsError &&
                   myCampaigns.map((campaign) => {
-                    const minPayout = calculateBasePayout(campaign.rewardPoints);
-                    const maxPayout = calculatePayoutWithBonus(
-                      campaign.rewardPoints,
-                      MAX_BONUS_RATE
-                    );
-                    const minLabel = formatPointsLabel(minPayout);
-                    const maxLabel = formatPointsLabel(maxPayout);
                     const badgeLabel = `${campaign.rewardPoints} ${formatPointsLabel(
                       campaign.rewardPoints
                     )}`;
                     return (
                       <div className="task-card" key={campaign.id}>
-                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
                           </div>
                           <div className="task-info">
-                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-title-row">
+                              <div className="task-title">{campaign.group.title}</div>
+                              <span className="badge sticker">{badgeLabel}</span>
+                            </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
@@ -886,11 +881,6 @@ export default function App() {
                               ↗
                             </button>
                           </div>
-                        </div>
-                        <div className="task-secondary">
-                          Исполнитель: {minPayout} {minLabel}–{maxPayout} {maxLabel} ·{' '}
-                          {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'} · Осталось:{' '}
-                          {campaign.remainingBudget}
                         </div>
                       </div>
                     );
@@ -1003,13 +993,15 @@ export default function App() {
                       actionLoadingId === campaign.id;
                     return (
                       <div className="task-card" key={campaign.id}>
-                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
                           </div>
                           <div className="task-info">
-                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-title-row">
+                              <div className="task-title">{campaign.group.title}</div>
+                              <span className="badge sticker">{badgeLabel}</span>
+                            </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
@@ -1034,15 +1026,6 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-                        <div className="task-secondary">
-                          Ставка {campaign.rewardPoints} {formatPointsLabel(campaign.rewardPoints)} ·
-                          Проверка: бот
-                          {statusLabel && (
-                            <span className={`status-badge ${status?.toLowerCase()}`}>
-                              {statusLabel}
-                            </span>
-                          )}
-                        </div>
                       </div>
                     );
                   })}
@@ -1060,19 +1043,20 @@ export default function App() {
                 {!applicationsLoading &&
                   historyApplications.map((application) => {
                     const campaign = application.campaign;
-                    const doneAt = formatDate(application.reviewedAt ?? application.createdAt);
                     const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
                       calculatePayout(campaign.rewardPoints)
                     )}`;
                     return (
                       <div className="task-card" key={application.id}>
-                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
                           </div>
                           <div className="task-info">
-                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-title-row">
+                              <div className="task-title">{campaign.group.title}</div>
+                              <span className="badge sticker">{badgeLabel}</span>
+                            </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
@@ -1087,11 +1071,6 @@ export default function App() {
                               ↗
                             </button>
                           </div>
-                        </div>
-                        <div className="task-secondary">
-                          {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
-                          {doneAt && <> · {doneAt}</>}
-                          <span className="status-badge approved">Выполнено</span>
                         </div>
                       </div>
                     );
