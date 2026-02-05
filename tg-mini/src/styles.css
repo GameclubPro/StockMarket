@@ -79,6 +79,7 @@ body::before {
   height: 40%;
   background: radial-gradient(60% 80% at 40% 40%, rgba(88, 140, 255, 0.2), transparent 70%);
   opacity: 0.6;
+  pointer-events: none;
 }
 
 .content {

@@ -169,7 +169,10 @@ export default function App() {
     setTaskLink(url);
     setLinkPickerOpen(false);
     setLinkHint('');
-    taskLinkInputRef.current?.focus();
+    requestAnimationFrame(() => {
+      taskLinkInputRef.current?.focus();
+      taskLinkInputRef.current?.select();
+    });
   };
 
   const handlePasteLink = async () => {
@@ -200,13 +203,21 @@ export default function App() {
     if (text) {
       setTaskLink(text.trim());
       setLinkPickerOpen(false);
-      taskLinkInputRef.current?.focus();
+      requestAnimationFrame(() => {
+        taskLinkInputRef.current?.focus();
+        taskLinkInputRef.current?.select();
+      });
       return;
     }
 
+    requestAnimationFrame(() => {
+      taskLinkInputRef.current?.focus();
+      taskLinkInputRef.current?.select();
+    });
+
     setLinkHint(
       window.isSecureContext
-        ? 'Не удалось прочитать буфер обмена. Вставьте вручную.'
+        ? 'Не удалось прочитать буфер обмена. Нажмите на поле и вставьте вручную.'
         : 'Буфер обмена доступен только по HTTPS/localhost или в Telegram.'
     );
   };
