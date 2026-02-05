@@ -466,7 +466,7 @@ export default function App() {
       const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
       if (reduceMotion || !clone.animate) {
         clone.remove();
-        return;
+        return Promise.resolve(false);
       }
 
       const animation = clone.animate(
@@ -495,13 +495,12 @@ export default function App() {
         }
       );
 
-      animation.addEventListener(
-        'finish',
-        () => {
+      return animation.finished
+        .catch(() => null)
+        .finally(() => {
           clone.remove();
-        },
-        { once: true }
-      );
+        })
+        .then(() => true);
     },
     []
   );
@@ -524,15 +523,17 @@ export default function App() {
 
       const cardDuration = 1700;
       const badgeDuration = 1300;
-      animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
-      animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
+      const cardAnim = animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
+      const badgeAnim = animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
 
       balanceValue.classList.remove('balance-pulse');
       void balanceValue.offsetWidth;
       balanceValue.classList.add('balance-pulse');
       window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 750);
 
-      window.setTimeout(finish, Math.max(cardDuration, badgeDuration) + 120);
+      Promise.allSettled([cardAnim, badgeAnim]).then(() => {
+        finish();
+      });
     },
     [animateFlyout]
   );
