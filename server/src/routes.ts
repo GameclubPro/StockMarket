@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
 import { ensureBotIsAdmin, extractUsername } from './telegram-bot.js';
+import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
 const authBodySchema = z.object({
   initData: z.string().min(1),
@@ -78,6 +79,71 @@ const requireUser = async (request: any) => {
 
 export const registerRoutes = (app: FastifyInstance) => {
   app.get('/health', async () => ({ ok: true }));
+
+  app.post('/telegram/webhook', async (request, reply) => {
+    const secret = config.botWebhookSecret;
+    const header = request.headers['x-telegram-bot-api-secret-token'];
+    if (secret && header !== secret) {
+      return reply.code(401).send({ ok: false });
+    }
+
+    const update = request.body as TelegramUpdate;
+    try {
+      const result = await handleBotWebhookUpdate(update, {
+        upsertUser: async (user) => {
+          return prisma.user.upsert({
+            where: { telegramId: String(user.id) },
+            update: {
+              username: user.username,
+              firstName: user.first_name,
+              lastName: user.last_name,
+              photoUrl: user.photo_url,
+            },
+            create: {
+              telegramId: String(user.id),
+              username: user.username,
+              firstName: user.first_name,
+              lastName: user.last_name,
+              photoUrl: user.photo_url,
+              balance: 0,
+              rating: 0,
+            },
+          });
+        },
+        upsertGroup: async ({ ownerId, chat }) => {
+          const username = chat.username ?? '';
+          const inviteLink = `https://t.me/${username}`;
+          const existing = await prisma.group.findFirst({
+            where: { ownerId, username },
+          });
+          if (existing) {
+            await prisma.group.update({
+              where: { id: existing.id },
+              data: {
+                title: chat.title ?? existing.title,
+                inviteLink,
+              },
+            });
+            return;
+          }
+
+          await prisma.group.create({
+            data: {
+              ownerId,
+              title: chat.title ?? username,
+              username,
+              inviteLink,
+              description: null,
+              category: null,
+            },
+          });
+        },
+      });
+      return reply.send(result);
+    } catch {
+      return reply.send({ ok: true });
+    }
+  });
 
   app.post('/auth/verify', async (request, reply) => {
     const parsed = authBodySchema.safeParse(request.body);

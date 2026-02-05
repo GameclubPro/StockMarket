@@ -11,6 +11,7 @@ export const config = {
   port: toNumber(process.env.PORT, 3000),
   botToken: process.env.BOT_TOKEN ?? '',
   appSecret: process.env.APP_SECRET ?? '',
+  botWebhookSecret: process.env.BOT_WEBHOOK_SECRET ?? '',
   maxAuthAgeSec: toNumber(process.env.MAX_AUTH_AGE_SEC, 86400),
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
