@@ -357,13 +357,14 @@ body::before {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
+  min-height: 40px;
 }
 
 .filter-toggle-indicator {
   position: absolute;
-  inset: 2px;
-  width: calc(50% - 2px);
-  border-radius: 14px;
+  inset: 1px;
+  width: calc(50% - 1px);
+  border-radius: 15px;
   background: linear-gradient(180deg, rgba(124, 255, 178, 0.32), rgba(124, 255, 178, 0.18));
   transform: translateX(0);
   transition: transform 0.25s ease;
@@ -377,7 +378,10 @@ body::before {
 .filter-toggle-button {
   position: relative;
   z-index: 1;
-  height: 36px;
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  border-radius: 0;
   border: none;
   background: transparent;
   font-size: 12px;
