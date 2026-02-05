@@ -368,13 +368,14 @@ body::before {
   color: rgba(255, 255, 255, 0.6);
 }
 
-.metric-progress {
+.rank-progress {
   display: grid;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 8px;
+  padding: 0 2px;
 }
 
-.metric-progress-bar {
+.rank-progress-bar {
   position: relative;
   height: 6px;
   border-radius: 999px;
@@ -382,7 +383,7 @@ body::before {
   overflow: hidden;
 }
 
-.metric-progress-bar span {
+.rank-progress-bar span {
   display: block;
   height: 100%;
   border-radius: inherit;
@@ -390,7 +391,7 @@ body::before {
   transition: width 0.25s ease;
 }
 
-.metric-progress-text {
+.rank-progress-text {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.55);
 }

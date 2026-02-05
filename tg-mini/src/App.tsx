@@ -399,12 +399,6 @@ export default function App() {
           <span className="metric-label">Ранг</span>
           <span className="metric-value">{rankTier.title}</span>
           <span className="metric-sub">Бонус +{bonusPercent}%</span>
-          <div className="metric-progress">
-            <div className="metric-progress-bar" aria-hidden="true">
-              <span style={{ width: `${progressValue * 100}%` }} />
-            </div>
-            <div className="metric-progress-text">{progressLabel}</div>
-          </div>
         </div>
       </div>
       <button className="topup-button" type="button">
@@ -535,6 +529,12 @@ export default function App() {
                   </div>
                   <div className="stat-title">Ранг · бонус +{bonusPercent}%</div>
                 </div>
+              </div>
+              <div className="rank-progress">
+                <div className="rank-progress-bar" aria-hidden="true">
+                  <span style={{ width: `${progressValue * 100}%` }} />
+                </div>
+                <div className="rank-progress-text">{progressLabel}</div>
               </div>
             </section>
 
