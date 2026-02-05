@@ -684,6 +684,7 @@ body::before {
   display: grid;
   gap: 8px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+  position: relative;
 }
 
 .task-card-head {
@@ -729,22 +730,31 @@ body::before {
 }
 
 .task-actions {
-  display: grid;
-  gap: 4px;
-  justify-items: end;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .open-button {
   background: rgba(138, 210, 255, 0.2);
   border: 1px solid rgba(138, 210, 255, 0.35);
   border-radius: 10px;
-  padding: 6px 10px;
+  padding: 0;
   font-size: 11px;
   font-weight: 600;
   color: #ffffff;
   cursor: pointer;
-  min-height: 28px;
+  min-height: 32px;
+  min-width: 32px;
   transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.open-button.icon {
+  width: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
 }
 
 .open-button.secondary {
@@ -762,15 +772,6 @@ body::before {
   cursor: not-allowed;
 }
 
-.task-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  font-size: 11px;
-  min-width: 0;
-}
-
 .badge {
   background: rgba(124, 255, 178, 0.24);
   border: 1px solid rgba(124, 255, 178, 0.35);
@@ -778,6 +779,18 @@ body::before {
   padding: 3px 8px;
   border-radius: 999px;
   font-weight: 600;
+}
+
+.badge.sticker {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 10px;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: linear-gradient(135deg, rgba(124, 255, 178, 0.35), rgba(124, 255, 178, 0.12));
+  border-color: rgba(124, 255, 178, 0.5);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 
 .status-badge {
@@ -806,6 +819,16 @@ body::before {
 
 .muted {
   color: var(--muted);
+}
+
+.task-secondary {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-left: 38px;
 }
 
 .primary-button {

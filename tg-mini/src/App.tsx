@@ -858,8 +858,14 @@ export default function App() {
                       campaign.rewardPoints,
                       MAX_BONUS_RATE
                     );
+                    const minLabel = formatPointsLabel(minPayout);
+                    const maxLabel = formatPointsLabel(maxPayout);
+                    const badgeLabel = `${campaign.rewardPoints} ${formatPointsLabel(
+                      campaign.rewardPoints
+                    )}`;
                     return (
                       <div className="task-card" key={campaign.id}>
+                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -872,23 +878,19 @@ export default function App() {
                           </div>
                           <div className="task-actions">
                             <button
-                              className="open-button"
+                              className="open-button icon"
                               type="button"
                               onClick={() => openCampaignLink(campaign)}
+                              aria-label="Открыть"
                             >
-                              Открыть
+                              ↗
                             </button>
                           </div>
                         </div>
-                        <div className="task-meta">
-                          <span className="badge">Ставка: {campaign.rewardPoints}</span>
-                          <span className="muted">
-                            Исполнитель: {minPayout}–{maxPayout}
-                          </span>
-                          <span className="muted">
-                            Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
-                          </span>
-                          <span className="muted">Осталось: {campaign.remainingBudget}</span>
+                        <div className="task-secondary">
+                          Исполнитель: {minPayout} {minLabel}–{maxPayout} {maxLabel} ·{' '}
+                          {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'} · Осталось:{' '}
+                          {campaign.remainingBudget}
                         </div>
                       </div>
                     );
@@ -976,6 +978,9 @@ export default function App() {
                   visibleCampaigns.map((campaign) => {
                     const application = applicationsByCampaign.get(campaign.id);
                     const status = application?.status;
+                    const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
+                      calculatePayout(campaign.rewardPoints)
+                    )}`;
                     const statusLabel =
                       status === 'APPROVED'
                         ? 'Получено'
@@ -996,9 +1001,9 @@ export default function App() {
                       status === 'APPROVED' ||
                       status === 'PENDING' ||
                       actionLoadingId === campaign.id;
-                    const payout = calculatePayout(campaign.rewardPoints);
                     return (
                       <div className="task-card" key={campaign.id}>
+                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -1011,26 +1016,27 @@ export default function App() {
                           </div>
                           <div className="task-actions">
                             <button
-                              className="open-button"
+                              className="open-button icon"
                               type="button"
                               onClick={() => openCampaignLink(campaign)}
+                              aria-label="Открыть"
                             >
-                              Открыть
+                              ↗
                             </button>
                             <button
-                              className="open-button secondary"
+                              className="open-button secondary icon"
                               type="button"
                               onClick={() => void handleApplyCampaign(campaign.id)}
                               disabled={disabled}
+                              aria-label={actionLabel}
                             >
-                              {actionLabel}
+                              {status === 'APPROVED' ? '✓' : status === 'PENDING' ? '…' : '+'}
                             </button>
                           </div>
                         </div>
-                        <div className="task-meta">
-                          <span className="badge">+{payout} балл</span>
-                          <span className="muted">Ставка {campaign.rewardPoints}</span>
-                          <span className="muted">Проверка: бот</span>
+                        <div className="task-secondary">
+                          Ставка {campaign.rewardPoints} {formatPointsLabel(campaign.rewardPoints)} ·
+                          Проверка: бот
                           {statusLabel && (
                             <span className={`status-badge ${status?.toLowerCase()}`}>
                               {statusLabel}
@@ -1054,10 +1060,13 @@ export default function App() {
                 {!applicationsLoading &&
                   historyApplications.map((application) => {
                     const campaign = application.campaign;
-                    const payout = calculatePayout(campaign.rewardPoints);
                     const doneAt = formatDate(application.reviewedAt ?? application.createdAt);
+                    const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
+                      calculatePayout(campaign.rewardPoints)
+                    )}`;
                     return (
                       <div className="task-card" key={application.id}>
+                        <span className="badge sticker">{badgeLabel}</span>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -1070,20 +1079,18 @@ export default function App() {
                           </div>
                           <div className="task-actions">
                             <button
-                              className="open-button"
+                              className="open-button icon"
                               type="button"
                               onClick={() => openCampaignLink(campaign)}
+                              aria-label="Открыть"
                             >
-                              Открыть
+                              ↗
                             </button>
                           </div>
                         </div>
-                        <div className="task-meta">
-                          <span className="badge">+{payout} балл</span>
-                          <span className="muted">
-                            Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
-                          </span>
-                          {doneAt && <span className="muted">Дата: {doneAt}</span>}
+                        <div className="task-secondary">
+                          {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
+                          {doneAt && <> · {doneAt}</>}
                           <span className="status-badge approved">Выполнено</span>
                         </div>
                       </div>
