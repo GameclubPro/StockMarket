@@ -130,10 +130,9 @@ export default function App() {
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
       if (status === 'APPROVED') return false;
-      if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
-  }, [applicationsByCampaign, campaigns, userId]);
+  }, [applicationsByCampaign, campaigns]);
   const visibleCampaigns = useMemo(() => {
     if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
@@ -965,16 +964,20 @@ export default function App() {
                   visibleCampaigns.map((campaign) => {
                     const application = applicationsByCampaign.get(campaign.id);
                     const status = application?.status;
+                    const isOwner = Boolean(userId && campaign.owner?.id === userId);
                     const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
                       calculatePayout(campaign.rewardPoints)
                     )}`;
                     const actionLabel =
-                      status === 'APPROVED'
+                      isOwner
+                        ? 'Ваше задание'
+                        : status === 'APPROVED'
                         ? 'Получено'
                         : status === 'PENDING'
                           ? 'Ожидание'
                           : 'Получить';
                     const disabled =
+                      isOwner ||
                       status === 'APPROVED' ||
                       status === 'PENDING' ||
                       actionLoadingId === campaign.id;
@@ -1013,7 +1016,12 @@ export default function App() {
                               disabled={disabled}
                               aria-label={actionLabel}
                             >
-                              {status === 'APPROVED' ? (
+                              {isOwner ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                  <rect x="5" y="11" width="14" height="8" rx="2" />
+                                  <path d="M8 11V8a4 4 0 018 0v3" />
+                                </svg>
+                              ) : status === 'APPROVED' ? (
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                                   <path d="M5 12l4 4L19 7" />
                                 </svg>

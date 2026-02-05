@@ -89,18 +89,6 @@ const getToken = (authHeader?: string) => {
   return token ?? '';
 };
 
-const getOptionalUser = async (request: any) => {
-  const bearer = getToken(request.headers.authorization);
-  if (!bearer) return null;
-  try {
-    const payload = await verifySession(bearer);
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) return null;
-    return await ensureLegacyStats(user);
-  } catch {
-    return null;
-  }
-};
 
 const creditUserForCampaign = async (
   tx: Prisma.TransactionClient,
@@ -593,12 +581,10 @@ export const registerRoutes = (app: FastifyInstance) => {
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid query' });
 
     const { category, limit, actionType } = parsed.data;
-    const viewer = await getOptionalUser(request);
     const campaigns = await prisma.campaign.findMany({
       where: {
         status: 'ACTIVE',
         remainingBudget: { gt: 0 },
-        ownerId: viewer ? { not: viewer.id } : undefined,
         group: category ? { category } : undefined,
         actionType: actionType
           ? actionType === 'subscribe'
