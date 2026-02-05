@@ -341,7 +341,6 @@ body::before {
 }
 
 .segment.filters {
-.segment.filters {
   position: relative;
   height: clamp(72px, 18vw, 92px);
   grid-template-columns: repeat(2, minmax(0, 1fr));
