@@ -21,8 +21,9 @@ export default function App() {
   const [pointsToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
-  const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
-  const [tasksView, setTasksView] = useState<'active' | 'history'>('active');
+  const [tasksFilter, setTasksFilter] = useState<
+    'subscribe' | 'reaction' | 'hot' | 'new' | 'history'
+  >('subscribe');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -69,21 +70,40 @@ export default function App() {
   );
   const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
   const payoutPreview = useMemo(() => calculatePayout(taskPrice), [calculatePayout, taskPrice]);
-  const visibleCampaigns = useMemo(() => {
-    const type = taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
+  const activeCampaigns = useMemo(() => {
     return campaigns.filter((campaign) => {
-      if (campaign.actionType !== type) return false;
       const status = applicationsByCampaign.get(campaign.id)?.status;
       return status !== 'APPROVED';
     });
-  }, [applicationsByCampaign, campaigns, taskFilter]);
+  }, [applicationsByCampaign, campaigns]);
+  const visibleCampaigns = useMemo(() => {
+    if (tasksFilter === 'history') return [];
+    const base = [...activeCampaigns];
+    if (tasksFilter === 'subscribe') {
+      return base.filter((campaign) => campaign.actionType === 'SUBSCRIBE');
+    }
+    if (tasksFilter === 'reaction') {
+      return base.filter((campaign) => campaign.actionType === 'REACTION');
+    }
+    if (tasksFilter === 'hot') {
+      return base.sort((a, b) => b.rewardPoints - a.rewardPoints);
+    }
+    if (tasksFilter === 'new') {
+      return base.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+    return base;
+  }, [activeCampaigns, tasksFilter]);
   const historyApplications = useMemo(() => {
-    const type = taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
-    return applications.filter(
-      (application) =>
-        application.status === 'APPROVED' && application.campaign.actionType === type
-    );
-  }, [applications, taskFilter]);
+    return applications
+      .filter((application) => application.status === 'APPROVED')
+      .sort(
+        (a, b) =>
+          new Date(b.reviewedAt ?? b.createdAt).getTime() -
+          new Date(a.reviewedAt ?? a.createdAt).getTime()
+      );
+  }, [applications]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -318,6 +338,13 @@ export default function App() {
         : campaign.group.inviteLink;
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('ru-RU');
   };
 
   const handleCreateCampaign = async () => {
@@ -811,39 +838,44 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <div className="segment compact">
+            <div className="segment filters">
               <button
-                className={`segment-button ${tasksView === 'active' ? 'active' : ''}`}
+                className={`segment-button ${tasksFilter === 'subscribe' ? 'active' : ''}`}
                 type="button"
-                onClick={() => setTasksView('active')}
-              >
-                Активные
-              </button>
-              <button
-                className={`segment-button ${tasksView === 'history' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksView('history')}
-              >
-                История
-              </button>
-            </div>
-            <div className="segment">
-              <button
-                className={`segment-button ${taskFilter === 'subscribe' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTaskFilter('subscribe')}
+                onClick={() => setTasksFilter('subscribe')}
               >
                 Подписки
               </button>
               <button
-                className={`segment-button ${taskFilter === 'reaction' ? 'active' : ''}`}
+                className={`segment-button ${tasksFilter === 'reaction' ? 'active' : ''}`}
                 type="button"
-                onClick={() => setTaskFilter('reaction')}
+                onClick={() => setTasksFilter('reaction')}
               >
                 Реакции
               </button>
+              <button
+                className={`segment-button ${tasksFilter === 'hot' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksFilter('hot')}
+              >
+                Топ
+              </button>
+              <button
+                className={`segment-button ${tasksFilter === 'new' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksFilter('new')}
+              >
+                Новые
+              </button>
+              <button
+                className={`segment-button ${tasksFilter === 'history' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksFilter('history')}
+              >
+                История
+              </button>
             </div>
-            {tasksView === 'active' && (
+            {tasksFilter !== 'history' && (
               <div className="task-list">
                 {actionError && <div className="form-status error">{actionError}</div>}
                 {applicationsError && <div className="form-status error">{applicationsError}</div>}
@@ -928,7 +960,7 @@ export default function App() {
                   })}
               </div>
             )}
-            {tasksView === 'history' && (
+            {tasksFilter === 'history' && (
               <div className="task-list">
                 {applicationsLoading && (
                   <div className="task-form-placeholder">Обновляем историю…</div>
@@ -941,6 +973,7 @@ export default function App() {
                   historyApplications.map((application) => {
                     const campaign = application.campaign;
                     const payout = calculatePayout(campaign.rewardPoints);
+                    const doneAt = formatDate(application.reviewedAt ?? application.createdAt);
                     return (
                       <div className="task-card" key={application.id}>
                         <div className="task-card-head">
@@ -968,6 +1001,7 @@ export default function App() {
                           <span className="muted">
                             Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
                           </span>
+                          {doneAt && <span className="muted">Дата: {doneAt}</span>}
                           <span className="status-badge approved">Выполнено</span>
                         </div>
                       </div>

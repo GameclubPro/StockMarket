@@ -340,12 +340,14 @@ body::before {
   height: 40px;
 }
 
-.segment.compact {
-  height: 34px;
-  margin-top: 6px;
+.segment.filters {
+  height: auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px;
+  gap: 6px;
 }
 
-.segment.compact .segment-button {
+.segment.filters .segment-button {
   height: 28px;
   font-size: 11px;
 }
