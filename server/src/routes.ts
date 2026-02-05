@@ -397,10 +397,7 @@ export const registerRoutes = (app: FastifyInstance) => {
               });
 
               if (chat.type !== 'channel') return;
-              if (lastCount === null || lastCount === undefined) return;
-
-              const delta = totalCount - lastCount;
-              if (delta <= 0) return;
+              if (totalCount <= 0) return;
 
               const maxByBudget = Math.floor(
                 freshCampaign.remainingBudget / freshCampaign.rewardPoints
@@ -410,11 +407,15 @@ export const registerRoutes = (app: FastifyInstance) => {
               const pending = await tx.application.findMany({
                 where: { campaignId: freshCampaign.id, status: 'PENDING' },
                 orderBy: { createdAt: 'asc' },
-                take: Math.min(delta, maxByBudget),
+                take: maxByBudget,
               });
               if (pending.length === 0) return;
 
-              const approveCount = Math.min(delta, pending.length, maxByBudget);
+              const approveCount =
+                lastCount === null || lastCount === undefined
+                  ? Math.min(1, pending.length, maxByBudget)
+                  : Math.min(totalCount - lastCount, pending.length, maxByBudget);
+              if (approveCount <= 0) return;
               const toApprove = pending.slice(0, approveCount);
               const now = new Date();
 
