@@ -85,6 +85,7 @@ body::before {
   padding: 18px 12px 12px;
   display: grid;
   gap: 16px;
+  align-content: start;
   position: relative;
   z-index: 1;
   flex: 1;
@@ -401,6 +402,7 @@ body::before {
   display: grid;
   gap: 12px;
   padding: 10px 6px 0;
+  align-content: start;
 }
 
 .task-card {
