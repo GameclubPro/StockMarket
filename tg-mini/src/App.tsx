@@ -43,6 +43,12 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   const bonus = Math.round(base * bonusRate);
   return Math.max(1, Math.min(value, base + bonus));
 };
+
+const getApprovalTimestamp = (application: ApplicationDto) => {
+  const stamp = application.reviewedAt ?? application.createdAt;
+  const parsed = Date.parse(stamp);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const BOT_SETUP_CHANNEL_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
 const BOT_SETUP_GROUP_URL =
   'https://t.me/JoinRush_bot?startgroup&admin=invite_users+restrict_members+delete_messages+pin_messages+manage_chat+manage_topics';
@@ -93,6 +99,7 @@ export default function App() {
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
   const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
+  const [leavingIds, setLeavingIds] = useState<string[]>([]);
   const [animationQueueTick, setAnimationQueueTick] = useState(0);
   const resumeRefreshAtRef = useRef(0);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
@@ -105,6 +112,9 @@ export default function App() {
   >(new Map());
   const pendingApprovalIdsRef = useRef<Set<string>>(new Set());
   const autoRevealApprovalRef = useRef(false);
+  const approvalStorageKeyRef = useRef('');
+  const lastSeenApprovalAtRef = useRef(0);
+  const approvalBootstrappedRef = useRef(false);
   const animatingOutRef = useRef<Set<string>>(new Set());
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
@@ -199,6 +209,22 @@ export default function App() {
 
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const key = `jr:lastSeenApprovalAt:${userId}`;
+    approvalStorageKeyRef.current = key;
+    let stored = 0;
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? Number(raw) : 0;
+      stored = Number.isFinite(parsed) ? parsed : 0;
+    } catch {
+      stored = 0;
+    }
+    lastSeenApprovalAtRef.current = stored;
+    approvalBootstrappedRef.current = false;
+  }, [userId]);
 
   const loadMyGroups = useCallback(async () => {
     setMyGroupsError('');
@@ -304,14 +330,13 @@ export default function App() {
   }, [activeTab, loadMyApplications]);
 
   const refreshTasksOnResume = useCallback(() => {
-    if (activeTab !== 'tasks') return;
     const now = Date.now();
     if (now - resumeRefreshAtRef.current < 1200) return;
     resumeRefreshAtRef.current = now;
     void loadCampaigns();
     void loadMyApplications();
     void loadMe();
-  }, [activeTab, loadCampaigns, loadMyApplications, loadMe]);
+  }, [loadCampaigns, loadMyApplications, loadMe]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -437,6 +462,7 @@ export default function App() {
       const targetRect = target.getBoundingClientRect();
       const clone = source.cloneNode(true) as HTMLElement;
 
+      clone.classList.remove('is-leaving');
       clone.classList.add(className);
       clone.style.position = 'fixed';
       clone.style.left = `${sourceRect.left}px`;
@@ -446,6 +472,7 @@ export default function App() {
       clone.style.margin = '0';
       clone.style.zIndex = '9999';
       clone.style.pointerEvents = 'none';
+      clone.style.opacity = '1';
 
       document.body.appendChild(clone);
 
@@ -514,12 +541,15 @@ export default function App() {
       const finish = () => {
         animatingOutRef.current.delete(campaignId);
         setAnimatingOutIds((prev) => prev.filter((item) => item !== campaignId));
+        setLeavingIds((prev) => prev.filter((item) => item !== campaignId));
       };
 
       if (!card || !badge || !historyTab || !balanceValue) {
         window.setTimeout(finish, 200);
         return;
       }
+
+      setLeavingIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
 
       const cardDuration = 2400;
       const badgeDuration = 2000;
@@ -640,8 +670,13 @@ export default function App() {
     const previous = approvalTrackerRef.current;
     const next = new Map<string, { status: ApplicationDto['status']; reviewedAt?: string | null }>();
     const newlyApproved: ApplicationDto[] = [];
+    let maxApprovedAt = 0;
 
     applications.forEach((application) => {
+      const approvedAt = getApprovalTimestamp(application);
+      if (application.status === 'APPROVED' && approvedAt > maxApprovedAt) {
+        maxApprovedAt = approvedAt;
+      }
       next.set(application.campaign.id, {
         status: application.status,
         reviewedAt: application.reviewedAt ?? null,
@@ -649,30 +684,72 @@ export default function App() {
       const prevSnapshot = previous.get(application.campaign.id);
       const wasApproved = prevSnapshot?.status === 'APPROVED';
       const reviewedChanged = prevSnapshot?.reviewedAt !== (application.reviewedAt ?? null);
-      if (application.status === 'APPROVED' && (!wasApproved || reviewedChanged)) {
+      const isNewByTime = approvedAt > lastSeenApprovalAtRef.current;
+      if (
+        application.status === 'APPROVED' &&
+        (!wasApproved || reviewedChanged) &&
+        isNewByTime
+      ) {
         newlyApproved.push(application);
       }
     });
 
     approvalTrackerRef.current = next;
+
+    if (!approvalBootstrappedRef.current) {
+      approvalBootstrappedRef.current = true;
+      if (lastSeenApprovalAtRef.current === 0 && maxApprovedAt > 0) {
+        lastSeenApprovalAtRef.current = maxApprovedAt;
+        if (approvalStorageKeyRef.current) {
+          try {
+            localStorage.setItem(
+              approvalStorageKeyRef.current,
+              String(lastSeenApprovalAtRef.current)
+            );
+          } catch {
+            // ignore
+          }
+        }
+        return;
+      }
+    }
+
     if (newlyApproved.length === 0) return;
 
     const isVisible =
       typeof document === 'undefined' ? true : document.visibilityState === 'visible';
     const canAnimateNow = activeTab === 'tasks' && taskListFilter !== 'history' && isVisible;
     let queued = false;
+    let latestApprovedAt = lastSeenApprovalAtRef.current;
 
     newlyApproved.forEach((application) => {
       const campaignId = application.campaign.id;
-      if (animatingOutRef.current.has(campaignId)) return;
-
-      animatingOutRef.current.add(campaignId);
-      setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
-      pendingApprovalIdsRef.current.add(campaignId);
-      queued = true;
+      if (!animatingOutRef.current.has(campaignId)) {
+        animatingOutRef.current.add(campaignId);
+        setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
+      }
+      if (!pendingApprovalIdsRef.current.has(campaignId)) {
+        pendingApprovalIdsRef.current.add(campaignId);
+        queued = true;
+      }
+      const approvedAt = getApprovalTimestamp(application);
+      if (approvedAt > latestApprovedAt) latestApprovedAt = approvedAt;
     });
 
     if (queued) {
+      if (latestApprovedAt > lastSeenApprovalAtRef.current) {
+        lastSeenApprovalAtRef.current = latestApprovedAt;
+        if (approvalStorageKeyRef.current) {
+          try {
+            localStorage.setItem(
+              approvalStorageKeyRef.current,
+              String(lastSeenApprovalAtRef.current)
+            );
+          } catch {
+            // ignore
+          }
+        }
+      }
       setAnimationQueueTick((tick) => tick + 1);
     }
 
@@ -688,6 +765,9 @@ export default function App() {
   }, [applications, activeTab, taskListFilter]);
 
   useLayoutEffect(() => {
+    const isVisible =
+      typeof document === 'undefined' ? true : document.visibilityState === 'visible';
+    if (!isVisible) return;
     if (activeTab !== 'tasks' || taskListFilter === 'history') return;
     if (pendingApprovalIdsRef.current.size === 0) {
       autoRevealApprovalRef.current = false;
@@ -709,6 +789,10 @@ export default function App() {
       if (!card || !badge || !historyTab || !balanceValue) {
         missingRefs = true;
         return;
+      }
+      if (!animatingOutRef.current.has(campaignId)) {
+        animatingOutRef.current.add(campaignId);
+        setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
       }
       pendingApprovalIdsRef.current.delete(campaignId);
       triggerCompletionAnimation(campaignId);
@@ -1208,7 +1292,7 @@ export default function App() {
                     )}`;
                     return (
                       <div
-                        className={`task-card ${animatingOutIds.includes(campaign.id) ? 'is-leaving' : ''}`}
+                        className={`task-card ${leavingIds.includes(campaign.id) ? 'is-leaving' : ''}`}
                         key={campaign.id}
                         ref={(node) => registerTaskCardRef(campaign.id, node)}
                       >
