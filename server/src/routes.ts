@@ -254,6 +254,40 @@ export const registerRoutes = (app: FastifyInstance) => {
     }
 
     const update = request.body as TelegramUpdate;
+    const reaction = update.message_reaction;
+    const reactionCount = update.message_reaction_count;
+    if (reaction || reactionCount) {
+      if (reactionCount?.chat) {
+        const totalCount = Array.isArray(reactionCount.reactions)
+          ? reactionCount.reactions.reduce(
+              (sum, item) => sum + (Number.isFinite(item.total_count) ? item.total_count : 0),
+              0
+            )
+          : 0;
+        request.log.info(
+          {
+            kind: 'message_reaction_count',
+            chatType: reactionCount.chat.type,
+            chat: reactionCount.chat.username ?? reactionCount.chat.id,
+            messageId: reactionCount.message_id,
+            totalCount,
+          },
+          'telegram reaction update'
+        );
+      }
+      if (reaction?.chat) {
+        request.log.info(
+          {
+            kind: 'message_reaction',
+            chatType: reaction.chat.type,
+            chat: reaction.chat.username ?? reaction.chat.id,
+            messageId: reaction.message_id,
+            hasUser: Boolean(reaction.user),
+          },
+          'telegram reaction update'
+        );
+      }
+    }
     try {
       const upsertUser = async (user: {
         id: number;
@@ -396,7 +430,6 @@ export const registerRoutes = (app: FastifyInstance) => {
                 data: { reactionCount: totalCount },
               });
 
-              if (chat.type !== 'channel') return;
               if (totalCount <= 0) return;
 
               const maxByBudget = Math.floor(
