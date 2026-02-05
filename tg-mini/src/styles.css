@@ -342,14 +342,41 @@ body::before {
 
 .segment.filters {
   height: auto;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 6px;
+  grid-template-columns: none;
+  grid-auto-rows: min-content;
+  padding: 8px;
   gap: 6px;
+  align-items: stretch;
 }
 
 .segment.filters .segment-button {
   height: 28px;
   font-size: 11px;
+}
+
+.filter-row {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-row.top {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.filter-row.bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filter-divider {
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(124, 255, 178, 0.35),
+    rgba(255, 255, 255, 0.04)
+  );
+  opacity: 0.8;
 }
 
 .segment.wide {

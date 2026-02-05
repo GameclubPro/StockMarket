@@ -839,41 +839,46 @@ export default function App() {
               </button>
             </div>
             <div className="segment filters">
-              <button
-                className={`segment-button ${tasksFilter === 'subscribe' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksFilter('subscribe')}
-              >
-                Подписки
-              </button>
-              <button
-                className={`segment-button ${tasksFilter === 'reaction' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksFilter('reaction')}
-              >
-                Реакции
-              </button>
-              <button
-                className={`segment-button ${tasksFilter === 'hot' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksFilter('hot')}
-              >
-                Топ
-              </button>
-              <button
-                className={`segment-button ${tasksFilter === 'new' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksFilter('new')}
-              >
-                Новые
-              </button>
-              <button
-                className={`segment-button ${tasksFilter === 'history' ? 'active' : ''}`}
-                type="button"
-                onClick={() => setTasksFilter('history')}
-              >
-                История
-              </button>
+              <div className="filter-row top">
+                <button
+                  className={`segment-button ${tasksFilter === 'subscribe' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTasksFilter('subscribe')}
+                >
+                  Подписки
+                </button>
+                <button
+                  className={`segment-button ${tasksFilter === 'reaction' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTasksFilter('reaction')}
+                >
+                  Реакции
+                </button>
+              </div>
+              <div className="filter-divider" />
+              <div className="filter-row bottom">
+                <button
+                  className={`segment-button ${tasksFilter === 'hot' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTasksFilter('hot')}
+                >
+                  Топ
+                </button>
+                <button
+                  className={`segment-button ${tasksFilter === 'new' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTasksFilter('new')}
+                >
+                  Новые
+                </button>
+                <button
+                  className={`segment-button ${tasksFilter === 'history' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTasksFilter('history')}
+                >
+                  История
+                </button>
+              </div>
             </div>
             {tasksFilter !== 'history' && (
               <div className="task-list">
