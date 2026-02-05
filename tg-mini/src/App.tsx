@@ -564,7 +564,6 @@ export default function App() {
       if (typeof data.balance === 'number') {
         setPoints(data.balance);
       }
-      setTaskLink('');
       setReactionLink('');
       setSelectedGroupId('');
       setSelectedGroupTitle('');
