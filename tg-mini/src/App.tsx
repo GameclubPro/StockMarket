@@ -95,25 +95,6 @@ export default function App() {
     void loadProfile();
   }, []);
 
-  useEffect(() => {
-    void loadCampaigns();
-  }, [loadCampaigns]);
-
-  useEffect(() => {
-    if (activeTab !== 'tasks') return;
-    void loadMyApplications();
-  }, [activeTab, loadMyApplications]);
-
-  useEffect(() => {
-    if (activeTab !== 'promo') return;
-    if (myTasksTab === 'mine') void loadMyCampaigns();
-    if (myTasksTab === 'incoming') void loadIncomingApplications();
-  }, [activeTab, loadIncomingApplications, loadMyCampaigns, myTasksTab]);
-
-  useEffect(() => {
-    setActionError('');
-  }, [activeTab, myTasksTab]);
-
   const loadMyGroups = useCallback(async () => {
     setMyGroupsError('');
     setMyGroupsLoading(true);
@@ -214,6 +195,25 @@ export default function App() {
       setIncomingLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadCampaigns();
+  }, [loadCampaigns]);
+
+  useEffect(() => {
+    if (activeTab !== 'tasks') return;
+    void loadMyApplications();
+  }, [activeTab, loadMyApplications]);
+
+  useEffect(() => {
+    if (activeTab !== 'promo') return;
+    if (myTasksTab === 'mine') void loadMyCampaigns();
+    if (myTasksTab === 'incoming') void loadIncomingApplications();
+  }, [activeTab, loadIncomingApplications, loadMyCampaigns, myTasksTab]);
+
+  useEffect(() => {
+    setActionError('');
+  }, [activeTab, myTasksTab]);
 
   useEffect(() => {
     if (!linkPickerOpen) return;
@@ -894,6 +894,9 @@ export default function App() {
             <div className="task-list">
               {actionError && <div className="form-status error">{actionError}</div>}
               {applicationsError && <div className="form-status error">{applicationsError}</div>}
+              {applicationsLoading && (
+                <div className="task-form-placeholder">Обновляем статусы…</div>
+              )}
               {campaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
               {!campaignsLoading && campaignsError && (
                 <div className="task-form-placeholder error">{campaignsError}</div>
