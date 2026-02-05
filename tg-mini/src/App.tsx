@@ -460,7 +460,13 @@ export default function App() {
   }, []);
 
   const animateFlyout = useCallback(
-    (source: HTMLElement, target: HTMLElement, className: string, scale: number) => {
+    (
+      source: HTMLElement,
+      target: HTMLElement,
+      className: string,
+      scale: number,
+      durationMs: number
+    ) => {
       const sourceRect = source.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
       const clone = source.cloneNode(true) as HTMLElement;
@@ -474,21 +480,49 @@ export default function App() {
       clone.style.margin = '0';
       clone.style.zIndex = '9999';
       clone.style.pointerEvents = 'none';
-      clone.style.transform = 'translate(0px, 0px) scale(1)';
-      clone.style.opacity = '1';
 
       document.body.appendChild(clone);
 
       const dx = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
-      const dy = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+      const dy =
+        targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+      const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length;
+      const ny = dx / length;
+      const curve = Math.min(140, length * 0.28);
+      const midX = dx * 0.55 + nx * curve;
+      const midY = dy * 0.55 + ny * curve;
+      const midScale = 1 - (1 - scale) * 0.45;
 
-      requestAnimationFrame(() => {
-        clone.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-        clone.style.opacity = '0';
-      });
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      if (reduceMotion || !clone.animate) {
+        clone.remove();
+        return;
+      }
 
-      clone.addEventListener(
-        'transitionend',
+      const animation = clone.animate(
+        [
+          { transform: 'translate(0px, 0px) scale(1)', opacity: 1, offset: 0 },
+          {
+            transform: `translate(${midX}px, ${midY}px) scale(${midScale})`,
+            opacity: 0.72,
+            offset: 0.6,
+          },
+          {
+            transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
+            opacity: 0,
+            offset: 1,
+          },
+        ],
+        {
+          duration: durationMs,
+          easing: 'cubic-bezier(0.16, 0.84, 0.44, 1)',
+          fill: 'forwards',
+        }
+      );
+
+      animation.addEventListener(
+        'finish',
         () => {
           clone.remove();
         },
@@ -514,15 +548,17 @@ export default function App() {
         return;
       }
 
-      animateFlyout(card, historyTab, 'flyout-card', 0.2);
-      animateFlyout(badge, balanceValue, 'flyout-badge', 0.4);
+      const cardDuration = 1200;
+      const badgeDuration = 900;
+      animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
+      animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
 
       balanceValue.classList.remove('balance-pulse');
       void balanceValue.offsetWidth;
       balanceValue.classList.add('balance-pulse');
-      window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 650);
+      window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 750);
 
-      window.setTimeout(finish, 750);
+      window.setTimeout(finish, Math.max(cardDuration, badgeDuration) + 120);
     },
     [animateFlyout]
   );
