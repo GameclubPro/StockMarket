@@ -50,7 +50,14 @@ const request = async (path: string, options: RequestInit = {}) => {
   });
 
   if (!response.ok) {
-    throw new Error('request failed');
+    let message = 'request failed';
+    try {
+      const data = await response.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
   }
 
   return response.json();

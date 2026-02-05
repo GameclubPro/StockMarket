@@ -4,6 +4,7 @@ import { prisma } from './db.js';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
+import { ensureBotIsAdmin, extractUsername } from './telegram-bot.js';
 
 const authBodySchema = z.object({
   initData: z.string().min(1),
@@ -155,11 +156,21 @@ export const registerRoutes = (app: FastifyInstance) => {
       const parsed = groupCreateSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
+      const resolvedUsername = extractUsername(parsed.data.username ?? parsed.data.inviteLink);
+      if (!resolvedUsername) {
+        return reply.code(400).send({
+          ok: false,
+          error: 'Укажите публичный @username (например, @my_channel).',
+        });
+      }
+
+      await ensureBotIsAdmin(config.botToken, resolvedUsername);
+
       const group = await prisma.group.create({
         data: {
           ownerId: user.id,
           title: parsed.data.title,
-          username: parsed.data.username,
+          username: resolvedUsername.replace(/^@/, ''),
           inviteLink: parsed.data.inviteLink,
           description: parsed.data.description,
           category: parsed.data.category,
@@ -168,7 +179,14 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       return { ok: true, group };
     } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+      const message = error?.message ?? 'unauthorized';
+      const status =
+        message === 'unauthorized' || message === 'user not found' || message === 'no user'
+          ? 401
+          : error?.status && Number.isFinite(error.status)
+            ? error.status
+            : 400;
+      return reply.code(status).send({ ok: false, error: message });
     }
   });
 
