@@ -395,13 +395,6 @@ export default function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const formatDate = (value?: string | null) => {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('ru-RU');
-  };
-
   const BalanceHeader = () => (
     <div className="balance-header">
       <div className="balance-header-metrics">
@@ -971,16 +964,6 @@ export default function App() {
                     const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
                       calculatePayout(campaign.rewardPoints)
                     )}`;
-                    const statusLabel =
-                      status === 'APPROVED'
-                        ? 'Получено'
-                        : status === 'PENDING'
-                          ? campaign.actionType === 'SUBSCRIBE'
-                            ? 'Ожидает вступления'
-                            : 'Ожидает реакции'
-                          : status === 'REJECTED'
-                            ? 'Отклонено'
-                            : '';
                     const actionLabel =
                       status === 'APPROVED'
                         ? 'Получено'
