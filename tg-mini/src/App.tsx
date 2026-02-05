@@ -91,6 +91,20 @@ export default function App() {
   }, [applications]);
   const rankTier = useMemo(() => getRankTier(totalEarned), [totalEarned]);
   const bonusPercent = Math.round(rankTier.bonusRate * 100);
+  const nextRank = useMemo(() => {
+    const index = RANKS.findIndex((rank) => rank.level === rankTier.level);
+    if (index < 0 || index >= RANKS.length - 1) return null;
+    return RANKS[index + 1];
+  }, [rankTier.level]);
+  const progressLabel = nextRank
+    ? `До ${nextRank.title}: ${Math.max(0, nextRank.minTotal - totalEarned)} баллов`
+    : 'Максимальный ранг';
+  const progressValue = useMemo(() => {
+    if (!nextRank) return 1;
+    const span = Math.max(1, nextRank.minTotal - rankTier.minTotal);
+    const progress = (totalEarned - rankTier.minTotal) / span;
+    return Math.min(1, Math.max(0, progress));
+  }, [nextRank, rankTier.minTotal, totalEarned]);
   const calculatePayout = useCallback(
     (value: number) => calculatePayoutWithBonus(value, rankTier.bonusRate),
     [rankTier.bonusRate]
@@ -385,6 +399,12 @@ export default function App() {
           <span className="metric-label">Ранг</span>
           <span className="metric-value">{rankTier.title}</span>
           <span className="metric-sub">Бонус +{bonusPercent}%</span>
+          <div className="metric-progress">
+            <div className="metric-progress-bar" aria-hidden="true">
+              <span style={{ width: `${progressValue * 100}%` }} />
+            </div>
+            <div className="metric-progress-text">{progressLabel}</div>
+          </div>
         </div>
       </div>
       <button className="topup-button" type="button">
