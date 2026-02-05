@@ -5,7 +5,13 @@ import { type Prisma, type User } from '@prisma/client';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
-import { ensureBotIsAdmin, extractUsername, getChatMemberStatus, isActiveMemberStatus } from './telegram-bot.js';
+import {
+  ensureBotIsAdmin,
+  extractUsername,
+  getChatMemberStatus,
+  isActiveMemberStatus,
+  isAdminMemberStatus,
+} from './telegram-bot.js';
 import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
 const authBodySchema = z.object({
@@ -322,9 +328,10 @@ export const registerRoutes = (app: FastifyInstance) => {
         upsertUser,
         upsertGroup: async ({ ownerId, chat }) => {
           const username = chat.username ?? '';
+          if (!username) return;
           const inviteLink = `https://t.me/${username}`;
-          const existing = await prisma.group.findFirst({
-            where: { ownerId, username },
+          const existing = await prisma.group.findUnique({
+            where: { username },
           });
           if (existing) {
             await prisma.group.update({
@@ -334,10 +341,15 @@ export const registerRoutes = (app: FastifyInstance) => {
                 inviteLink,
               },
             });
+            await prisma.groupAdmin.upsert({
+              where: { groupId_userId: { groupId: existing.id, userId: ownerId } },
+              update: {},
+              create: { groupId: existing.id, userId: ownerId },
+            });
             return;
           }
 
-          await prisma.group.create({
+          const created = await prisma.group.create({
             data: {
               ownerId,
               title: chat.title ?? username,
@@ -346,6 +358,10 @@ export const registerRoutes = (app: FastifyInstance) => {
               description: null,
               category: null,
             },
+          });
+
+          await prisma.groupAdmin.create({
+            data: { groupId: created.id, userId: ownerId },
           });
         },
         handleReaction: async ({ chat, user, messageId }) => {
@@ -644,7 +660,11 @@ export const registerRoutes = (app: FastifyInstance) => {
     try {
       const user = await requireUser(request);
       const [groups, campaigns, applications] = await Promise.all([
-        prisma.group.count({ where: { ownerId: user.id } }),
+        prisma.group.count({
+          where: {
+            OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
+          },
+        }),
         prisma.campaign.count({ where: { ownerId: user.id } }),
         prisma.application.count({ where: { applicantId: user.id } }),
       ]);
@@ -670,7 +690,9 @@ export const registerRoutes = (app: FastifyInstance) => {
     try {
       const user = await requireUser(request);
       const groups = await prisma.group.findMany({
-        where: { ownerId: user.id },
+        where: {
+          OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
+        },
         orderBy: { createdAt: 'desc' },
       });
       return { ok: true, groups };
@@ -695,15 +717,44 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       await ensureBotIsAdmin(config.botToken, resolvedUsername);
 
-      const group = await prisma.group.create({
-        data: {
-          ownerId: user.id,
+      const telegramId = Number(user.telegramId);
+      if (!Number.isFinite(telegramId)) {
+        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+      }
+      const memberStatus = await getChatMemberStatus(
+        config.botToken,
+        resolvedUsername,
+        telegramId
+      );
+      if (!isAdminMemberStatus(memberStatus)) {
+        return reply
+          .code(403)
+          .send({ ok: false, error: 'Вы должны быть администратором канала/группы.' });
+      }
+
+      const cleanUsername = resolvedUsername.replace(/^@/, '');
+      const group = await prisma.group.upsert({
+        where: { username: cleanUsername },
+        update: {
           title: parsed.data.title,
-          username: resolvedUsername.replace(/^@/, ''),
           inviteLink: parsed.data.inviteLink,
           description: parsed.data.description,
           category: parsed.data.category,
         },
+        create: {
+          ownerId: user.id,
+          title: parsed.data.title,
+          username: cleanUsername,
+          inviteLink: parsed.data.inviteLink,
+          description: parsed.data.description,
+          category: parsed.data.category,
+        },
+      });
+
+      await prisma.groupAdmin.upsert({
+        where: { groupId_userId: { groupId: group.id, userId: user.id } },
+        update: {},
+        create: { groupId: group.id, userId: user.id },
       });
 
       return { ok: true, group };
@@ -773,9 +824,13 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'budget too small' });
       }
 
-      const group = await prisma.group.findUnique({ where: { id: parsed.data.groupId } });
-      if (!group || group.ownerId !== user.id) {
-        return reply.code(403).send({ ok: false, error: 'not owner' });
+      const group = await prisma.group.findUnique({
+        where: { id: parsed.data.groupId },
+        include: { admins: { where: { userId: user.id }, select: { userId: true } } },
+      });
+      const isGroupAdmin = group?.ownerId === user.id || (group?.admins?.length ?? 0) > 0;
+      if (!group || !isGroupAdmin) {
+        return reply.code(403).send({ ok: false, error: 'not admin' });
       }
 
       let targetMessageId: number | null = null;

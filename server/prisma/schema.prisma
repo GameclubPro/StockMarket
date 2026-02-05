@@ -45,6 +45,7 @@ model User {
   createdAt  DateTime @default(now())
 
   groups       Group[]
+  groupAdmins  GroupAdmin[]
   campaigns    Campaign[]
   applications Application[]
   ledger       LedgerEntry[]
@@ -55,13 +56,25 @@ model Group {
   ownerId     String
   owner       User     @relation(fields: [ownerId], references: [id])
   title       String
-  username    String?
+  username    String?  @unique
   inviteLink  String
   description String?
   category    String?
   createdAt   DateTime @default(now())
 
   campaigns   Campaign[]
+  admins      GroupAdmin[]
+}
+
+model GroupAdmin {
+  groupId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
 }
 
 model Campaign {

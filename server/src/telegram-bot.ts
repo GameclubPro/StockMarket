@@ -148,3 +148,6 @@ export const getChatMemberStatus = async (botToken: string, chatId: string, user
 
 export const isActiveMemberStatus = (status: ChatMember['status']) =>
   status === 'member' || status === 'administrator' || status === 'creator';
+
+export const isAdminMemberStatus = (status: ChatMember['status']) =>
+  status === 'administrator' || status === 'creator';

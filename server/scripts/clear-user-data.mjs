@@ -7,16 +7,18 @@ const main = async () => {
     const ledger = await tx.ledgerEntry.deleteMany();
     const applications = await tx.application.deleteMany();
     const campaigns = await tx.campaign.deleteMany();
+    const groupAdmins = await tx.groupAdmin.deleteMany();
     const groups = await tx.group.deleteMany();
     const users = await tx.user.deleteMany();
 
-    return { ledger, applications, campaigns, groups, users };
+    return { ledger, applications, campaigns, groupAdmins, groups, users };
   });
 
   console.log('Cleared user data:', {
     ledger: result.ledger.count,
     applications: result.applications.count,
     campaigns: result.campaigns.count,
+    groupAdmins: result.groupAdmins.count,
     groups: result.groups.count,
     users: result.users.count,
   });
