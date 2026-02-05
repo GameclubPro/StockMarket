@@ -46,7 +46,8 @@ const ensureLegacyBalance = async <T extends { id: string; balance: number }>(us
     select: { id: true },
   });
   if (hasLedger) return user;
-  return (await prisma.user.update({ where: { id: user.id }, data: { balance: 30 } })) as T;
+  await prisma.user.update({ where: { id: user.id }, data: { balance: 30 } });
+  return { ...user, balance: 30 };
 };
 
 const requireUser = async (request: any) => {
