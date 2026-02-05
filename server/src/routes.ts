@@ -4,7 +4,7 @@ import { prisma } from './db.js';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
-import { ensureBotIsAdmin, extractUsername } from './telegram-bot.js';
+import { ensureBotIsAdmin, extractUsername, getChatMemberStatus, isActiveMemberStatus } from './telegram-bot.js';
 import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
 const authBodySchema = z.object({
@@ -21,12 +21,14 @@ const groupCreateSchema = z.object({
 
 const campaignCreateSchema = z.object({
   groupId: z.string().min(1),
+  actionType: z.enum(['subscribe', 'reaction']),
   rewardPoints: z.coerce.number().int().min(1).max(10000),
   totalBudget: z.coerce.number().int().min(1).max(1000000),
 });
 
 const campaignQuerySchema = z.object({
   category: z.string().max(50).optional(),
+  actionType: z.enum(['subscribe', 'reaction']).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
@@ -66,7 +68,7 @@ const requireUser = async (request: any) => {
         firstName: tgUser.first_name,
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
-        balance: 0,
+        balance: 30,
         rating: 0,
       },
     });
@@ -105,7 +107,7 @@ export const registerRoutes = (app: FastifyInstance) => {
               firstName: user.first_name,
               lastName: user.last_name,
               photoUrl: user.photo_url,
-              balance: 0,
+              balance: 30,
               rating: 0,
             },
           });
@@ -167,7 +169,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         firstName: tgUser.first_name,
         lastName: tgUser.last_name,
         photoUrl: tgUser.photo_url,
-        balance: 0,
+        balance: 30,
         rating: 0,
       },
     });
@@ -199,7 +201,14 @@ export const registerRoutes = (app: FastifyInstance) => {
         stats: { groups, campaigns, applications },
       };
     } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+      const message = error?.message ?? 'unauthorized';
+      const status =
+        message === 'unauthorized' || message === 'user not found' || message === 'no user'
+          ? 401
+          : error?.status && Number.isFinite(error.status)
+            ? error.status
+            : 400;
+      return reply.code(status).send({ ok: false, error: message });
     }
   });
 
@@ -260,12 +269,17 @@ export const registerRoutes = (app: FastifyInstance) => {
     const parsed = campaignQuerySchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid query' });
 
-    const { category, limit } = parsed.data;
+    const { category, limit, actionType } = parsed.data;
     const campaigns = await prisma.campaign.findMany({
       where: {
         status: 'ACTIVE',
         remainingBudget: { gt: 0 },
         group: category ? { category } : undefined,
+        actionType: actionType
+          ? actionType === 'subscribe'
+            ? 'SUBSCRIBE'
+            : 'REACTION'
+          : undefined,
       },
       include: {
         group: true,
@@ -323,6 +337,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           data: {
             groupId: parsed.data.groupId,
             ownerId: user.id,
+            actionType: parsed.data.actionType === 'subscribe' ? 'SUBSCRIBE' : 'REACTION',
             rewardPoints: parsed.data.rewardPoints,
             totalBudget: parsed.data.totalBudget,
             remainingBudget: parsed.data.totalBudget,
@@ -343,10 +358,16 @@ export const registerRoutes = (app: FastifyInstance) => {
         return created;
       });
 
-      return { ok: true, campaign };
+      const balance = await prisma.user.findUnique({ where: { id: user.id } });
+      return { ok: true, campaign, balance: balance?.balance ?? user.balance };
     } catch (error: any) {
-      const message = error?.message === 'insufficient_balance' ? 'not enough balance' : 'unauthorized';
-      return reply.code(401).send({ ok: false, error: message });
+      const message =
+        error?.message === 'insufficient_balance' ? 'Недостаточно баллов.' : 'unauthorized';
+      const status =
+        message === 'unauthorized' || message === 'user not found' || message === 'no user'
+          ? 401
+          : 400;
+      return reply.code(status).send({ ok: false, error: message });
     }
   });
 
@@ -363,22 +384,104 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'cannot apply own campaign' });
       }
       if (campaign.status !== 'ACTIVE' || campaign.remainingBudget < campaign.rewardPoints) {
-        return reply.code(400).send({ ok: false, error: 'campaign paused' });
+        return reply.code(400).send({ ok: false, error: 'Задание приостановлено или бюджет исчерпан.' });
       }
 
       const existing = await prisma.application.findUnique({
         where: { campaignId_applicantId: { campaignId, applicantId: user.id } },
       });
-      if (existing) return { ok: true, application: existing };
+      if (existing?.status === 'APPROVED') {
+        const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+        return { ok: true, application: existing, balance: updatedUser?.balance ?? user.balance };
+      }
+      if (existing?.status === 'REJECTED') {
+        return reply.code(400).send({ ok: false, error: 'Заявка отклонена.' });
+      }
 
-      const application = await prisma.application.create({
-        data: {
-          campaignId,
-          applicantId: user.id,
-        },
+      if (campaign.actionType === 'REACTION') {
+        if (existing) return { ok: true, application: existing };
+        const application = await prisma.application.create({
+          data: {
+            campaignId,
+            applicantId: user.id,
+          },
+        });
+        return { ok: true, application };
+      }
+
+      if (!campaign.group.username) {
+        return reply
+          .code(400)
+          .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
+      }
+
+      const telegramId = Number(user.telegramId);
+      if (!Number.isFinite(telegramId)) {
+        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+      }
+
+      const status = await getChatMemberStatus(config.botToken, campaign.group.username, telegramId);
+      if (!isActiveMemberStatus(status)) {
+        return reply
+          .code(400)
+          .send({ ok: false, error: 'Сначала вступите в группу, затем нажмите "Проверить".' });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+        if (!freshCampaign || freshCampaign.status !== 'ACTIVE') throw new Error('campaign paused');
+        if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) throw new Error('budget empty');
+
+        const application = existing
+          ? await tx.application.update({
+              where: { id: existing.id },
+              data: { status: 'APPROVED', reviewedAt: new Date() },
+            })
+          : await tx.application.create({
+              data: {
+                campaignId,
+                applicantId: user.id,
+                status: 'APPROVED',
+                reviewedAt: new Date(),
+              },
+            });
+
+        const updatedCampaign = await tx.campaign.update({
+          where: { id: freshCampaign.id },
+          data: {
+            remainingBudget: { decrement: freshCampaign.rewardPoints },
+            status:
+              freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                ? 'COMPLETED'
+                : freshCampaign.status,
+          },
+        });
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: { balance: { increment: freshCampaign.rewardPoints } },
+        });
+
+        await tx.ledgerEntry.create({
+          data: {
+            userId: user.id,
+            type: 'EARN',
+            amount: freshCampaign.rewardPoints,
+            reason: 'Вступление в группу',
+            campaignId: freshCampaign.id,
+          },
+        });
+
+        return { application, campaign: updatedCampaign };
       });
 
-      return { ok: true, application };
+      const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+      return {
+        ok: true,
+        application: result.application,
+        campaign: result.campaign,
+        balance: updatedUser?.balance ?? user.balance,
+      };
     } catch (error: any) {
       return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
     }
@@ -461,7 +564,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             userId: application.applicantId,
             type: 'EARN',
             amount: campaign.rewardPoints,
-            reason: 'Вступление в группу',
+            reason: campaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
             campaignId: campaign.id,
           },
         });

@@ -21,6 +21,7 @@ export type GroupDto = {
 
 export type CampaignDto = {
   id: string;
+  actionType: 'SUBSCRIBE' | 'REACTION';
   rewardPoints: number;
   totalBudget: number;
   remainingBudget: number;
@@ -93,8 +94,11 @@ export const fetchMe = async () => {
   return data as { ok: boolean; user: UserDto; balance: number; stats: { groups: number; campaigns: number; applications: number } };
 };
 
-export const fetchCampaigns = async (category?: string) => {
-  const query = category ? `?category=${encodeURIComponent(category)}` : '';
+export const fetchCampaigns = async (category?: string, actionType?: 'subscribe' | 'reaction') => {
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (actionType) params.set('actionType', actionType);
+  const query = params.toString() ? `?${params.toString()}` : '';
   const data = await request(`/api/campaigns${query}`);
   return data as { ok: boolean; campaigns: CampaignDto[] };
 };
@@ -106,6 +110,7 @@ export const fetchMyCampaigns = async () => {
 
 export const createCampaign = async (payload: {
   groupId: string;
+  actionType: 'subscribe' | 'reaction';
   rewardPoints: number;
   totalBudget: number;
 }) => {
@@ -114,12 +119,12 @@ export const createCampaign = async (payload: {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  return data as { ok: boolean; campaign: CampaignDto };
+  return data as { ok: boolean; campaign: CampaignDto; balance?: number };
 };
 
 export const applyCampaign = async (id: string) => {
   const data = await request(`/api/campaigns/${id}/apply`, { method: 'POST' });
-  return data as { ok: boolean };
+  return data as { ok: boolean; application?: ApplicationDto; campaign?: CampaignDto; balance?: number };
 };
 
 export const fetchMyApplications = async () => {

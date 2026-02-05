@@ -345,6 +345,10 @@ body::before {
   justify-self: center;
 }
 
+.segment.center.wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .segment-button {
   background: transparent;
   border: 0;
@@ -498,6 +502,17 @@ body::before {
   cursor: pointer;
 }
 
+.open-button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+
+.open-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .task-meta {
   display: flex;
   flex-wrap: wrap;
@@ -514,6 +529,30 @@ body::before {
   padding: 4px 10px;
   border-radius: 999px;
   font-weight: 600;
+}
+
+.status-badge {
+  background: rgba(138, 210, 255, 0.16);
+  border: 1px solid rgba(138, 210, 255, 0.3);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.status-badge.approved {
+  background: rgba(124, 255, 178, 0.2);
+  border-color: rgba(124, 255, 178, 0.35);
+}
+
+.status-badge.pending {
+  background: rgba(255, 208, 122, 0.2);
+  border-color: rgba(255, 208, 122, 0.35);
+}
+
+.status-badge.rejected {
+  background: rgba(255, 138, 138, 0.2);
+  border-color: rgba(255, 138, 138, 0.35);
 }
 
 .muted {
@@ -535,6 +574,11 @@ body::before {
 
 .primary-button:hover {
   background: rgba(138, 210, 255, 0.26);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .field {
@@ -807,6 +851,28 @@ body::before {
   border: 1px dashed rgba(255, 255, 255, 0.15);
   border-radius: 14px;
   padding: 12px;
+}
+
+.task-form-placeholder.error {
+  color: rgba(255, 138, 138, 0.9);
+  border-color: rgba(255, 138, 138, 0.3);
+  background: rgba(255, 138, 138, 0.08);
+}
+
+.form-status {
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+
+.form-status.error {
+  color: rgba(255, 138, 138, 0.9);
+  border-color: rgba(255, 138, 138, 0.3);
+  background: rgba(255, 138, 138, 0.08);
 }
 
 .task-form-actions {

@@ -1,81 +1,73 @@
 import { readTextFromClipboard } from '@telegram-apps/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchMyGroups, type GroupDto, verifyInitData } from './api';
+import {
+  applyCampaign,
+  approveApplication,
+  createCampaign,
+  fetchCampaigns,
+  fetchIncomingApplications,
+  fetchMyApplications,
+  fetchMyCampaigns,
+  fetchMyGroups,
+  rejectApplication,
+  type ApplicationDto,
+  type CampaignDto,
+  type GroupDto,
+  verifyInitData,
+} from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
-  const [points, setPoints] = useState(0);
+  const [points, setPoints] = useState(30);
   const [pointsToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
-  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
+  const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine' | 'incoming'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
-  const [subscriberCount, setSubscriberCount] = useState(10);
+  const [taskPrice, setTaskPrice] = useState(10);
+  const [taskCount, setTaskCount] = useState(10);
+  const [createError, setCreateError] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionLoadingId, setActionLoadingId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState('');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkHint, setLinkHint] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
   const [myGroupsError, setMyGroupsError] = useState('');
+  const [campaigns, setCampaigns] = useState<CampaignDto[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsError, setCampaignsError] = useState('');
+  const [myCampaigns, setMyCampaigns] = useState<CampaignDto[]>([]);
+  const [myCampaignsLoading, setMyCampaignsLoading] = useState(false);
+  const [myCampaignsError, setMyCampaignsError] = useState('');
+  const [applications, setApplications] = useState<ApplicationDto[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [applicationsError, setApplicationsError] = useState('');
+  const [incomingApplications, setIncomingApplications] = useState<ApplicationDto[]>([]);
+  const [incomingLoading, setIncomingLoading] = useState(false);
+  const [incomingError, setIncomingError] = useState('');
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
-
-  const tasks = [
-    {
-      id: 't1',
-      title: 'Ищу работу Ростов',
-      handle: '@work_rostov',
-      points: 1,
-      check: 'бот',
-      type: 'subscribe' as const,
-      initial: 'Р',
-    },
-    {
-      id: 't2',
-      title: 'Чат мастеров маникюра',
-      handle: '@beauty_subchat',
-      points: 1,
-      check: 'бот',
-      type: 'subscribe' as const,
-      initial: 'Б',
-    },
-    {
-      id: 't3',
-      title: 'Сток Fix Price Ростов',
-      handle: '@fixprice_rostov',
-      points: 1,
-      check: 'бот',
-      type: 'subscribe' as const,
-      initial: 'F',
-    },
-    {
-      id: 't4',
-      title: 'Фитнес-клуб Ростов',
-      handle: '@fitness_rostov',
-      points: 1,
-      check: 'бот',
-      type: 'reaction' as const,
-      initial: 'Ф',
-    },
-  ];
-
-  const myTasks = [
-    {
-      id: 'm1',
-      title: 'Канал о фрилансе',
-      handle: '@freelance_daily',
-      points: 2,
-      check: 'бот',
-      type: 'subscribe' as const,
-      initial: 'F',
-    },
-  ];
-
-  const visibleTasks = tasks.filter((task) => task.type === taskFilter);
+  const visibleCampaigns = campaigns.filter(
+    (campaign) =>
+      campaign.actionType === (taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION')
+  );
+  const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
+  const applicationsByCampaign = useMemo(() => {
+    const map = new Map<string, ApplicationDto>();
+    applications.forEach((application) => {
+      map.set(application.campaign.id, application);
+    });
+    return map;
+  }, [applications]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -103,6 +95,25 @@ export default function App() {
     void loadProfile();
   }, []);
 
+  useEffect(() => {
+    void loadCampaigns();
+  }, [loadCampaigns]);
+
+  useEffect(() => {
+    if (activeTab !== 'tasks') return;
+    void loadMyApplications();
+  }, [activeTab, loadMyApplications]);
+
+  useEffect(() => {
+    if (activeTab !== 'promo') return;
+    if (myTasksTab === 'mine') void loadMyCampaigns();
+    if (myTasksTab === 'incoming') void loadIncomingApplications();
+  }, [activeTab, loadIncomingApplications, loadMyCampaigns, myTasksTab]);
+
+  useEffect(() => {
+    setActionError('');
+  }, [activeTab, myTasksTab]);
+
   const loadMyGroups = useCallback(async () => {
     setMyGroupsError('');
     setMyGroupsLoading(true);
@@ -124,6 +135,86 @@ export default function App() {
     }
   }, []);
 
+  const loadCampaigns = useCallback(async () => {
+    setCampaignsError('');
+    setCampaignsLoading(true);
+
+    try {
+      const data = await fetchCampaigns();
+      if (data.ok && Array.isArray(data.campaigns)) {
+        setCampaigns(data.campaigns);
+      } else {
+        setCampaigns([]);
+        setCampaignsError('Не удалось загрузить задания.');
+      }
+    } catch {
+      setCampaigns([]);
+      setCampaignsError('Не удалось загрузить задания.');
+    } finally {
+      setCampaignsLoading(false);
+    }
+  }, []);
+
+  const loadMyCampaigns = useCallback(async () => {
+    setMyCampaignsError('');
+    setMyCampaignsLoading(true);
+
+    try {
+      const data = await fetchMyCampaigns();
+      if (data.ok && Array.isArray(data.campaigns)) {
+        setMyCampaigns(data.campaigns);
+      } else {
+        setMyCampaigns([]);
+        setMyCampaignsError('Не удалось загрузить ваши кампании.');
+      }
+    } catch {
+      setMyCampaigns([]);
+      setMyCampaignsError('Не удалось загрузить ваши кампании.');
+    } finally {
+      setMyCampaignsLoading(false);
+    }
+  }, []);
+
+  const loadMyApplications = useCallback(async () => {
+    setApplicationsError('');
+    setApplicationsLoading(true);
+
+    try {
+      const data = await fetchMyApplications();
+      if (data.ok && Array.isArray(data.applications)) {
+        setApplications(data.applications);
+      } else {
+        setApplications([]);
+        setApplicationsError('Не удалось загрузить статусы.');
+      }
+    } catch {
+      setApplications([]);
+      setApplicationsError('Не удалось загрузить статусы.');
+    } finally {
+      setApplicationsLoading(false);
+    }
+  }, []);
+
+  const loadIncomingApplications = useCallback(async () => {
+    setIncomingError('');
+    setIncomingLoading(true);
+
+    try {
+      const data = await fetchIncomingApplications();
+      if (data.ok && Array.isArray(data.applications)) {
+        setIncomingApplications(data.applications);
+      } else {
+        setIncomingApplications([]);
+        setIncomingError('Не удалось загрузить входящие заявки.');
+      }
+    } catch {
+      setIncomingApplications([]);
+      setIncomingError('Не удалось загрузить входящие заявки.');
+    } finally {
+      setIncomingLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!linkPickerOpen) return;
     if (myGroupsLoaded || myGroupsLoading) return;
@@ -138,8 +229,10 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [linkPickerOpen]);
 
-  const handleQuickLinkSelect = (url: string) => {
-    setTaskLink(url);
+  const handleQuickLinkSelect = (group: GroupDto) => {
+    setTaskLink(group.inviteLink);
+    setSelectedGroupId(group.id);
+    setSelectedGroupTitle(group.title);
     setLinkPickerOpen(false);
     setLinkHint('');
     requestAnimationFrame(() => {
@@ -150,6 +243,8 @@ export default function App() {
 
   const handlePasteLink = async () => {
     setLinkHint('');
+    setSelectedGroupId('');
+    setSelectedGroupTitle('');
     let text = '';
 
     const readViaNavigator = async () => {
@@ -199,6 +294,126 @@ export default function App() {
     const username = group.username?.trim();
     if (username) return username.startsWith('@') ? username : `@${username}`;
     return group.inviteLink;
+  };
+
+  const resolveGroupId = () => {
+    if (selectedGroupId) return selectedGroupId;
+    const raw = taskLink.trim();
+    if (!raw) return '';
+    const normalized = raw
+      .replace(/^https?:\/\//i, '')
+      .replace(/^t\.me\//i, '')
+      .replace(/^telegram\.me\//i, '')
+      .replace(/^@/, '')
+      .split('/')[0]
+      .toLowerCase();
+    const match = myGroups.find((group) => {
+      const username = group.username?.trim().toLowerCase();
+      if (username && username === normalized) return true;
+      return group.inviteLink.trim().toLowerCase() === raw.toLowerCase();
+    });
+    return match?.id ?? '';
+  };
+
+  const openCampaignLink = (campaign: CampaignDto) => {
+    const url = campaign.group.inviteLink;
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCreateCampaign = async () => {
+    setCreateError('');
+    const groupId = resolveGroupId();
+    if (!taskLink.trim()) {
+      setCreateError('Укажите ссылку на группу.');
+      return;
+    }
+    if (!groupId) {
+      setCreateError('Сначала добавьте бота в группу и выберите ее из списка.');
+      return;
+    }
+    if (!Number.isFinite(taskPrice) || taskPrice < 1) {
+      setCreateError('Цена за действие должна быть не меньше 1 балла.');
+      return;
+    }
+    if (!Number.isFinite(taskCount) || taskCount < 1) {
+      setCreateError('Количество действий должно быть не меньше 1.');
+      return;
+    }
+    if (totalBudget > 1_000_000) {
+      setCreateError('Бюджет слишком большой. Максимум 1 000 000 баллов.');
+      return;
+    }
+    if (points < totalBudget) {
+      setCreateError('Недостаточно баллов для размещения.');
+      return;
+    }
+
+    setCreateLoading(true);
+    try {
+      const data = await createCampaign({
+        groupId,
+        actionType: taskType,
+        rewardPoints: Math.round(taskPrice),
+        totalBudget: Math.round(totalBudget),
+      });
+      if (typeof data.balance === 'number') {
+        setPoints(data.balance);
+      }
+      setTaskLink('');
+      setSelectedGroupId('');
+      setSelectedGroupTitle('');
+      await loadCampaigns();
+      await loadMyCampaigns();
+    } catch (error: any) {
+      setCreateError(error?.message ?? 'Не удалось создать кампанию.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleApplyCampaign = async (campaignId: string) => {
+    setActionError('');
+    setActionLoadingId(campaignId);
+    try {
+      const data = await applyCampaign(campaignId);
+      if (typeof data.balance === 'number') {
+        setPoints(data.balance);
+      }
+      await loadCampaigns();
+      await loadMyApplications();
+    } catch (error: any) {
+      setActionError(error?.message ?? 'Не удалось проверить задание.');
+    } finally {
+      setActionLoadingId('');
+    }
+  };
+
+  const handleApproveApplication = async (applicationId: string) => {
+    setActionError('');
+    setActionLoadingId(applicationId);
+    try {
+      await approveApplication(applicationId);
+      await loadIncomingApplications();
+      await loadMyCampaigns();
+    } catch (error: any) {
+      setActionError(error?.message ?? 'Не удалось одобрить заявку.');
+    } finally {
+      setActionLoadingId('');
+    }
+  };
+
+  const handleRejectApplication = async (applicationId: string) => {
+    setActionError('');
+    setActionLoadingId(applicationId);
+    try {
+      await rejectApplication(applicationId);
+      await loadIncomingApplications();
+    } catch (error: any) {
+      setActionError(error?.message ?? 'Не удалось отклонить заявку.');
+    } finally {
+      setActionLoadingId('');
+    }
   };
 
   return (
@@ -339,7 +554,7 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <div className="segment center">
+            <div className="segment center wide">
               <button
                 className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
                 type="button"
@@ -353,6 +568,13 @@ export default function App() {
                 onClick={() => setMyTasksTab('mine')}
               >
                 Мои размещенные
+              </button>
+              <button
+                className={`segment-button ${myTasksTab === 'incoming' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setMyTasksTab('incoming')}
+              >
+                Входящие
               </button>
             </div>
 
@@ -369,18 +591,41 @@ export default function App() {
 
                 <div className="task-form-body">
                   <label className="field">
-                    <span>Ссылка</span>
+                    <span>Ссылка на группу</span>
                     <input
-                      type="url"
-                      placeholder="https://t.me/..."
+                      type="text"
+                      placeholder="https://t.me/... или @username"
                       ref={taskLinkInputRef}
                       value={taskLink}
                       onChange={(event) => {
-                        setTaskLink(event.target.value);
+                        const value = event.target.value;
+                        setTaskLink(value);
+                        setSelectedGroupId('');
+                        setSelectedGroupTitle('');
                         setLinkHint('');
+                        if (!myGroupsLoaded) return;
+                        const normalized = value
+                          .replace(/^https?:\/\//i, '')
+                          .replace(/^t\.me\//i, '')
+                          .replace(/^telegram\.me\//i, '')
+                          .replace(/^@/, '')
+                          .split('/')[0]
+                          .toLowerCase();
+                        const match = myGroups.find((group) => {
+                          const username = group.username?.trim().toLowerCase();
+                          if (username && username === normalized) return true;
+                          return group.inviteLink.trim().toLowerCase() === value.trim().toLowerCase();
+                        });
+                        if (match) {
+                          setSelectedGroupId(match.id);
+                          setSelectedGroupTitle(match.title);
+                        }
                       }}
                     />
                   </label>
+                  {selectedGroupTitle && (
+                    <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
+                  )}
                   <div className="link-tools">
                     <button
                       className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
@@ -437,7 +682,7 @@ export default function App() {
                             className="link-option"
                             key={group.id}
                             type="button"
-                            onClick={() => handleQuickLinkSelect(group.inviteLink)}
+                            onClick={() => handleQuickLinkSelect(group)}
                           >
                             <span className="link-option-title">{group.title}</span>
                             <span className="link-option-handle">{getGroupSecondaryLabel(group)}</span>
@@ -463,56 +708,156 @@ export default function App() {
                     </button>
                   </div>
                   <label className="field">
-                    <span>Количество подписчиков</span>
+                    <span>Цена за действие</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      value={taskPrice}
+                      onChange={(event) => setTaskPrice(Number(event.target.value))}
+                    />
+                    <div className="range-hint">1 действие = {taskPrice} баллов</div>
+                  </label>
+                  <label className="field">
+                    <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
                     <input
                       className="range-input"
                       type="range"
                       min={1}
                       max={200}
-                      value={subscriberCount}
-                      onChange={(event) => setSubscriberCount(Number(event.target.value))}
+                      value={taskCount}
+                      onChange={(event) => setTaskCount(Number(event.target.value))}
                     />
                     <div className="range-meta">
-                      <span>{subscriberCount} участников</span>
-                      <span>Итог: {subscriberCount * 10} баллов</span>
+                      <span>{taskCount} действий</span>
+                      <span>Итог: {totalBudget} баллов</span>
                     </div>
-                    <div className="range-hint">1 участник = 10 баллов</div>
                   </label>
                 </div>
 
                 <div className="task-form-actions">
                   <div className="balance-pill">Баланс: {points}</div>
-                  <button className="primary-button" type="button">
-                    Создать
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void handleCreateCampaign()}
+                    disabled={createLoading}
+                  >
+                    {createLoading ? 'Создание…' : 'Создать'}
                   </button>
                 </div>
+                {createError && <div className="form-status error">{createError}</div>}
               </div>
             )}
 
             {myTasksTab === 'mine' && (
               <div className="task-list">
-                {myTasks.map((task) => (
-                  <div className="task-card" key={task.id}>
-                    <div className="task-card-head">
-                      <div className="task-avatar">
-                        <span>{task.initial}</span>
+                {myCampaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
+                {!myCampaignsLoading && myCampaignsError && (
+                  <div className="task-form-placeholder error">{myCampaignsError}</div>
+                )}
+                {!myCampaignsLoading && !myCampaignsError && myCampaigns.length === 0 && (
+                  <div className="task-form-placeholder">Пока нет размещенных кампаний.</div>
+                )}
+                {!myCampaignsLoading &&
+                  !myCampaignsError &&
+                  myCampaigns.map((campaign) => (
+                    <div className="task-card" key={campaign.id}>
+                      <div className="task-card-head">
+                        <div className="task-avatar">
+                          <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                        </div>
+                        <div className="task-info">
+                          <div className="task-title">{campaign.group.title}</div>
+                          <div className="task-handle">{getGroupSecondaryLabel(campaign.group)}</div>
+                        </div>
+                        <div className="task-actions">
+                          <button
+                            className="open-button"
+                            type="button"
+                            onClick={() => openCampaignLink(campaign)}
+                          >
+                            Открыть
+                          </button>
+                        </div>
                       </div>
-                      <div className="task-info">
-                        <div className="task-title">{task.title}</div>
-                        <div className="task-handle">{task.handle}</div>
-                      </div>
-                      <div className="task-actions">
-                        <button className="open-button" type="button">
-                          Открыть
-                        </button>
+                      <div className="task-meta">
+                        <span className="badge">Ставка: {campaign.rewardPoints} балл</span>
+                        <span className="muted">
+                          Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
+                        </span>
+                        <span className="muted">Осталось: {campaign.remainingBudget}</span>
                       </div>
                     </div>
-                    <div className="task-meta">
-                      <span className="badge">+{task.points} балл</span>
-                      <span className="muted">Проверка: {task.check}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
+            )}
+
+            {myTasksTab === 'incoming' && (
+              <div className="task-list">
+                {actionError && <div className="form-status error">{actionError}</div>}
+                {incomingLoading && <div className="task-form-placeholder">Загрузка…</div>}
+                {!incomingLoading && incomingError && (
+                  <div className="task-form-placeholder error">{incomingError}</div>
+                )}
+                {!incomingLoading && !incomingError && incomingApplications.length === 0 && (
+                  <div className="task-form-placeholder">Пока нет входящих заявок.</div>
+                )}
+                {!incomingLoading &&
+                  !incomingError &&
+                  incomingApplications.map((application) => {
+                    const applicantLabel =
+                      [application.applicant?.firstName, application.applicant?.lastName]
+                        .filter(Boolean)
+                        .join(' ')
+                        .trim() ||
+                      application.applicant?.username ||
+                      'Пользователь';
+                    const initial = applicantLabel ? applicantLabel[0].toUpperCase() : 'П';
+                    return (
+                      <div className="task-card" key={application.id}>
+                        <div className="task-card-head">
+                          <div className="task-avatar">
+                            <span>{initial}</span>
+                          </div>
+                          <div className="task-info">
+                            <div className="task-title">{applicantLabel}</div>
+                            <div className="task-handle">
+                              {application.campaign.group.title}
+                            </div>
+                          </div>
+                          <div className="task-actions">
+                            <button
+                              className="open-button"
+                              type="button"
+                              onClick={() => void handleApproveApplication(application.id)}
+                              disabled={actionLoadingId === application.id}
+                            >
+                              Одобрить
+                            </button>
+                            <button
+                              className="open-button secondary"
+                              type="button"
+                              onClick={() => void handleRejectApplication(application.id)}
+                              disabled={actionLoadingId === application.id}
+                            >
+                              Отклонить
+                            </button>
+                          </div>
+                        </div>
+                        <div className="task-meta">
+                          <span className="badge">
+                            +{application.campaign.rewardPoints} балл
+                          </span>
+                          <span className="muted">
+                            {application.campaign.actionType === 'SUBSCRIBE'
+                              ? 'Подписка'
+                              : 'Реакция'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
 
@@ -547,28 +892,84 @@ export default function App() {
               </button>
             </div>
             <div className="task-list">
-              {visibleTasks.map((task) => (
-                <div className="task-card" key={task.id}>
-                  <div className="task-card-head">
-                    <div className="task-avatar">
-                      <span>{task.initial}</span>
+              {actionError && <div className="form-status error">{actionError}</div>}
+              {applicationsError && <div className="form-status error">{applicationsError}</div>}
+              {campaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
+              {!campaignsLoading && campaignsError && (
+                <div className="task-form-placeholder error">{campaignsError}</div>
+              )}
+              {!campaignsLoading && !campaignsError && visibleCampaigns.length === 0 && (
+                <div className="task-form-placeholder">Нет активных заданий.</div>
+              )}
+              {!campaignsLoading &&
+                !campaignsError &&
+                visibleCampaigns.map((campaign) => {
+                  const application = applicationsByCampaign.get(campaign.id);
+                  const status = application?.status;
+                  const statusLabel =
+                    status === 'APPROVED'
+                      ? 'Получено'
+                      : status === 'PENDING'
+                        ? 'На проверке'
+                        : status === 'REJECTED'
+                          ? 'Отклонено'
+                          : '';
+                  const actionLabel =
+                    status === 'APPROVED'
+                      ? 'Получено'
+                      : status === 'PENDING'
+                        ? 'На проверке'
+                        : campaign.actionType === 'SUBSCRIBE'
+                          ? 'Проверить'
+                          : 'Отправить';
+                  const disabled =
+                    status === 'APPROVED' ||
+                    status === 'PENDING' ||
+                    actionLoadingId === campaign.id;
+                  return (
+                    <div className="task-card" key={campaign.id}>
+                      <div className="task-card-head">
+                        <div className="task-avatar">
+                          <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                        </div>
+                        <div className="task-info">
+                          <div className="task-title">{campaign.group.title}</div>
+                          <div className="task-handle">
+                            {getGroupSecondaryLabel(campaign.group)}
+                          </div>
+                        </div>
+                        <div className="task-actions">
+                          <button
+                            className="open-button"
+                            type="button"
+                            onClick={() => openCampaignLink(campaign)}
+                          >
+                            Открыть
+                          </button>
+                          <button
+                            className="open-button secondary"
+                            type="button"
+                            onClick={() => void handleApplyCampaign(campaign.id)}
+                            disabled={disabled}
+                          >
+                            {actionLabel}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="task-meta">
+                        <span className="badge">+{campaign.rewardPoints} балл</span>
+                        <span className="muted">
+                          Проверка: {campaign.actionType === 'SUBSCRIBE' ? 'бот' : 'владелец'}
+                        </span>
+                        {statusLabel && (
+                          <span className={`status-badge ${status?.toLowerCase()}`}>
+                            {statusLabel}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="task-info">
-                      <div className="task-title">{task.title}</div>
-                      <div className="task-handle">{task.handle}</div>
-                    </div>
-                    <div className="task-actions">
-                      <button className="open-button" type="button">
-                        Открыть
-                      </button>
-                    </div>
-                  </div>
-                  <div className="task-meta">
-                    <span className="badge">+{task.points} балл</span>
-                    <span className="muted">Проверка: {task.check}</span>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </>
         )}

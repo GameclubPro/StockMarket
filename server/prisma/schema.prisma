@@ -13,6 +13,11 @@ enum CampaignStatus {
   COMPLETED
 }
 
+enum CampaignType {
+  SUBSCRIBE
+  REACTION
+}
+
 enum ApplicationStatus {
   PENDING
   APPROVED
@@ -33,7 +38,7 @@ model User {
   firstName  String?
   lastName   String?
   photoUrl   String?
-  balance    Int      @default(0)
+  balance    Int      @default(30)
   rating     Float    @default(0)
   createdAt  DateTime @default(now())
 
@@ -63,6 +68,7 @@ model Campaign {
   ownerId         String
   group           Group          @relation(fields: [groupId], references: [id])
   owner           User           @relation(fields: [ownerId], references: [id])
+  actionType      CampaignType   @default(SUBSCRIBE)
   rewardPoints    Int
   totalBudget     Int
   remainingBudget Int

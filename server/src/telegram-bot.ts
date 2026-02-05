@@ -44,6 +44,12 @@ const botRequest = async <T>(botToken: string, method: string, params?: Record<s
   return data.result as T;
 };
 
+const toChatId = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+};
+
 export const extractUsername = (value: string) => {
   const raw = value.trim();
   if (!raw) return '';
@@ -80,7 +86,7 @@ export const ensureBotIsAdmin = async (botToken: string, chatId: string) => {
 
   try {
     const member = await botRequest<ChatMember>(botToken, 'getChatMember', {
-      chat_id: chatId,
+      chat_id: toChatId(chatId),
       user_id: bot.id,
     });
     if (member.status !== 'administrator' && member.status !== 'creator') {
@@ -110,3 +116,35 @@ export const ensureBotIsAdmin = async (botToken: string, chatId: string) => {
   }
 };
 
+export const getChatMemberStatus = async (botToken: string, chatId: string, userId: number) => {
+  if (!botToken) throw createBotCheckError('bot_token_missing', 'BOT_TOKEN is missing', 500);
+
+  try {
+    const member = await botRequest<ChatMember>(botToken, 'getChatMember', {
+      chat_id: toChatId(chatId),
+      user_id: userId,
+    });
+    return member.status;
+  } catch (error: any) {
+    const message = String(error?.message ?? '').toLowerCase();
+    if (message.includes('chat not found')) {
+      throw createBotCheckError('chat_not_found', 'Чат не найден. Укажите публичный @username.');
+    }
+    if (message.includes('chat_admin_required') || message.includes('not enough rights')) {
+      throw createBotCheckError(
+        'bot_not_admin',
+        'Бот должен быть администратором канала/группы.'
+      );
+    }
+    if (message.includes('user not found') || message.includes('member not found')) {
+      throw createBotCheckError('user_not_member', 'Пользователь не найден в чате.');
+    }
+    if (error?.code === 401 || message.includes('unauthorized')) {
+      throw createBotCheckError('bot_token_invalid', 'BOT_TOKEN недействителен', 500);
+    }
+    throw createBotCheckError('bot_api_error', 'Не удалось проверить вступление.');
+  }
+};
+
+export const isActiveMemberStatus = (status: ChatMember['status']) =>
+  status === 'member' || status === 'administrator' || status === 'creator';
