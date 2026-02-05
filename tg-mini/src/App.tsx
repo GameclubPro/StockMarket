@@ -817,6 +817,12 @@ export default function App() {
                     </label>
                   )}
                   <div className="link-tools">
+                    <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
+                      Подключить канал
+                    </button>
+                    <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
+                      Подключить группу
+                    </button>
                     <button
                       className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
                       type="button"
@@ -826,13 +832,7 @@ export default function App() {
                         setLinkPickerOpen((prev) => !prev);
                       }}
                     >
-                      Быстрый выбор
-                    </button>
-                    <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
-                      Подключить канал
-                    </button>
-                    <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
-                      Подключить группу
+                      Мои проекты
                     </button>
                   </div>
                   <div className="link-hint">
