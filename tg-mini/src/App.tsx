@@ -43,6 +43,16 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   const bonus = Math.round(base * bonusRate);
   return Math.max(1, Math.min(value, base + bonus));
 };
+const formatPointsLabel = (value: number) => {
+  const abs = Math.abs(value);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'баллов';
+  const mod10 = abs % 10;
+  if (mod10 === 1) return 'балл';
+  if (mod10 >= 2 && mod10 <= 4) return 'балла';
+  return 'баллов';
+};
+const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
@@ -393,7 +403,9 @@ export default function App() {
       <div className="balance-header-metrics">
         <div className="metric-card">
           <span className="metric-label">Баланс</span>
-          <span className="metric-value">{points} баллов</span>
+          <span className="metric-value">
+            {points} {formatPointsLabel(points)}
+          </span>
           <button className="metric-plus" type="button" aria-label="Пополнить баланс">
             +
           </button>
@@ -510,11 +522,11 @@ export default function App() {
               <div className="stats">
                 <div className="stat divider">
                   <div className="stat-main">
-                    <span className="accent">{points >= 0 ? `+ ${points}` : `${points}`}</span>
-                    <span>Балл</span>
+                    <span className="accent">{points}</span>
+                    <span>{formatPointsLabel(points)}</span>
                   </div>
                   <div className="stat-title">
-                    {pointsToday >= 0 ? `+${pointsToday}` : pointsToday} сегодня
+                    {formatSigned(pointsToday)} {formatPointsLabel(pointsToday)} сегодня
                   </div>
                 </div>
                 <div className="stat">
@@ -812,7 +824,9 @@ export default function App() {
                 </div>
 
                 <div className="task-form-actions">
-                  <div className="balance-pill">Баланс: {points}</div>
+                  <div className="balance-pill">
+                    Баланс: {points} {formatPointsLabel(points)}
+                  </div>
                   <button
                     className="primary-button"
                     type="button"
