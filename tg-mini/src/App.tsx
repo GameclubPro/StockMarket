@@ -506,7 +506,7 @@ export default function App() {
   );
 
   const triggerCompletionAnimation = useCallback(
-    (campaignId: string) => {
+    (campaignId: string, attempt = 0) => {
       const card = taskCardRefs.current.get(campaignId);
       const badge = taskBadgeRefs.current.get(campaignId);
       const historyTab = historyTabRef.current;
@@ -517,7 +517,13 @@ export default function App() {
       };
 
       if (!card || !badge || !historyTab || !balanceValue) {
-        window.setTimeout(finish, 300);
+        if (attempt < 10) {
+          window.setTimeout(() => {
+            triggerCompletionAnimation(campaignId, attempt + 1);
+          }, 180);
+        } else {
+          window.setTimeout(finish, 200);
+        }
         return;
       }
 
