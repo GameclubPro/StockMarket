@@ -329,11 +329,12 @@ body::before {
 
 .balance-header {
   background: linear-gradient(145deg, rgba(18, 22, 34, 0.9), rgba(10, 12, 20, 0.95));
-  border-radius: 16px;
-  padding: 10px 12px;
+  border-radius: 0 0 18px 18px;
+  padding: 8px 12px;
   display: grid;
   gap: 8px;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  margin: -18px -12px 4px;
 }
 
 .balance-header-metrics {
@@ -345,10 +346,17 @@ body::before {
 .metric-card {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   display: grid;
   gap: 4px;
   position: relative;
+}
+
+.metric-card.compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
 }
 
 .metric-label {
@@ -359,12 +367,17 @@ body::before {
 }
 
 .metric-value {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #ffffff;
 }
 
 .metric-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.metric-unit {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.6);
 }

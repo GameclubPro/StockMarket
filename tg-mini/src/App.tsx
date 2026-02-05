@@ -401,19 +401,16 @@ export default function App() {
   const BalanceHeader = () => (
     <div className="balance-header">
       <div className="balance-header-metrics">
-        <div className="metric-card">
-          <span className="metric-label">Баланс</span>
-          <span className="metric-value">
-            {points} {formatPointsLabel(points)}
-          </span>
+        <div className="metric-card compact">
+          <span className="metric-value">{points}</span>
+          <span className="metric-unit">{formatPointsLabel(points)}</span>
           <button className="metric-plus" type="button" aria-label="Пополнить баланс">
             +
           </button>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">Ранг</span>
+        <div className="metric-card compact">
           <span className="metric-value">{rankTier.title}</span>
-          <span className="metric-sub">Бонус +{bonusPercent}%</span>
+          <span className="metric-sub">+{bonusPercent}%</span>
         </div>
       </div>
     </div>
