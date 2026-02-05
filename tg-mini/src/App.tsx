@@ -44,7 +44,8 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   return Math.max(1, Math.min(value, base + bonus));
 };
 const BOT_SETUP_CHANNEL_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
-const BOT_SETUP_GROUP_URL = 'https://t.me/JoinRush_bot?startgroup=true';
+const BOT_SETUP_GROUP_URL =
+  'https://t.me/JoinRush_bot?startgroup&admin=invite_users+restrict_members+delete_messages+pin_messages+manage_chat+manage_topics';
 const formatPointsLabel = (value: number) => {
   const abs = Math.abs(value);
   const mod100 = abs % 100;
@@ -98,7 +99,11 @@ export default function App() {
   const historyTabRef = useRef<HTMLButtonElement | null>(null);
   const taskCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const taskBadgeRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
-  const approvalTrackerRef = useRef<Map<string, ApplicationDto['status']>>(new Map());
+  const approvalTrackerRef = useRef<
+    Map<string, { status: ApplicationDto['status']; reviewedAt?: string | null }>
+  >(new Map());
+  const pendingApprovalIdsRef = useRef<Set<string>>(new Set());
+  const autoRevealApprovalRef = useRef(false);
   const animatingOutRef = useRef<Set<string>>(new Set());
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
@@ -615,20 +620,26 @@ export default function App() {
 
   useEffect(() => {
     const previous = approvalTrackerRef.current;
-    const next = new Map<string, ApplicationDto['status']>();
+    const next = new Map<string, { status: ApplicationDto['status']; reviewedAt?: string | null }>();
     const newlyApproved: ApplicationDto[] = [];
 
     applications.forEach((application) => {
-      next.set(application.campaign.id, application.status);
-      const prevStatus = previous.get(application.campaign.id);
-      if (application.status === 'APPROVED' && prevStatus !== 'APPROVED') {
+      next.set(application.campaign.id, {
+        status: application.status,
+        reviewedAt: application.reviewedAt ?? null,
+      });
+      const prevSnapshot = previous.get(application.campaign.id);
+      const wasApproved = prevSnapshot?.status === 'APPROVED';
+      const reviewedChanged = prevSnapshot?.reviewedAt !== (application.reviewedAt ?? null);
+      if (application.status === 'APPROVED' && (!wasApproved || reviewedChanged)) {
         newlyApproved.push(application);
       }
     });
 
     approvalTrackerRef.current = next;
     if (newlyApproved.length === 0) return;
-    if (activeTab !== 'tasks' || taskListFilter === 'history') return;
+
+    const canAnimateNow = activeTab === 'tasks' && taskListFilter !== 'history';
 
     newlyApproved.forEach((application) => {
       const campaignId = application.campaign.id;
@@ -636,13 +647,48 @@ export default function App() {
 
       animatingOutRef.current.add(campaignId);
       setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
+
+      if (canAnimateNow) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            triggerCompletionAnimation(campaignId);
+          });
+        });
+      } else {
+        pendingApprovalIdsRef.current.add(campaignId);
+      }
+    });
+
+    if (!canAnimateNow && !autoRevealApprovalRef.current) {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        autoRevealApprovalRef.current = true;
+        setActiveTab('tasks');
+        if (taskListFilter === 'history') {
+          setTaskListFilter('new');
+        }
+      }
+    }
+  }, [applications, activeTab, taskListFilter, triggerCompletionAnimation]);
+
+  useEffect(() => {
+    if (activeTab !== 'tasks' || taskListFilter === 'history') return;
+    if (pendingApprovalIdsRef.current.size === 0) {
+      autoRevealApprovalRef.current = false;
+      return;
+    }
+
+    const pending = Array.from(pendingApprovalIdsRef.current);
+    pendingApprovalIdsRef.current.clear();
+    pending.forEach((campaignId) => {
+      if (!animatingOutRef.current.has(campaignId)) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           triggerCompletionAnimation(campaignId);
         });
       });
     });
-  }, [applications, activeTab, taskListFilter, triggerCompletionAnimation]);
+    autoRevealApprovalRef.current = false;
+  }, [activeTab, taskListFilter, triggerCompletionAnimation]);
 
 
   return (
