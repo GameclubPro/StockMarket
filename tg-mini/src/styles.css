@@ -369,14 +369,16 @@ body::before {
 }
 
 .rank-progress {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
   padding: 0 2px;
 }
 
 .rank-progress-bar {
   position: relative;
+  flex: 1;
   height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
@@ -394,6 +396,7 @@ body::before {
 .rank-progress-text {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
 }
 
 .topup-button {

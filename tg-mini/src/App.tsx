@@ -97,8 +97,8 @@ export default function App() {
     return RANKS[index + 1];
   }, [rankTier.level]);
   const progressLabel = nextRank
-    ? `До ${nextRank.title}: ${Math.max(0, nextRank.minTotal - totalEarned)} баллов`
-    : 'Максимальный ранг';
+    ? `До Повышения: ${Math.max(0, nextRank.minTotal - totalEarned)} баллов`
+    : 'До Повышения: максимум';
   const progressValue = useMemo(() => {
     if (!nextRank) return 1;
     const span = Math.max(1, nextRank.minTotal - rankTier.minTotal);
