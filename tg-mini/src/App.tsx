@@ -871,7 +871,11 @@ export default function App() {
                               onClick={() => openCampaignLink(campaign)}
                               aria-label="Открыть"
                             >
-                              ↗
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                <path d="M9 5h10v10" />
+                                <path d="M19 5l-9 9" />
+                                <path d="M5 19h10" />
+                              </svg>
                             </button>
                           </div>
                         </div>
@@ -996,7 +1000,11 @@ export default function App() {
                               onClick={() => openCampaignLink(campaign)}
                               aria-label="Открыть"
                             >
-                              ↗
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                <path d="M9 5h10v10" />
+                                <path d="M19 5l-9 9" />
+                                <path d="M5 19h10" />
+                              </svg>
                             </button>
                             <button
                               className="open-button secondary icon"
@@ -1005,7 +1013,20 @@ export default function App() {
                               disabled={disabled}
                               aria-label={actionLabel}
                             >
-                              {status === 'APPROVED' ? '✓' : status === 'PENDING' ? '…' : '+'}
+                              {status === 'APPROVED' ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                  <path d="M5 12l4 4L19 7" />
+                                </svg>
+                              ) : status === 'PENDING' ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                                  <circle cx="12" cy="12" r="7" />
+                                  <path d="M12 8v4l3 2" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                  <path d="M12 5v14M5 12h14" />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1051,7 +1072,11 @@ export default function App() {
                               onClick={() => openCampaignLink(campaign)}
                               aria-label="Открыть"
                             >
-                              ↗
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                <path d="M9 5h10v10" />
+                                <path d="M19 5l-9 9" />
+                                <path d="M5 19h10" />
+                              </svg>
                             </button>
                           </div>
                         </div>
