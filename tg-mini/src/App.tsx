@@ -22,6 +22,7 @@ export default function App() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskFilter, setTaskFilter] = useState<'subscribe' | 'reaction'>('subscribe');
+  const [tasksView, setTasksView] = useState<'active' | 'history'>('active');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -76,6 +77,13 @@ export default function App() {
       return status !== 'APPROVED';
     });
   }, [applicationsByCampaign, campaigns, taskFilter]);
+  const historyApplications = useMemo(() => {
+    const type = taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
+    return applications.filter(
+      (application) =>
+        application.status === 'APPROVED' && application.campaign.actionType === type
+    );
+  }, [applications, taskFilter]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -382,7 +390,7 @@ export default function App() {
       await loadCampaigns();
       await loadMyApplications();
     } catch (error: any) {
-      setActionError(error?.message ?? 'Не удалось проверить задание.');
+      setActionError(error?.message ?? 'Не удалось отправить задание.');
     } finally {
       setActionLoadingId('');
     }
@@ -551,7 +559,7 @@ export default function App() {
                     <div className="task-form-title">Разместить задание</div>
                     <div className="task-form-sub">
                       {taskType === 'subscribe'
-                        ? 'Укажите цену за вступление. Комиссия 30%, исполнитель получит 70%.'
+                        ? 'Укажите цену за вступление. Нажмите "Получить", вступите — бот подтвердит автоматически.'
                         : 'Укажите ссылку на пост и цену. Сначала нажмите "Получить", затем поставьте реакцию.'}
                     </div>
                   </div>
@@ -803,6 +811,22 @@ export default function App() {
                 </svg>
               </button>
             </div>
+            <div className="segment compact">
+              <button
+                className={`segment-button ${tasksView === 'active' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksView('active')}
+              >
+                Активные
+              </button>
+              <button
+                className={`segment-button ${tasksView === 'history' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setTasksView('history')}
+              >
+                История
+              </button>
+            </div>
             <div className="segment">
               <button
                 className={`segment-button ${taskFilter === 'subscribe' ? 'active' : ''}`}
@@ -819,91 +843,138 @@ export default function App() {
                 Реакции
               </button>
             </div>
-            <div className="task-list">
-              {actionError && <div className="form-status error">{actionError}</div>}
-              {applicationsError && <div className="form-status error">{applicationsError}</div>}
-              {applicationsLoading && (
-                <div className="task-form-placeholder">Обновляем статусы…</div>
-              )}
-              {campaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
-              {!campaignsLoading && campaignsError && (
-                <div className="task-form-placeholder error">{campaignsError}</div>
-              )}
-              {!campaignsLoading && !campaignsError && visibleCampaigns.length === 0 && (
-                <div className="task-form-placeholder">Нет активных заданий.</div>
-              )}
-              {!campaignsLoading &&
-                !campaignsError &&
-                visibleCampaigns.map((campaign) => {
-                  const application = applicationsByCampaign.get(campaign.id);
-                  const status = application?.status;
-                  const statusLabel =
-                    status === 'APPROVED'
-                      ? 'Получено'
-                      : status === 'PENDING'
-                        ? 'На проверке'
-                        : status === 'REJECTED'
-                          ? 'Отклонено'
-                          : '';
-                  const actionLabel =
-                    status === 'APPROVED'
-                      ? 'Получено'
-                      : status === 'PENDING'
-                        ? 'На проверке'
-                        : campaign.actionType === 'SUBSCRIBE'
-                          ? 'Проверить'
+            {tasksView === 'active' && (
+              <div className="task-list">
+                {actionError && <div className="form-status error">{actionError}</div>}
+                {applicationsError && <div className="form-status error">{applicationsError}</div>}
+                {applicationsLoading && (
+                  <div className="task-form-placeholder">Обновляем статусы…</div>
+                )}
+                {campaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
+                {!campaignsLoading && campaignsError && (
+                  <div className="task-form-placeholder error">{campaignsError}</div>
+                )}
+                {!campaignsLoading && !campaignsError && visibleCampaigns.length === 0 && (
+                  <div className="task-form-placeholder">Нет активных заданий.</div>
+                )}
+                {!campaignsLoading &&
+                  !campaignsError &&
+                  visibleCampaigns.map((campaign) => {
+                    const application = applicationsByCampaign.get(campaign.id);
+                    const status = application?.status;
+                    const statusLabel =
+                      status === 'APPROVED'
+                        ? 'Получено'
+                        : status === 'PENDING'
+                          ? campaign.actionType === 'SUBSCRIBE'
+                            ? 'Ожидает вступления'
+                            : 'Ожидает реакции'
+                          : status === 'REJECTED'
+                            ? 'Отклонено'
+                            : '';
+                    const actionLabel =
+                      status === 'APPROVED'
+                        ? 'Получено'
+                        : status === 'PENDING'
+                          ? 'Ожидание'
                           : 'Получить';
-                  const disabled =
-                    status === 'APPROVED' ||
-                    status === 'PENDING' ||
-                    actionLoadingId === campaign.id;
-                  const payout = calculatePayout(campaign.rewardPoints);
-                  return (
-                    <div className="task-card" key={campaign.id}>
-                      <div className="task-card-head">
-                        <div className="task-avatar">
-                          <span>{campaign.group.title?.[0] ?? 'Г'}</span>
-                        </div>
-                        <div className="task-info">
-                          <div className="task-title">{campaign.group.title}</div>
-                          <div className="task-handle">
-                            {getGroupSecondaryLabel(campaign.group)}
+                    const disabled =
+                      status === 'APPROVED' ||
+                      status === 'PENDING' ||
+                      actionLoadingId === campaign.id;
+                    const payout = calculatePayout(campaign.rewardPoints);
+                    return (
+                      <div className="task-card" key={campaign.id}>
+                        <div className="task-card-head">
+                          <div className="task-avatar">
+                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                          </div>
+                          <div className="task-info">
+                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-handle">
+                              {getGroupSecondaryLabel(campaign.group)}
+                            </div>
+                          </div>
+                          <div className="task-actions">
+                            <button
+                              className="open-button"
+                              type="button"
+                              onClick={() => openCampaignLink(campaign)}
+                            >
+                              Открыть
+                            </button>
+                            <button
+                              className="open-button secondary"
+                              type="button"
+                              onClick={() => void handleApplyCampaign(campaign.id)}
+                              disabled={disabled}
+                            >
+                              {actionLabel}
+                            </button>
                           </div>
                         </div>
-                        <div className="task-actions">
-                          <button
-                            className="open-button"
-                            type="button"
-                            onClick={() => openCampaignLink(campaign)}
-                          >
-                            Открыть
-                          </button>
-                          <button
-                            className="open-button secondary"
-                            type="button"
-                            onClick={() => void handleApplyCampaign(campaign.id)}
-                            disabled={disabled}
-                          >
-                            {actionLabel}
-                          </button>
+                        <div className="task-meta">
+                          <span className="badge">+{payout} балл</span>
+                          <span className="muted">Ставка {campaign.rewardPoints}</span>
+                          <span className="muted">Проверка: бот</span>
+                          {statusLabel && (
+                            <span className={`status-badge ${status?.toLowerCase()}`}>
+                              {statusLabel}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="task-meta">
-                        <span className="badge">+{payout} балл</span>
-                        <span className="muted">Ставка {campaign.rewardPoints}</span>
-                        <span className="muted">
-                          Проверка: {campaign.actionType === 'SUBSCRIBE' ? 'бот' : 'бот'}
-                        </span>
-                        {statusLabel && (
-                          <span className={`status-badge ${status?.toLowerCase()}`}>
-                            {statusLabel}
+                    );
+                  })}
+              </div>
+            )}
+            {tasksView === 'history' && (
+              <div className="task-list">
+                {applicationsLoading && (
+                  <div className="task-form-placeholder">Обновляем историю…</div>
+                )}
+                {applicationsError && <div className="form-status error">{applicationsError}</div>}
+                {!applicationsLoading && historyApplications.length === 0 && (
+                  <div className="task-form-placeholder">Пока нет выполненных заданий.</div>
+                )}
+                {!applicationsLoading &&
+                  historyApplications.map((application) => {
+                    const campaign = application.campaign;
+                    const payout = calculatePayout(campaign.rewardPoints);
+                    return (
+                      <div className="task-card" key={application.id}>
+                        <div className="task-card-head">
+                          <div className="task-avatar">
+                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                          </div>
+                          <div className="task-info">
+                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-handle">
+                              {getGroupSecondaryLabel(campaign.group)}
+                            </div>
+                          </div>
+                          <div className="task-actions">
+                            <button
+                              className="open-button"
+                              type="button"
+                              onClick={() => openCampaignLink(campaign)}
+                            >
+                              Открыть
+                            </button>
+                          </div>
+                        </div>
+                        <div className="task-meta">
+                          <span className="badge">+{payout} балл</span>
+                          <span className="muted">
+                            Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
                           </span>
-                        )}
+                          <span className="status-badge approved">Выполнено</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-            </div>
+                    );
+                  })}
+              </div>
+            )}
           </>
         )}
 

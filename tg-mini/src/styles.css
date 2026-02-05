@@ -340,6 +340,16 @@ body::before {
   height: 40px;
 }
 
+.segment.compact {
+  height: 34px;
+  margin-top: 6px;
+}
+
+.segment.compact .segment-button {
+  height: 28px;
+  font-size: 11px;
+}
+
 .segment.wide {
   grid-template-columns: repeat(3, 1fr);
 }

@@ -251,6 +251,71 @@ export const registerRoutes = (app: FastifyInstance) => {
             });
           });
         },
+        handleChatMember: async ({ chat, user, status }) => {
+          if (!chat.username) return;
+          if (user.is_bot) return;
+          if (status !== 'member' && status !== 'administrator' && status !== 'creator') return;
+
+          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          if (!group) return;
+
+          const applicant = await upsertUser(user);
+          const application = await prisma.application.findFirst({
+            where: {
+              applicantId: applicant.id,
+              status: 'PENDING',
+              campaign: {
+                groupId: group.id,
+                actionType: 'SUBSCRIBE',
+                status: 'ACTIVE',
+                remainingBudget: { gt: 0 },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (!application) return;
+
+          await prisma.$transaction(async (tx) => {
+            const freshCampaign = await tx.campaign.findUnique({
+              where: { id: application.campaignId },
+            });
+            if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+            if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
+
+            const payout = calculatePayout(freshCampaign.rewardPoints);
+
+            await tx.application.update({
+              where: { id: application.id },
+              data: { status: 'APPROVED', reviewedAt: new Date() },
+            });
+
+            await tx.campaign.update({
+              where: { id: freshCampaign.id },
+              data: {
+                remainingBudget: { decrement: freshCampaign.rewardPoints },
+                status:
+                  freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                    ? 'COMPLETED'
+                    : freshCampaign.status,
+              },
+            });
+
+            await tx.user.update({
+              where: { id: applicant.id },
+              data: { balance: { increment: payout } },
+            });
+
+            await tx.ledgerEntry.create({
+              data: {
+                userId: applicant.id,
+                type: 'EARN',
+                amount: payout,
+                reason: 'Вступление в группу',
+                campaignId: freshCampaign.id,
+              },
+            });
+          });
+        },
       });
       return reply.send(result);
     } catch {
@@ -553,28 +618,31 @@ export const registerRoutes = (app: FastifyInstance) => {
         return { ok: true, application };
       }
 
-      if (campaign.actionType === 'SUBSCRIBE') {
-        if (!campaign.group.username) {
-          return reply
-            .code(400)
-            .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
-        }
+      if (!campaign.group.username) {
+        return reply
+          .code(400)
+          .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
+      }
 
-        const telegramId = Number(user.telegramId);
-        if (!Number.isFinite(telegramId)) {
-          return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
-        }
+      const telegramId = Number(user.telegramId);
+      if (!Number.isFinite(telegramId)) {
+        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+      }
 
-        const status = await getChatMemberStatus(
-          config.botToken,
-          campaign.group.username,
-          telegramId
-        );
-        if (!isActiveMemberStatus(status)) {
-          return reply
-            .code(400)
-            .send({ ok: false, error: 'Сначала вступите в группу, затем нажмите "Проверить".' });
-        }
+      const status = await getChatMemberStatus(
+        config.botToken,
+        campaign.group.username,
+        telegramId
+      );
+      if (!isActiveMemberStatus(status)) {
+        if (existing) return { ok: true, application: existing };
+        const application = await prisma.application.create({
+          data: {
+            campaignId,
+            applicantId: user.id,
+          },
+        });
+        return { ok: true, application };
       }
 
       const result = await prisma.$transaction(async (tx) => {

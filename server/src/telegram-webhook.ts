@@ -26,6 +26,14 @@ type TelegramMyChatMemberUpdate = {
   old_chat_member: TelegramChatMember;
 };
 
+type TelegramChatMemberUpdate = {
+  chat: TelegramChat;
+  from: TelegramUser;
+  date?: number;
+  new_chat_member: TelegramChatMember;
+  old_chat_member: TelegramChatMember;
+};
+
 type TelegramReaction = {
   type: 'emoji';
   emoji: string;
@@ -44,6 +52,7 @@ type TelegramMessageReactionUpdate = {
 export type TelegramUpdate = {
   update_id: number;
   my_chat_member?: TelegramMyChatMemberUpdate;
+  chat_member?: TelegramChatMemberUpdate;
   message_reaction?: TelegramMessageReactionUpdate;
 };
 
@@ -63,10 +72,16 @@ export const handleBotWebhookUpdate = async (
       messageId: number;
       emoji?: string;
     }) => Promise<void>;
+    handleChatMember?: (payload: {
+      chat: TelegramChat;
+      user: TelegramUser;
+      status: TelegramChatMember['status'];
+    }) => Promise<void>;
   }
 ) => {
   const payload = update.my_chat_member;
   const reaction = update.message_reaction;
+  const chatMember = update.chat_member;
 
   if (reaction && reaction.user && reaction.chat) {
     if (reaction.new_reaction && reaction.new_reaction.length > 0) {
@@ -77,6 +92,15 @@ export const handleBotWebhookUpdate = async (
         emoji: reaction.new_reaction[0]?.emoji,
       });
     }
+  }
+
+  if (chatMember && chatMember.new_chat_member?.user && chatMember.chat) {
+    const status = chatMember.new_chat_member.status;
+    await deps.handleChatMember?.({
+      chat: chatMember.chat,
+      user: chatMember.new_chat_member.user,
+      status,
+    });
   }
   if (!payload) return { ok: true };
 
