@@ -834,7 +834,12 @@ export default function App() {
               </button>
             </div>
             <div className="segment filters">
-              <div className="filter-toggle" role="tablist" aria-label="Тип задания">
+              <div
+                className={`filter-toggle ${taskTypeFilter}`}
+                role="tablist"
+                aria-label="Тип задания"
+              >
+                <span className="filter-toggle-indicator" aria-hidden="true" />
                 <button
                   className={`filter-toggle-button ${
                     taskTypeFilter === 'subscribe' ? 'active' : ''

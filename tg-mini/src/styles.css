@@ -350,6 +350,7 @@ body::before {
 }
 
 .filter-toggle {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-radius: 16px;
@@ -358,7 +359,24 @@ body::before {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.filter-toggle-indicator {
+  position: absolute;
+  inset: 2px;
+  width: calc(50% - 2px);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(124, 255, 178, 0.32), rgba(124, 255, 178, 0.18));
+  transform: translateX(0);
+  transition: transform 0.25s ease;
+  pointer-events: none;
+}
+
+.filter-toggle.reaction .filter-toggle-indicator {
+  transform: translateX(100%);
+}
+
 .filter-toggle-button {
+  position: relative;
+  z-index: 1;
   height: 36px;
   border: none;
   background: transparent;
@@ -369,13 +387,8 @@ body::before {
   transition: color 0.2s ease, background 0.2s ease;
 }
 
-.filter-toggle-button + .filter-toggle-button {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 .filter-toggle-button.active {
   color: #ffffff;
-  background: linear-gradient(180deg, rgba(124, 255, 178, 0.32), rgba(124, 255, 178, 0.18));
 }
 
 .filter-row {
