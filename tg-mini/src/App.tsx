@@ -1,6 +1,6 @@
 import { readTextFromClipboard } from '@telegram-apps/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createGroup, fetchMyGroups, type GroupDto, verifyInitData } from './api';
+import { fetchMyGroups, type GroupDto, verifyInitData } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
 export default function App() {
@@ -21,13 +21,6 @@ export default function App() {
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
   const [myGroupsError, setMyGroupsError] = useState('');
-  const [groupFormOpen, setGroupFormOpen] = useState(false);
-  const [groupTitle, setGroupTitle] = useState('');
-  const [groupLink, setGroupLink] = useState('');
-  const [groupCategory, setGroupCategory] = useState('');
-  const [groupFormError, setGroupFormError] = useState('');
-  const [groupFormSuccess, setGroupFormSuccess] = useState('');
-  const [groupFormLoading, setGroupFormLoading] = useState(false);
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -200,76 +193,6 @@ export default function App() {
         ? 'Не удалось прочитать буфер обмена. Нажмите на поле и вставьте вручную.'
         : 'Буфер обмена доступен только по HTTPS/localhost или в Telegram.'
     );
-  };
-
-  const extractUsernameFromLink = (value: string) => {
-    const raw = value.trim();
-    if (!raw) return '';
-    if (raw.startsWith('@')) return raw.slice(1);
-    if (/^[a-zA-Z0-9_]{5,32}$/.test(raw)) return raw;
-    try {
-      const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
-      const host = url.hostname.toLowerCase();
-      if (!host.endsWith('t.me') && !host.endsWith('telegram.me')) return '';
-      const path = url.pathname.replace(/^\/+/, '');
-      if (!path || path.startsWith('+') || path.startsWith('joinchat')) return '';
-      return path.split('/')[0] ?? '';
-    } catch {
-      return '';
-    }
-  };
-
-  const handleCreateGroup = async () => {
-    setGroupFormError('');
-    setGroupFormSuccess('');
-
-    const title = groupTitle.trim();
-    const linkRaw = groupLink.trim();
-    const category = groupCategory.trim();
-
-    if (!title) {
-      setGroupFormError('Введите название канала или группы.');
-      return;
-    }
-    if (!linkRaw) {
-      setGroupFormError('Укажите ссылку вида t.me/username или @username.');
-      return;
-    }
-
-    const username = extractUsernameFromLink(linkRaw);
-    if (!username) {
-      setGroupFormError('Нужен публичный @username. Ссылки с приглашением не подойдут.');
-      return;
-    }
-
-    const inviteLink = linkRaw.startsWith('http')
-      ? linkRaw
-      : linkRaw.startsWith('@')
-        ? `https://t.me/${username}`
-        : linkRaw.includes('t.me/')
-          ? `https://${linkRaw}`
-          : `https://t.me/${username}`;
-
-    setGroupFormLoading(true);
-    try {
-      const data = await createGroup({
-        title,
-        inviteLink,
-        username,
-        category: category || undefined,
-      });
-      if (!data.ok) throw new Error('Не удалось подключить канал.');
-      setGroupFormSuccess('Канал подключён.');
-      setGroupTitle('');
-      setGroupLink('');
-      setGroupCategory('');
-      setGroupFormOpen(false);
-      await loadMyGroups();
-    } catch (error: any) {
-      setGroupFormError(error?.message ?? 'Не удалось подключить канал.');
-    } finally {
-      setGroupFormLoading(false);
-    }
   };
 
   const getGroupSecondaryLabel = (group: GroupDto) => {
@@ -476,78 +399,12 @@ export default function App() {
                     >
                       Вставить из буфера
                     </button>
-                    <button
-                      className={`link-tool ${groupFormOpen ? 'active' : ''}`}
-                      type="button"
-                      onClick={() => {
-                        setGroupFormError('');
-                        setGroupFormSuccess('');
-                        setGroupFormOpen((prev) => !prev);
-                      }}
-                    >
-                      Подключить канал
-                    </button>
                   </div>
                   {linkHint && <div className="link-hint">{linkHint}</div>}
-                  {groupFormOpen && (
-                    <div className="group-connect">
-                      <div className="group-connect-head">
-                        <div>
-                          <div className="group-connect-title">Подключение канала</div>
-                          <div className="group-connect-sub">
-                            Добавьте бота администратором и укажите публичный @username.
-                          </div>
-                        </div>
-                      </div>
-                      <div className="group-connect-body">
-                        <label className="field">
-                          <span>Название</span>
-                          <input
-                            type="text"
-                            placeholder="Мой канал"
-                            value={groupTitle}
-                            onChange={(event) => setGroupTitle(event.target.value)}
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Ссылка</span>
-                          <input
-                            type="text"
-                            placeholder="t.me/my_channel или @my_channel"
-                            value={groupLink}
-                            onChange={(event) => setGroupLink(event.target.value)}
-                          />
-                        </label>
-                        <label className="field">
-                          <span>Категория (опционально)</span>
-                          <input
-                            type="text"
-                            placeholder="Бизнес, Фриланс, Маркетинг"
-                            value={groupCategory}
-                            onChange={(event) => setGroupCategory(event.target.value)}
-                          />
-                        </label>
-                      </div>
-                      <div className="group-connect-actions">
-                        <button
-                          className="primary-button"
-                          type="button"
-                          disabled={groupFormLoading}
-                          onClick={() => void handleCreateGroup()}
-                        >
-                          {groupFormLoading ? 'Проверяем…' : 'Подключить'}
-                        </button>
-                        {groupFormError && <div className="group-connect-hint error">{groupFormError}</div>}
-                        {groupFormSuccess && (
-                          <div className="group-connect-hint success">{groupFormSuccess}</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                   {linkPickerOpen && (
                     <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
                       <div className="link-picker-head">
-                        <span className="link-picker-title">Мои группы</span>
+                        <span className="link-picker-title">Мои проекты</span>
                         <button
                           className="link-picker-refresh"
                           type="button"

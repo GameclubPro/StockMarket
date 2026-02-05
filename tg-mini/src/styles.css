@@ -723,50 +723,6 @@ body::before {
   color: var(--muted);
 }
 
-.group-connect {
-  margin-top: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-}
-
-.group-connect-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.group-connect-sub {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-.group-connect-body {
-  display: grid;
-  gap: 10px;
-}
-
-.group-connect-actions {
-  display: grid;
-  gap: 8px;
-}
-
-.group-connect-hint {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.group-connect-hint.error {
-  color: rgba(255, 138, 138, 0.95);
-}
-
-.group-connect-hint.success {
-  color: rgba(124, 255, 178, 0.9);
-}
-
 .choice-pill {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
