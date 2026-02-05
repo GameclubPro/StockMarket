@@ -369,9 +369,9 @@ body::before {
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: #0b1a12;
-  background: linear-gradient(135deg, rgba(124, 255, 178, 0.95), rgba(96, 232, 160, 0.9));
-  box-shadow: 0 8px 18px rgba(64, 255, 156, 0.18);
+  color: #e8fff2;
+  background: linear-gradient(135deg, rgba(72, 168, 126, 0.9), rgba(54, 128, 98, 0.9));
+  box-shadow: 0 6px 14px rgba(40, 120, 90, 0.18);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
