@@ -22,6 +22,7 @@ export type GroupDto = {
 export type CampaignDto = {
   id: string;
   actionType: 'SUBSCRIBE' | 'REACTION';
+  targetMessageId?: number | null;
   rewardPoints: number;
   totalBudget: number;
   remainingBudget: number;
@@ -113,6 +114,7 @@ export const createCampaign = async (payload: {
   actionType: 'subscribe' | 'reaction';
   rewardPoints: number;
   totalBudget: number;
+  targetMessageLink?: string;
 }) => {
   const data = await request('/api/campaigns', {
     method: 'POST',

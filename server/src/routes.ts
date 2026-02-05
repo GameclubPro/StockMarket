@@ -24,6 +24,7 @@ const campaignCreateSchema = z.object({
   actionType: z.enum(['subscribe', 'reaction']),
   rewardPoints: z.coerce.number().int().min(1).max(10000),
   totalBudget: z.coerce.number().int().min(1).max(1000000),
+  targetMessageLink: z.string().min(1).optional(),
 });
 
 const campaignQuerySchema = z.object({
@@ -31,6 +32,31 @@ const campaignQuerySchema = z.object({
   actionType: z.enum(['subscribe', 'reaction']).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
+
+const PLATFORM_FEE_RATE = 0.3;
+const calculatePayout = (rewardPoints: number) => {
+  const payout = Math.round(rewardPoints * (1 - PLATFORM_FEE_RATE));
+  return Math.max(1, Math.min(rewardPoints, payout));
+};
+
+const parseMessageLink = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    const host = url.hostname.toLowerCase();
+    if (!host.endsWith('t.me') && !host.endsWith('telegram.me')) return null;
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    if (parts[0] === 'c') return null;
+    const username = parts[0];
+    const messageId = Number(parts[1]);
+    if (!Number.isInteger(messageId) || messageId <= 0) return null;
+    return { username, messageId };
+  } catch {
+    return null;
+  }
+};
 
 const getToken = (authHeader?: string) => {
   if (!authHeader) return '';
@@ -102,28 +128,36 @@ export const registerRoutes = (app: FastifyInstance) => {
 
     const update = request.body as TelegramUpdate;
     try {
+      const upsertUser = async (user: {
+        id: number;
+        username?: string;
+        first_name?: string;
+        last_name?: string;
+        photo_url?: string;
+      }) => {
+        const created = await prisma.user.upsert({
+          where: { telegramId: String(user.id) },
+          update: {
+            username: user.username,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            photoUrl: user.photo_url,
+          },
+          create: {
+            telegramId: String(user.id),
+            username: user.username,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            photoUrl: user.photo_url,
+            balance: 30,
+            rating: 0,
+          },
+        });
+        return ensureLegacyBalance(created);
+      };
+
       const result = await handleBotWebhookUpdate(update, {
-        upsertUser: async (user) => {
-          const created = await prisma.user.upsert({
-            where: { telegramId: String(user.id) },
-            update: {
-              username: user.username,
-              firstName: user.first_name,
-              lastName: user.last_name,
-              photoUrl: user.photo_url,
-            },
-            create: {
-              telegramId: String(user.id),
-              username: user.username,
-              firstName: user.first_name,
-              lastName: user.last_name,
-              photoUrl: user.photo_url,
-              balance: 30,
-              rating: 0,
-            },
-          });
-          return ensureLegacyBalance(created);
-        },
+        upsertUser,
         upsertGroup: async ({ ownerId, chat }) => {
           const username = chat.username ?? '';
           const inviteLink = `https://t.me/${username}`;
@@ -150,6 +184,71 @@ export const registerRoutes = (app: FastifyInstance) => {
               description: null,
               category: null,
             },
+          });
+        },
+        handleReaction: async ({ chat, user, messageId }) => {
+          if (!chat.username) return;
+          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          if (!group) return;
+          const campaign = await prisma.campaign.findFirst({
+            where: {
+              groupId: group.id,
+              actionType: 'REACTION',
+              targetMessageId: messageId,
+              status: 'ACTIVE',
+              remainingBudget: { gt: 0 },
+            },
+          });
+          if (!campaign) return;
+
+          const applicant = await upsertUser(user);
+          const application = await prisma.application.findUnique({
+            where: {
+              campaignId_applicantId: {
+                campaignId: campaign.id,
+                applicantId: applicant.id,
+              },
+            },
+          });
+          if (!application || application.status !== 'PENDING') return;
+
+          await prisma.$transaction(async (tx) => {
+            const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+            if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+            if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
+
+            const payout = calculatePayout(freshCampaign.rewardPoints);
+
+            await tx.application.update({
+              where: { id: application.id },
+              data: { status: 'APPROVED', reviewedAt: new Date() },
+            });
+
+            await tx.campaign.update({
+              where: { id: freshCampaign.id },
+              data: {
+                remainingBudget: { decrement: freshCampaign.rewardPoints },
+                status:
+                  freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                    ? 'COMPLETED'
+                    : freshCampaign.status,
+              },
+            });
+
+            await tx.user.update({
+              where: { id: applicant.id },
+              data: { balance: { increment: payout } },
+            });
+
+            await tx.ledgerEntry.create({
+              data: {
+                userId: applicant.id,
+                type: 'EARN',
+                amount: payout,
+                reason: 'Реакция на пост',
+                campaignId: freshCampaign.id,
+              },
+            });
           });
         },
       });
@@ -336,6 +435,36 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(403).send({ ok: false, error: 'not owner' });
       }
 
+      let targetMessageId: number | null = null;
+      if (parsed.data.actionType === 'reaction') {
+        if (!parsed.data.targetMessageLink) {
+          return reply.code(400).send({
+            ok: false,
+            error: 'Для реакций нужна ссылка на пост (формат https://t.me/username/123).',
+          });
+        }
+        if (!group.username) {
+          return reply.code(400).send({
+            ok: false,
+            error: 'У группы нет публичного @username для проверки реакций.',
+          });
+        }
+        const parsedLink = parseMessageLink(parsed.data.targetMessageLink);
+        if (!parsedLink) {
+          return reply.code(400).send({
+            ok: false,
+            error: 'Ссылка на пост некорректна. Нужен формат https://t.me/username/123.',
+          });
+        }
+        if (parsedLink.username.toLowerCase() !== group.username.toLowerCase()) {
+          return reply.code(400).send({
+            ok: false,
+            error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+          });
+        }
+        targetMessageId = parsedLink.messageId;
+      }
+
       const campaign = await prisma.$transaction(async (tx) => {
         const fresh = await tx.user.findUnique({ where: { id: user.id } });
         if (!fresh || fresh.balance < parsed.data.totalBudget) {
@@ -352,6 +481,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             groupId: parsed.data.groupId,
             ownerId: user.id,
             actionType: parsed.data.actionType === 'subscribe' ? 'SUBSCRIBE' : 'REACTION',
+            targetMessageId,
             rewardPoints: parsed.data.rewardPoints,
             totalBudget: parsed.data.totalBudget,
             remainingBudget: parsed.data.totalBudget,
@@ -423,28 +553,36 @@ export const registerRoutes = (app: FastifyInstance) => {
         return { ok: true, application };
       }
 
-      if (!campaign.group.username) {
-        return reply
-          .code(400)
-          .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
-      }
+      if (campaign.actionType === 'SUBSCRIBE') {
+        if (!campaign.group.username) {
+          return reply
+            .code(400)
+            .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
+        }
 
-      const telegramId = Number(user.telegramId);
-      if (!Number.isFinite(telegramId)) {
-        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
-      }
+        const telegramId = Number(user.telegramId);
+        if (!Number.isFinite(telegramId)) {
+          return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+        }
 
-      const status = await getChatMemberStatus(config.botToken, campaign.group.username, telegramId);
-      if (!isActiveMemberStatus(status)) {
-        return reply
-          .code(400)
-          .send({ ok: false, error: 'Сначала вступите в группу, затем нажмите "Проверить".' });
+        const status = await getChatMemberStatus(
+          config.botToken,
+          campaign.group.username,
+          telegramId
+        );
+        if (!isActiveMemberStatus(status)) {
+          return reply
+            .code(400)
+            .send({ ok: false, error: 'Сначала вступите в группу, затем нажмите "Проверить".' });
+        }
       }
 
       const result = await prisma.$transaction(async (tx) => {
         const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
         if (!freshCampaign || freshCampaign.status !== 'ACTIVE') throw new Error('campaign paused');
         if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) throw new Error('budget empty');
+
+        const payout = calculatePayout(freshCampaign.rewardPoints);
 
         const application = existing
           ? await tx.application.update({
@@ -473,15 +611,15 @@ export const registerRoutes = (app: FastifyInstance) => {
 
         await tx.user.update({
           where: { id: user.id },
-          data: { balance: { increment: freshCampaign.rewardPoints } },
+          data: { balance: { increment: payout } },
         });
 
         await tx.ledgerEntry.create({
           data: {
             userId: user.id,
             type: 'EARN',
-            amount: freshCampaign.rewardPoints,
-            reason: 'Вступление в группу',
+            amount: payout,
+            reason: freshCampaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
             campaignId: freshCampaign.id,
           },
         });
@@ -568,16 +706,18 @@ export const registerRoutes = (app: FastifyInstance) => {
           },
         });
 
+        const payout = calculatePayout(campaign.rewardPoints);
+
         await tx.user.update({
           where: { id: application.applicantId },
-          data: { balance: { increment: campaign.rewardPoints } },
+          data: { balance: { increment: payout } },
         });
 
         await tx.ledgerEntry.create({
           data: {
             userId: application.applicantId,
             type: 'EARN',
-            amount: campaign.rewardPoints,
+            amount: payout,
             reason: campaign.actionType === 'REACTION' ? 'Реакция на пост' : 'Вступление в группу',
             campaignId: campaign.id,
           },

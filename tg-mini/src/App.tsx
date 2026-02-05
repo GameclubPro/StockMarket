@@ -25,6 +25,7 @@ export default function App() {
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
+  const [reactionLink, setReactionLink] = useState('');
   const [taskPrice, setTaskPrice] = useState(10);
   const [taskCount, setTaskCount] = useState(10);
   const [createError, setCreateError] = useState('');
@@ -50,11 +51,6 @@ export default function App() {
   const [applicationsError, setApplicationsError] = useState('');
   const taskLinkInputRef = useRef<HTMLInputElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
-  const visibleCampaigns = campaigns.filter(
-    (campaign) =>
-      campaign.actionType === (taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION')
-  );
-  const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -62,6 +58,24 @@ export default function App() {
     });
     return map;
   }, [applications]);
+  const platformFeeRate = 0.3;
+  const calculatePayout = useCallback(
+    (value: number) => {
+      const payout = Math.round(value * (1 - platformFeeRate));
+      return Math.max(1, Math.min(value, payout));
+    },
+    [platformFeeRate]
+  );
+  const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
+  const payoutPreview = useMemo(() => calculatePayout(taskPrice), [calculatePayout, taskPrice]);
+  const visibleCampaigns = useMemo(() => {
+    const type = taskFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
+    return campaigns.filter((campaign) => {
+      if (campaign.actionType !== type) return false;
+      const status = applicationsByCampaign.get(campaign.id)?.status;
+      return status !== 'APPROVED';
+    });
+  }, [applicationsByCampaign, campaigns, taskFilter]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -289,7 +303,11 @@ export default function App() {
   };
 
   const openCampaignLink = (campaign: CampaignDto) => {
-    const url = campaign.group.inviteLink;
+    const username = campaign.group.username?.trim();
+    const url =
+      campaign.actionType === 'REACTION' && campaign.targetMessageId && username
+        ? `https://t.me/${username}/${campaign.targetMessageId}`
+        : campaign.group.inviteLink;
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -313,6 +331,12 @@ export default function App() {
       setCreateError('Количество действий должно быть не меньше 1.');
       return;
     }
+    if (taskType === 'reaction') {
+      if (!reactionLink.trim()) {
+        setCreateError('Укажите ссылку на пост для реакции.');
+        return;
+      }
+    }
     if (totalBudget > 1_000_000) {
       setCreateError('Бюджет слишком большой. Максимум 1 000 000 баллов.');
       return;
@@ -329,11 +353,13 @@ export default function App() {
         actionType: taskType,
         rewardPoints: Math.round(taskPrice),
         totalBudget: Math.round(totalBudget),
+        targetMessageLink: taskType === 'reaction' ? reactionLink.trim() : undefined,
       });
       if (typeof data.balance === 'number') {
         setPoints(data.balance);
       }
       setTaskLink('');
+      setReactionLink('');
       setSelectedGroupId('');
       setSelectedGroupTitle('');
       await loadCampaigns();
@@ -524,7 +550,9 @@ export default function App() {
                   <div>
                     <div className="task-form-title">Разместить задание</div>
                     <div className="task-form-sub">
-                      Создайте задание, чтобы привлечь подписчиков.
+                      {taskType === 'subscribe'
+                        ? 'Укажите цену за вступление. Комиссия 30%, исполнитель получит 70%.'
+                        : 'Укажите ссылку на пост и цену. Сначала нажмите "Получить", затем поставьте реакцию.'}
                     </div>
                   </div>
                 </div>
@@ -565,6 +593,18 @@ export default function App() {
                   </label>
                   {selectedGroupTitle && (
                     <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
+                  )}
+                  {taskType === 'reaction' && (
+                    <label className="field">
+                      <span>Ссылка на пост</span>
+                      <input
+                        type="text"
+                        placeholder="https://t.me/username/123"
+                        value={reactionLink}
+                        onChange={(event) => setReactionLink(event.target.value)}
+                      />
+                      <div className="range-hint">Ссылка должна быть из выбранной группы.</div>
+                    </label>
                   )}
                   <div className="link-tools">
                     <button
@@ -656,7 +696,9 @@ export default function App() {
                       value={taskPrice}
                       onChange={(event) => setTaskPrice(Number(event.target.value))}
                     />
-                    <div className="range-hint">1 действие = {taskPrice} баллов</div>
+                    <div className="range-hint">
+                      Ставка {taskPrice} баллов · Исполнитель получит {payoutPreview} баллов
+                    </div>
                   </label>
                   <label className="field">
                     <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
@@ -670,7 +712,7 @@ export default function App() {
                     />
                     <div className="range-meta">
                       <span>{taskCount} действий</span>
-                      <span>Итог: {totalBudget} баллов</span>
+                      <span>Итог списание: {totalBudget} баллов</span>
                     </div>
                   </label>
                 </div>
@@ -701,35 +743,41 @@ export default function App() {
                 )}
                 {!myCampaignsLoading &&
                   !myCampaignsError &&
-                  myCampaigns.map((campaign) => (
-                    <div className="task-card" key={campaign.id}>
-                      <div className="task-card-head">
-                        <div className="task-avatar">
-                          <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                  myCampaigns.map((campaign) => {
+                    const payout = calculatePayout(campaign.rewardPoints);
+                    return (
+                      <div className="task-card" key={campaign.id}>
+                        <div className="task-card-head">
+                          <div className="task-avatar">
+                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
+                          </div>
+                          <div className="task-info">
+                            <div className="task-title">{campaign.group.title}</div>
+                            <div className="task-handle">
+                              {getGroupSecondaryLabel(campaign.group)}
+                            </div>
+                          </div>
+                          <div className="task-actions">
+                            <button
+                              className="open-button"
+                              type="button"
+                              onClick={() => openCampaignLink(campaign)}
+                            >
+                              Открыть
+                            </button>
+                          </div>
                         </div>
-                        <div className="task-info">
-                          <div className="task-title">{campaign.group.title}</div>
-                          <div className="task-handle">{getGroupSecondaryLabel(campaign.group)}</div>
-                        </div>
-                        <div className="task-actions">
-                          <button
-                            className="open-button"
-                            type="button"
-                            onClick={() => openCampaignLink(campaign)}
-                          >
-                            Открыть
-                          </button>
+                        <div className="task-meta">
+                          <span className="badge">Ставка: {campaign.rewardPoints}</span>
+                          <span className="muted">Исполнитель: {payout}</span>
+                          <span className="muted">
+                            Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
+                          </span>
+                          <span className="muted">Осталось: {campaign.remainingBudget}</span>
                         </div>
                       </div>
-                      <div className="task-meta">
-                        <span className="badge">Ставка: {campaign.rewardPoints} балл</span>
-                        <span className="muted">
-                          Тип: {campaign.actionType === 'SUBSCRIBE' ? 'Подписка' : 'Реакция'}
-                        </span>
-                        <span className="muted">Осталось: {campaign.remainingBudget}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
 
@@ -740,7 +788,15 @@ export default function App() {
           <>
             <div className="page-header">
               <div className="page-title">Задания</div>
-              <button className="icon-button" type="button" aria-label="Обновить">
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Обновить"
+                onClick={() => {
+                  void loadCampaigns();
+                  if (activeTab === 'tasks') void loadMyApplications();
+                }}
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M21 12a9 9 0 11-2.6-6.4" />
                   <path d="M21 3v7h-7" />
@@ -796,11 +852,12 @@ export default function App() {
                         ? 'На проверке'
                         : campaign.actionType === 'SUBSCRIBE'
                           ? 'Проверить'
-                          : 'Отправить';
+                          : 'Получить';
                   const disabled =
                     status === 'APPROVED' ||
                     status === 'PENDING' ||
                     actionLoadingId === campaign.id;
+                  const payout = calculatePayout(campaign.rewardPoints);
                   return (
                     <div className="task-card" key={campaign.id}>
                       <div className="task-card-head">
@@ -832,9 +889,10 @@ export default function App() {
                         </div>
                       </div>
                       <div className="task-meta">
-                        <span className="badge">+{campaign.rewardPoints} балл</span>
+                        <span className="badge">+{payout} балл</span>
+                        <span className="muted">Ставка {campaign.rewardPoints}</span>
                         <span className="muted">
-                          Проверка: {campaign.actionType === 'SUBSCRIBE' ? 'бот' : 'владелец'}
+                          Проверка: {campaign.actionType === 'SUBSCRIBE' ? 'бот' : 'бот'}
                         </span>
                         {statusLabel && (
                           <span className={`status-badge ${status?.toLowerCase()}`}>

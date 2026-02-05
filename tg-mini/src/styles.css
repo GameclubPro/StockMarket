@@ -252,8 +252,8 @@ body::before {
 }
 
 .menu-item {
-  background: var(--card);
-  border: 1px solid var(--stroke);
+  background: linear-gradient(160deg, rgba(22, 26, 38, 0.9), rgba(14, 16, 26, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 14px 16px;
   display: grid;
@@ -262,6 +262,12 @@ body::before {
   align-items: center;
   color: inherit;
   cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.menu-item:active {
+  transform: translateY(1px);
 }
 
 .menu-item .label {
@@ -432,17 +438,18 @@ body::before {
 .task-list {
   display: grid;
   gap: 12px;
-  padding: 10px 6px 0;
+  padding: 10px 6px 16px;
   align-content: start;
 }
 
 .task-card {
-  background: var(--card);
-  border: 1px solid var(--stroke);
+  background: linear-gradient(160deg, rgba(24, 28, 40, 0.8), rgba(14, 16, 26, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 18px;
   padding: 12px 14px;
   display: grid;
   gap: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
 }
 
 .task-card-head {
@@ -489,6 +496,7 @@ body::before {
 .task-actions {
   display: grid;
   gap: 6px;
+  justify-items: end;
 }
 
 .open-button {
@@ -500,12 +508,18 @@ body::before {
   font-weight: 600;
   color: #ffffff;
   cursor: pointer;
+  min-height: 34px;
+  transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .open-button.secondary {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
   color: var(--text);
+}
+
+.open-button:active {
+  transform: translateY(1px);
 }
 
 .open-button:disabled {
@@ -570,6 +584,7 @@ body::before {
   cursor: pointer;
   transition: 0.2s ease;
   width: fit-content;
+  min-height: 36px;
 }
 
 .primary-button:hover {
@@ -813,12 +828,13 @@ body::before {
 
 .task-form-card {
   margin-top: 12px;
-  background: var(--card);
-  border: 1px solid var(--stroke);
+  background: linear-gradient(160deg, rgba(20, 24, 36, 0.9), rgba(12, 14, 24, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   padding: 14px 16px;
   display: grid;
   gap: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
 .task-form-head {

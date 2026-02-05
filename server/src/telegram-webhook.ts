@@ -26,9 +26,25 @@ type TelegramMyChatMemberUpdate = {
   old_chat_member: TelegramChatMember;
 };
 
+type TelegramReaction = {
+  type: 'emoji';
+  emoji: string;
+};
+
+type TelegramMessageReactionUpdate = {
+  chat: TelegramChat;
+  message_id: number;
+  user?: TelegramUser;
+  actor_chat?: TelegramChat;
+  date?: number;
+  old_reaction?: TelegramReaction[];
+  new_reaction?: TelegramReaction[];
+};
+
 export type TelegramUpdate = {
   update_id: number;
   my_chat_member?: TelegramMyChatMemberUpdate;
+  message_reaction?: TelegramMessageReactionUpdate;
 };
 
 type UpsertGroupPayload = {
@@ -41,9 +57,27 @@ export const handleBotWebhookUpdate = async (
   deps: {
     upsertUser: (user: TelegramUser) => Promise<{ id: string }>;
     upsertGroup: (payload: UpsertGroupPayload) => Promise<void>;
+    handleReaction?: (payload: {
+      chat: TelegramChat;
+      user: TelegramUser;
+      messageId: number;
+      emoji?: string;
+    }) => Promise<void>;
   }
 ) => {
   const payload = update.my_chat_member;
+  const reaction = update.message_reaction;
+
+  if (reaction && reaction.user && reaction.chat) {
+    if (reaction.new_reaction && reaction.new_reaction.length > 0) {
+      await deps.handleReaction?.({
+        chat: reaction.chat,
+        user: reaction.user,
+        messageId: reaction.message_id,
+        emoji: reaction.new_reaction[0]?.emoji,
+      });
+    }
+  }
   if (!payload) return { ok: true };
 
   const { chat, from, new_chat_member: newMember } = payload;
@@ -62,4 +96,3 @@ export const handleBotWebhookUpdate = async (
 
   return { ok: true };
 };
-
