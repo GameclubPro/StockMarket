@@ -833,36 +833,30 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <div className="segment filters">
-              <div
-                className={`filter-toggle ${taskTypeFilter}`}
-                role="tablist"
-                aria-label="Тип задания"
+            <div className={`segment filters ${taskTypeFilter}`}>
+              <span className="filter-toggle-indicator" aria-hidden="true" />
+              <button
+                className={`filter-toggle-button ${
+                  taskTypeFilter === 'subscribe' ? 'active' : ''
+                }`}
+                type="button"
+                role="tab"
+                aria-selected={taskTypeFilter === 'subscribe'}
+                onClick={() => setTaskTypeFilter('subscribe')}
               >
-                <span className="filter-toggle-indicator" aria-hidden="true" />
-                <button
-                  className={`filter-toggle-button ${
-                    taskTypeFilter === 'subscribe' ? 'active' : ''
-                  }`}
-                  type="button"
-                  role="tab"
-                  aria-selected={taskTypeFilter === 'subscribe'}
-                  onClick={() => setTaskTypeFilter('subscribe')}
-                >
-                  Подписки
-                </button>
-                <button
-                  className={`filter-toggle-button ${
-                    taskTypeFilter === 'reaction' ? 'active' : ''
-                  }`}
-                  type="button"
-                  role="tab"
-                  aria-selected={taskTypeFilter === 'reaction'}
-                  onClick={() => setTaskTypeFilter('reaction')}
-                >
-                  Реакции
-                </button>
-              </div>
+                Подписки
+              </button>
+              <button
+                className={`filter-toggle-button ${
+                  taskTypeFilter === 'reaction' ? 'active' : ''
+                }`}
+                type="button"
+                role="tab"
+                aria-selected={taskTypeFilter === 'reaction'}
+                onClick={() => setTaskTypeFilter('reaction')}
+              >
+                Реакции
+              </button>
               <div className="filter-divider" />
               <div className="filter-row bottom" role="tablist" aria-label="Фильтр списка">
                 <button
