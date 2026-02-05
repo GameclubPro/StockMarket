@@ -208,6 +208,44 @@ const ensureLegacyStats = async (user: User) => {
   return await prisma.user.update({ where: { id: user.id }, data });
 };
 
+const syncGroupAdminsForUser = async (user: User) => {
+  const telegramId = Number(user.telegramId);
+  if (!Number.isFinite(telegramId)) return;
+
+  const candidates = await prisma.group.findMany({
+    where: {
+      username: { not: null },
+      admins: { none: { userId: user.id } },
+    },
+    select: { id: true, username: true, ownerId: true },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  for (const group of candidates) {
+    if (!group.username) continue;
+    if (group.ownerId === user.id) {
+      await prisma.groupAdmin.upsert({
+        where: { groupId_userId: { groupId: group.id, userId: user.id } },
+        update: {},
+        create: { groupId: group.id, userId: user.id },
+      });
+      continue;
+    }
+    try {
+      const status = await getChatMemberStatus(config.botToken, group.username, telegramId);
+      if (!isAdminMemberStatus(status)) continue;
+      await prisma.groupAdmin.upsert({
+        where: { groupId_userId: { groupId: group.id, userId: user.id } },
+        update: {},
+        create: { groupId: group.id, userId: user.id },
+      });
+    } catch {
+      // ignore lookup errors to keep response fast
+    }
+  }
+};
+
 const requireUser = async (request: any) => {
   const bearer = getToken(request.headers.authorization);
   if (bearer) {
@@ -689,6 +727,7 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/groups/my', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      await syncGroupAdminsForUser(user);
       const groups = await prisma.group.findMany({
         where: {
           OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
@@ -828,7 +867,29 @@ export const registerRoutes = (app: FastifyInstance) => {
         where: { id: parsed.data.groupId },
         include: { admins: { where: { userId: user.id }, select: { userId: true } } },
       });
-      const isGroupAdmin = group?.ownerId === user.id || (group?.admins?.length ?? 0) > 0;
+      let isGroupAdmin = group?.ownerId === user.id || (group?.admins?.length ?? 0) > 0;
+      if (!isGroupAdmin && group?.username) {
+        const telegramId = Number(user.telegramId);
+        if (Number.isFinite(telegramId)) {
+          try {
+            const status = await getChatMemberStatus(
+              config.botToken,
+              group.username,
+              telegramId
+            );
+            if (isAdminMemberStatus(status)) {
+              await prisma.groupAdmin.upsert({
+                where: { groupId_userId: { groupId: group.id, userId: user.id } },
+                update: {},
+                create: { groupId: group.id, userId: user.id },
+              });
+              isGroupAdmin = true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
       if (!group || !isGroupAdmin) {
         return reply.code(403).send({ ok: false, error: 'not admin' });
       }
