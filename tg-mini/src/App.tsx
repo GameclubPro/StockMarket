@@ -3,33 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMyGroups, type GroupDto, verifyInitData } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
 
-const QUICK_LINKS = [
-  {
-    id: 'quick-1',
-    title: 'Канал о фрилансе',
-    handle: '@freelance_daily',
-    url: 'https://t.me/freelance_daily',
-  },
-  {
-    id: 'quick-2',
-    title: 'Чат мастеров маникюра',
-    handle: '@beauty_subchat',
-    url: 'https://t.me/beauty_subchat',
-  },
-  {
-    id: 'quick-3',
-    title: 'Сток Fix Price Ростов',
-    handle: '@fixprice_rostov',
-    url: 'https://t.me/fixprice_rostov',
-  },
-  {
-    id: 'quick-4',
-    title: 'Фитнес-клуб Ростов',
-    handle: '@fitness_rostov',
-    url: 'https://t.me/fitness_rostov',
-  },
-];
-
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -469,19 +442,6 @@ export default function App() {
                           </button>
                         ))}
 
-                      <div className="link-picker-divider" role="separator" aria-hidden="true" />
-                      <div className="link-picker-subtitle">Подсказки</div>
-                      {QUICK_LINKS.map((item) => (
-                        <button
-                          className="link-option"
-                          key={item.id}
-                          type="button"
-                          onClick={() => handleQuickLinkSelect(item.url)}
-                        >
-                          <span className="link-option-title">{item.title}</span>
-                          <span className="link-option-handle">{item.handle}</span>
-                        </button>
-                      ))}
                     </div>
                   )}
                   <div className="choice-row">
