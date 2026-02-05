@@ -21,9 +21,8 @@ export default function App() {
   const [pointsToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
-  const [tasksFilter, setTasksFilter] = useState<
-    'subscribe' | 'reaction' | 'hot' | 'new' | 'history'
-  >('subscribe');
+  const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
+  const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskLink, setTaskLink] = useState('');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -77,33 +76,29 @@ export default function App() {
     });
   }, [applicationsByCampaign, campaigns]);
   const visibleCampaigns = useMemo(() => {
-    if (tasksFilter === 'history') return [];
-    const base = [...activeCampaigns];
-    if (tasksFilter === 'subscribe') {
-      return base.filter((campaign) => campaign.actionType === 'SUBSCRIBE');
+    if (taskListFilter === 'history') return [];
+    const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
+    const base = activeCampaigns.filter((campaign) => campaign.actionType === type);
+    if (taskListFilter === 'hot') {
+      return [...base].sort((a, b) => b.rewardPoints - a.rewardPoints);
     }
-    if (tasksFilter === 'reaction') {
-      return base.filter((campaign) => campaign.actionType === 'REACTION');
-    }
-    if (tasksFilter === 'hot') {
-      return base.sort((a, b) => b.rewardPoints - a.rewardPoints);
-    }
-    if (tasksFilter === 'new') {
-      return base.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    }
-    return base;
-  }, [activeCampaigns, tasksFilter]);
+    return [...base].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [activeCampaigns, taskListFilter, taskTypeFilter]);
   const historyApplications = useMemo(() => {
+    const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
     return applications
-      .filter((application) => application.status === 'APPROVED')
+      .filter(
+        (application) =>
+          application.status === 'APPROVED' && application.campaign.actionType === type
+      )
       .sort(
         (a, b) =>
           new Date(b.reviewedAt ?? b.createdAt).getTime() -
           new Date(a.reviewedAt ?? a.createdAt).getTime()
       );
-  }, [applications]);
+  }, [applications, taskTypeFilter]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -839,48 +834,62 @@ export default function App() {
               </button>
             </div>
             <div className="segment filters">
-              <div className="filter-row top">
+              <div className="filter-toggle" role="tablist" aria-label="Тип задания">
                 <button
-                  className={`segment-button ${tasksFilter === 'subscribe' ? 'active' : ''}`}
+                  className={`filter-toggle-button ${
+                    taskTypeFilter === 'subscribe' ? 'active' : ''
+                  }`}
                   type="button"
-                  onClick={() => setTasksFilter('subscribe')}
+                  role="tab"
+                  aria-selected={taskTypeFilter === 'subscribe'}
+                  onClick={() => setTaskTypeFilter('subscribe')}
                 >
                   Подписки
                 </button>
                 <button
-                  className={`segment-button ${tasksFilter === 'reaction' ? 'active' : ''}`}
+                  className={`filter-toggle-button ${
+                    taskTypeFilter === 'reaction' ? 'active' : ''
+                  }`}
                   type="button"
-                  onClick={() => setTasksFilter('reaction')}
+                  role="tab"
+                  aria-selected={taskTypeFilter === 'reaction'}
+                  onClick={() => setTaskTypeFilter('reaction')}
                 >
                   Реакции
                 </button>
               </div>
               <div className="filter-divider" />
-              <div className="filter-row bottom">
+              <div className="filter-row bottom" role="tablist" aria-label="Фильтр списка">
                 <button
-                  className={`segment-button ${tasksFilter === 'hot' ? 'active' : ''}`}
+                  className={`filter-chip ${taskListFilter === 'hot' ? 'active' : ''}`}
                   type="button"
-                  onClick={() => setTasksFilter('hot')}
+                  role="tab"
+                  aria-selected={taskListFilter === 'hot'}
+                  onClick={() => setTaskListFilter('hot')}
                 >
                   Топ
                 </button>
                 <button
-                  className={`segment-button ${tasksFilter === 'new' ? 'active' : ''}`}
+                  className={`filter-chip ${taskListFilter === 'new' ? 'active' : ''}`}
                   type="button"
-                  onClick={() => setTasksFilter('new')}
+                  role="tab"
+                  aria-selected={taskListFilter === 'new'}
+                  onClick={() => setTaskListFilter('new')}
                 >
                   Новые
                 </button>
                 <button
-                  className={`segment-button ${tasksFilter === 'history' ? 'active' : ''}`}
+                  className={`filter-chip ${taskListFilter === 'history' ? 'active' : ''}`}
                   type="button"
-                  onClick={() => setTasksFilter('history')}
+                  role="tab"
+                  aria-selected={taskListFilter === 'history'}
+                  onClick={() => setTaskListFilter('history')}
                 >
                   История
                 </button>
               </div>
             </div>
-            {tasksFilter !== 'history' && (
+            {taskListFilter !== 'history' && (
               <div className="task-list">
                 {actionError && <div className="form-status error">{actionError}</div>}
                 {applicationsError && <div className="form-status error">{applicationsError}</div>}
@@ -965,7 +974,7 @@ export default function App() {
                   })}
               </div>
             )}
-            {tasksFilter === 'history' && (
+            {taskListFilter === 'history' && (
               <div className="task-list">
                 {applicationsLoading && (
                   <div className="task-form-placeholder">Обновляем историю…</div>
