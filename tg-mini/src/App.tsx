@@ -60,6 +60,7 @@ export default function App() {
   const [points, setPoints] = useState(30);
   const [pointsToday] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
+  const [userId, setUserId] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
@@ -128,9 +129,11 @@ export default function App() {
   const activeCampaigns = useMemo(() => {
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
-      return status !== 'APPROVED';
+      if (status === 'APPROVED') return false;
+      if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
+      return true;
     });
-  }, [applicationsByCampaign, campaigns]);
+  }, [applicationsByCampaign, campaigns, userId]);
   const visibleCampaigns = useMemo(() => {
     if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
@@ -174,6 +177,7 @@ export default function App() {
         const data = await verifyInitData(initData);
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
+        if (typeof data.user?.id === 'string') setUserId(data.user.id);
       } catch {
         // Keep default zeros on auth failure.
       }
