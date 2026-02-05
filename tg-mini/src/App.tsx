@@ -357,6 +357,14 @@ export default function App() {
     return group.inviteLink;
   };
 
+  const getGroupAvatarUrl = (group: GroupDto) => {
+    const username = group.username?.trim();
+    if (!username) return '';
+    const clean = username.startsWith('@') ? username.slice(1) : username;
+    if (!clean) return '';
+    return `https://t.me/i/userpic/320/${clean}.jpg`;
+  };
+
   const resolveGroupId = () => {
     return selectedGroupId;
   };
@@ -845,18 +853,31 @@ export default function App() {
                     <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
                       <div className="link-picker-head">
                         <span className="link-picker-title">Мои проекты</span>
-                        <button
-                          className="link-picker-refresh"
-                          type="button"
-                          aria-label="Обновить список групп"
-                          disabled={myGroupsLoading}
-                          onClick={() => void loadMyGroups()}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path d="M21 12a9 9 0 11-2.6-6.4" />
-                            <path d="M21 3v7h-7" />
-                          </svg>
-                        </button>
+                        <div className="link-picker-actions">
+                          <button
+                            className="link-picker-refresh"
+                            type="button"
+                            aria-label="Обновить список групп"
+                            disabled={myGroupsLoading}
+                            onClick={() => void loadMyGroups()}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M21 12a9 9 0 11-2.6-6.4" />
+                              <path d="M21 3v7h-7" />
+                            </svg>
+                          </button>
+                          <button
+                            className="link-picker-close"
+                            type="button"
+                            aria-label="Свернуть список"
+                            onClick={() => setLinkPickerOpen(false)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M6 6l12 12" />
+                              <path d="M18 6l-12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
                       {!myGroupsLoading && myGroupsError && (
@@ -870,17 +891,37 @@ export default function App() {
                         )}
                       {!myGroupsLoading &&
                         !myGroupsError &&
-                        myGroups.map((group) => (
-                          <button
-                            className="link-option"
-                            key={group.id}
-                            type="button"
-                            onClick={() => handleQuickLinkSelect(group)}
-                          >
-                            <span className="link-option-title">{group.title}</span>
-                            <span className="link-option-handle">{getGroupSecondaryLabel(group)}</span>
-                          </button>
-                        ))}
+                        myGroups.map((group) => {
+                          const avatarUrl = getGroupAvatarUrl(group);
+                          return (
+                            <button
+                              className="link-option"
+                              key={group.id}
+                              type="button"
+                              onClick={() => handleQuickLinkSelect(group)}
+                            >
+                              <div className="link-option-avatar">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt=""
+                                    loading="lazy"
+                                    onError={(event) => {
+                                      event.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : null}
+                                <span>{group.title?.[0] ?? 'Г'}</span>
+                              </div>
+                              <div className="link-option-body">
+                                <span className="link-option-title">{group.title}</span>
+                                <span className="link-option-handle">
+                                  {getGroupSecondaryLabel(group)}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
 
                     </div>
                   )}
