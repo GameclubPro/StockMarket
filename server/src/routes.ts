@@ -437,24 +437,40 @@ export const registerRoutes = (app: FastifyInstance) => {
               );
               if (maxByBudget <= 0) return;
 
-              const delta =
-                lastCount === null || lastCount === undefined ? 1 : totalCount - lastCount;
+              const effectiveLast =
+                lastCount === null || lastCount === undefined ? totalCount - 1 : lastCount;
+              const delta = totalCount - effectiveLast;
               if (delta <= 0) return;
 
+              const maxApprove = Math.min(delta, maxByBudget);
               const pending = await tx.application.findMany({
                 where: {
                   campaignId: freshCampaign.id,
                   status: 'PENDING',
-                  OR: [{ reactionBaseline: null }, { reactionBaseline: { lt: totalCount } }],
+                  reactionBaseline: { not: null, lt: totalCount },
                 },
-                orderBy: { createdAt: 'asc' },
-                take: Math.min(delta, maxByBudget),
+                orderBy: [{ reactionBaseline: 'desc' }, { createdAt: 'desc' }],
+                take: maxApprove,
               });
-              if (pending.length === 0) return;
+              let toApprove = pending;
+              if (toApprove.length < maxApprove) {
+                const remaining = maxApprove - toApprove.length;
+                const pendingUnknown = await tx.application.findMany({
+                  where: {
+                    campaignId: freshCampaign.id,
+                    status: 'PENDING',
+                    reactionBaseline: null,
+                  },
+                  orderBy: { createdAt: 'desc' },
+                  take: remaining,
+                });
+                toApprove = toApprove.concat(pendingUnknown);
+              }
+              if (toApprove.length === 0) return;
 
-              const approveCount = Math.min(delta, pending.length, maxByBudget);
+              const approveCount = Math.min(maxApprove, toApprove.length);
               if (approveCount <= 0) return;
-              const toApprove = pending.slice(0, approveCount);
+              toApprove = toApprove.slice(0, approveCount);
               const now = new Date();
 
               await tx.application.updateMany({
