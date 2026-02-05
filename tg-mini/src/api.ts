@@ -13,6 +13,7 @@ export type GroupDto = {
   id: string;
   title: string;
   username?: string | null;
+  telegramChatId?: string | null;
   inviteLink: string;
   description?: string | null;
   category?: string | null;

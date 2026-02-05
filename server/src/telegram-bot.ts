@@ -47,7 +47,9 @@ const botRequest = async <T>(botToken: string, method: string, params?: Record<s
 const toChatId = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return trimmed;
-  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+  if (trimmed.startsWith('@')) return trimmed;
+  if (/^-?\d+$/.test(trimmed)) return trimmed;
+  return `@${trimmed}`;
 };
 
 export const extractUsername = (value: string) => {
@@ -144,6 +146,14 @@ export const getChatMemberStatus = async (botToken: string, chatId: string, user
     }
     throw createBotCheckError('bot_api_error', 'Не удалось проверить вступление.');
   }
+};
+
+export const exportChatInviteLink = async (botToken: string, chatId: string) => {
+  if (!botToken) throw createBotCheckError('bot_token_missing', 'BOT_TOKEN is missing', 500);
+  const result = await botRequest<string>(botToken, 'exportChatInviteLink', {
+    chat_id: toChatId(chatId),
+  });
+  return result;
 };
 
 export const isActiveMemberStatus = (status: ChatMember['status']) =>

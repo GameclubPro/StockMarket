@@ -144,8 +144,8 @@ export const handleBotWebhookUpdate = async (
     return { ok: true };
   }
 
-  if (!chat.username) {
-    return { ok: true, skipped: 'missing_username' };
+  if (chat.type === 'private') {
+    return { ok: true, skipped: 'private_chat' };
   }
 
   const owner = await deps.upsertUser(from);

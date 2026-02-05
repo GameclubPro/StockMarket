@@ -359,7 +359,9 @@ export default function App() {
   const getGroupSecondaryLabel = (group: GroupDto) => {
     const username = group.username?.trim();
     if (username) return username.startsWith('@') ? username : `@${username}`;
-    return group.inviteLink;
+    if (group.inviteLink) return group.inviteLink;
+    if (group.telegramChatId) return `ID ${group.telegramChatId}`;
+    return '';
   };
 
   const getGroupAvatarUrl = (group: GroupDto) => {
@@ -374,12 +376,26 @@ export default function App() {
     return selectedGroupId;
   };
 
+  const getPrivateMessageLink = (group: GroupDto, messageId: number) => {
+    const chatId = group.telegramChatId?.trim() ?? '';
+    if (!chatId || !chatId.startsWith('-100')) return '';
+    const internalId = chatId.slice(4);
+    if (!internalId) return '';
+    return `https://t.me/c/${internalId}/${messageId}`;
+  };
+
   const openCampaignLink = (campaign: CampaignDto) => {
     const username = campaign.group.username?.trim();
-    const url =
-      campaign.actionType === 'REACTION' && campaign.targetMessageId && username
-        ? `https://t.me/${username}/${campaign.targetMessageId}`
-        : campaign.group.inviteLink;
+    const targetId = campaign.targetMessageId ?? null;
+    let url = campaign.group.inviteLink;
+    if (campaign.actionType === 'REACTION' && targetId) {
+      if (username) {
+        url = `https://t.me/${username}/${targetId}`;
+      } else {
+        const privateLink = getPrivateMessageLink(campaign.group, targetId);
+        if (privateLink) url = privateLink;
+      }
+    }
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -863,11 +879,13 @@ export default function App() {
                       <span>Ссылка на пост</span>
                       <input
                         type="text"
-                        placeholder="https://t.me/username/123"
+                        placeholder="https://t.me/username/123 или https://t.me/c/123456/789"
                         value={reactionLink}
                         onChange={(event) => setReactionLink(event.target.value)}
                       />
-                      <div className="range-hint">Ссылка должна быть из выбранной группы.</div>
+                      <div className="range-hint">
+                        Ссылка должна быть из выбранной группы (t.me/username/123 или t.me/c/123456/789).
+                      </div>
                     </label>
                   )}
                   <div className="link-tools">

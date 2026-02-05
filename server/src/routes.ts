@@ -7,6 +7,7 @@ import { signSession, verifySession } from './auth.js';
 import { verifyInitData } from './telegram.js';
 import {
   ensureBotIsAdmin,
+  exportChatInviteLink,
   extractUsername,
   getChatMemberStatus,
   isActiveMemberStatus,
@@ -78,7 +79,14 @@ const parseMessageLink = (value: string) => {
     if (!host.endsWith('t.me') && !host.endsWith('telegram.me')) return null;
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts.length < 2) return null;
-    if (parts[0] === 'c') return null;
+    if (parts[0] === 'c') {
+      if (parts.length < 3) return null;
+      const internalId = parts[1];
+      const messageId = Number(parts[2]);
+      if (!/^\d+$/.test(internalId)) return null;
+      if (!Number.isInteger(messageId) || messageId <= 0) return null;
+      return { chatId: `-100${internalId}`, messageId };
+    }
     const username = parts[0];
     const messageId = Number(parts[1]);
     if (!Number.isInteger(messageId) || messageId <= 0) return null;
@@ -86,6 +94,23 @@ const parseMessageLink = (value: string) => {
   } catch {
     return null;
   }
+};
+
+const resolveChatIdentity = (chat?: { username?: string; id?: number }) => {
+  const username = chat?.username?.trim() ?? '';
+  const chatId = typeof chat?.id === 'number' ? String(chat.id) : '';
+  return { username, chatId };
+};
+
+const findGroupByChat = async (chat?: { username?: string; id?: number }) => {
+  const { username, chatId } = resolveChatIdentity(chat);
+  if (username) {
+    return await prisma.group.findFirst({ where: { username } });
+  }
+  if (chatId) {
+    return await prisma.group.findFirst({ where: { telegramChatId: chatId } });
+  }
+  return null;
 };
 
 const getToken = (authHeader?: string) => {
@@ -214,16 +239,17 @@ const syncGroupAdminsForUser = async (user: User) => {
 
   const candidates = await prisma.group.findMany({
     where: {
-      username: { not: null },
+      OR: [{ username: { not: null } }, { telegramChatId: { not: null } }],
       admins: { none: { userId: user.id } },
     },
-    select: { id: true, username: true, ownerId: true },
+    select: { id: true, username: true, telegramChatId: true, ownerId: true },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
 
   for (const group of candidates) {
-    if (!group.username) continue;
+    const chatId = group.username ?? group.telegramChatId ?? '';
+    if (!chatId) continue;
     if (group.ownerId === user.id) {
       await prisma.groupAdmin.upsert({
         where: { groupId_userId: { groupId: group.id, userId: user.id } },
@@ -233,7 +259,7 @@ const syncGroupAdminsForUser = async (user: User) => {
       continue;
     }
     try {
-      const status = await getChatMemberStatus(config.botToken, group.username, telegramId);
+      const status = await getChatMemberStatus(config.botToken, chatId, telegramId);
       if (!isAdminMemberStatus(status)) continue;
       await prisma.groupAdmin.upsert({
         where: { groupId_userId: { groupId: group.id, userId: user.id } },
@@ -365,18 +391,39 @@ export const registerRoutes = (app: FastifyInstance) => {
       const result = await handleBotWebhookUpdate(update, {
         upsertUser,
         upsertGroup: async ({ ownerId, chat }) => {
-          const username = chat.username ?? '';
-          if (!username) return;
-          const inviteLink = `https://t.me/${username}`;
-          const existing = await prisma.group.findUnique({
-            where: { username },
-          });
+          const usernameRaw = chat.username?.trim() ?? '';
+          const username = usernameRaw ? usernameRaw.replace(/^@/, '') : '';
+          const chatId = Number.isFinite(chat.id) ? String(chat.id) : '';
+          if (!username && !chatId) return;
+
+          const existing = username
+            ? await prisma.group.findUnique({ where: { username } })
+            : chatId
+              ? await prisma.group.findUnique({ where: { telegramChatId: chatId } })
+              : null;
+
+          let inviteLink = '';
+          if (username) {
+            inviteLink = `https://t.me/${username}`;
+          } else if (chatId) {
+            try {
+              inviteLink = await exportChatInviteLink(config.botToken, chatId);
+            } catch {
+              // fallback to internal link for members if invite export fails
+              inviteLink = chatId.startsWith('-100')
+                ? `https://t.me/c/${chatId.slice(4)}`
+                : '';
+            }
+          }
+
           if (existing) {
             await prisma.group.update({
               where: { id: existing.id },
               data: {
                 title: chat.title ?? existing.title,
-                inviteLink,
+                inviteLink: inviteLink || existing.inviteLink,
+                username: username || existing.username,
+                telegramChatId: chatId || existing.telegramChatId,
               },
             });
             await prisma.groupAdmin.upsert({
@@ -390,9 +437,10 @@ export const registerRoutes = (app: FastifyInstance) => {
           const created = await prisma.group.create({
             data: {
               ownerId,
-              title: chat.title ?? username,
-              username,
-              inviteLink,
+              title: chat.title ?? (username || 'Группа'),
+              username: username || null,
+              telegramChatId: chatId || null,
+              inviteLink: inviteLink || '',
               description: null,
               category: null,
             },
@@ -403,8 +451,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           });
         },
         handleReaction: async ({ chat, user, messageId }) => {
-          if (!chat.username) return;
-          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          const group = await findGroupByChat(chat);
           if (!group) return;
           const campaign = await prisma.campaign.findFirst({
             where: {
@@ -457,8 +504,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           });
         },
         handleReactionCount: async ({ chat, messageId, totalCount }) => {
-          if (!chat.username) return;
-          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          const group = await findGroupByChat(chat);
           if (!group) return;
 
           const campaigns = await prisma.campaign.findMany({
@@ -554,14 +600,13 @@ export const registerRoutes = (app: FastifyInstance) => {
           }
         },
         handleChatMember: async ({ chat, user, status }) => {
-          if (!chat.username) return;
           if (user.is_bot) return;
           const isJoinStatus =
             status === 'member' || status === 'administrator' || status === 'creator';
           const isLeaveStatus = status === 'left' || status === 'kicked';
           if (!isJoinStatus && !isLeaveStatus) return;
 
-          const group = await prisma.group.findFirst({ where: { username: chat.username } });
+          const group = await findGroupByChat(chat);
           if (!group) return;
 
           const applicant = await upsertUser(user);
@@ -867,16 +912,17 @@ export const registerRoutes = (app: FastifyInstance) => {
         where: { id: parsed.data.groupId },
         include: { admins: { where: { userId: user.id }, select: { userId: true } } },
       });
-      let isGroupAdmin = group?.ownerId === user.id || (group?.admins?.length ?? 0) > 0;
-      if (!isGroupAdmin && group?.username) {
+      if (!group) {
+        return reply.code(404).send({ ok: false, error: 'group not found' });
+      }
+
+      let isGroupAdmin = group.ownerId === user.id || (group.admins?.length ?? 0) > 0;
+      const groupChatId = group.username ?? group.telegramChatId ?? '';
+      if (!isGroupAdmin && groupChatId) {
         const telegramId = Number(user.telegramId);
         if (Number.isFinite(telegramId)) {
           try {
-            const status = await getChatMemberStatus(
-              config.botToken,
-              group.username,
-              telegramId
-            );
+            const status = await getChatMemberStatus(config.botToken, groupChatId, telegramId);
             if (isAdminMemberStatus(status)) {
               await prisma.groupAdmin.upsert({
                 where: { groupId_userId: { groupId: group.id, userId: user.id } },
@@ -890,7 +936,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           }
         }
       }
-      if (!group || !isGroupAdmin) {
+      if (!isGroupAdmin) {
         return reply.code(403).send({ ok: false, error: 'not admin' });
       }
 
@@ -899,26 +945,53 @@ export const registerRoutes = (app: FastifyInstance) => {
         if (!parsed.data.targetMessageLink) {
           return reply.code(400).send({
             ok: false,
-            error: 'Для реакций нужна ссылка на пост (формат https://t.me/username/123).',
-          });
-        }
-        if (!group.username) {
-          return reply.code(400).send({
-            ok: false,
-            error: 'У группы нет публичного @username для проверки реакций.',
+            error:
+              'Для реакций нужна ссылка на пост (формат https://t.me/username/123 или https://t.me/c/123456/789).',
           });
         }
         const parsedLink = parseMessageLink(parsed.data.targetMessageLink);
         if (!parsedLink) {
           return reply.code(400).send({
             ok: false,
-            error: 'Ссылка на пост некорректна. Нужен формат https://t.me/username/123.',
+            error:
+              'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
           });
         }
-        if (parsedLink.username.toLowerCase() !== group.username.toLowerCase()) {
+        const groupUsername = group.username?.trim();
+        const groupChatId = group.telegramChatId?.trim();
+        if (parsedLink.username) {
+          if (!groupUsername) {
+            return reply.code(400).send({
+              ok: false,
+              error: 'У группы нет публичного @username для проверки реакций.',
+            });
+          }
+          if (parsedLink.username.toLowerCase() !== groupUsername.toLowerCase()) {
+            return reply.code(400).send({
+              ok: false,
+              error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+            });
+          }
+        }
+        if (parsedLink.chatId) {
+          if (!groupChatId) {
+            return reply.code(400).send({
+              ok: false,
+              error: 'У группы нет данных для приватной ссылки. Добавьте бота в группу заново.',
+            });
+          }
+          if (parsedLink.chatId !== groupChatId) {
+            return reply.code(400).send({
+              ok: false,
+              error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+            });
+          }
+        }
+        if (!parsedLink.username && !parsedLink.chatId) {
           return reply.code(400).send({
             ok: false,
-            error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+            error:
+              'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
           });
         }
         targetMessageId = parsedLink.messageId;
@@ -1023,10 +1096,11 @@ export const registerRoutes = (app: FastifyInstance) => {
         return { ok: true, application };
       }
 
-      if (!campaign.group.username) {
+      const chatId = campaign.group.username ?? campaign.group.telegramChatId ?? '';
+      if (!chatId) {
         return reply
           .code(400)
-          .send({ ok: false, error: 'У группы нет публичного @username для проверки.' });
+          .send({ ok: false, error: 'У группы нет данных для проверки вступления.' });
       }
 
       const telegramId = Number(user.telegramId);
@@ -1034,11 +1108,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
       }
 
-      const status = await getChatMemberStatus(
-        config.botToken,
-        campaign.group.username,
-        telegramId
-      );
+      const status = await getChatMemberStatus(config.botToken, chatId, telegramId);
       if (!isActiveMemberStatus(status)) {
         if (existing) return { ok: true, application: existing };
         const application = await prisma.application.create({
