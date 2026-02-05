@@ -488,7 +488,6 @@ export default function App() {
         targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
       const length = Math.hypot(dx, dy) || 1;
       const nx = -dy / length;
-      const ny = dx / length;
       const curve = Math.min(180, length * 0.35);
       const dip = Math.min(140, Math.max(60, length * 0.3));
       const midX = dx * 0.25 + nx * curve * 0.35;
