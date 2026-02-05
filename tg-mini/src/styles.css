@@ -1001,15 +1001,27 @@ body::before {
 }
 
 .link-tool.highlight {
-  background: linear-gradient(135deg, rgba(138, 210, 255, 0.3), rgba(124, 255, 178, 0.18));
-  border-color: rgba(124, 255, 178, 0.55);
+  background: linear-gradient(135deg, rgba(255, 214, 102, 0.35), rgba(255, 179, 71, 0.2));
+  border-color: rgba(255, 214, 102, 0.7);
   color: #ffffff;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
 .link-tool.highlight:hover {
-  background: linear-gradient(135deg, rgba(138, 210, 255, 0.4), rgba(124, 255, 178, 0.26));
-  border-color: rgba(124, 255, 178, 0.7);
+  background: linear-gradient(135deg, rgba(255, 224, 128, 0.45), rgba(255, 196, 94, 0.3));
+  border-color: rgba(255, 224, 128, 0.8);
+}
+
+.link-tool.highlight-blue {
+  background: linear-gradient(135deg, rgba(138, 210, 255, 0.35), rgba(112, 168, 255, 0.22));
+  border-color: rgba(138, 210, 255, 0.7);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.link-tool.highlight-blue:hover {
+  background: linear-gradient(135deg, rgba(156, 223, 255, 0.45), rgba(112, 168, 255, 0.32));
+  border-color: rgba(156, 223, 255, 0.85);
 }
 
 .link-picker {

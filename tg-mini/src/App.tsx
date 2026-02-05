@@ -43,7 +43,8 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   const bonus = Math.round(base * bonusRate);
   return Math.max(1, Math.min(value, base + bonus));
 };
-const BOT_SETUP_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
+const BOT_SETUP_CHANNEL_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
+const BOT_SETUP_GROUP_URL = 'https://t.me/JoinRush_bot?startgroup=true';
 const formatPointsLabel = (value: number) => {
   const abs = Math.abs(value);
   const mod100 = abs % 100;
@@ -370,8 +371,12 @@ export default function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const openBotSetup = () => {
-    window.open(BOT_SETUP_URL, '_blank', 'noopener,noreferrer');
+  const openChannelSetup = () => {
+    window.open(BOT_SETUP_CHANNEL_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  const openGroupSetup = () => {
+    window.open(BOT_SETUP_GROUP_URL, '_blank', 'noopener,noreferrer');
   };
 
   const registerTaskCardRef = useCallback((id: string, node: HTMLDivElement | null) => {
@@ -823,8 +828,11 @@ export default function App() {
                     >
                       Быстрый выбор
                     </button>
-                    <button className="link-tool highlight" type="button" onClick={openBotSetup}>
+                    <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
                       Подключить канал
+                    </button>
+                    <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
+                      Подключить группу
                     </button>
                   </div>
                   <div className="link-hint">
