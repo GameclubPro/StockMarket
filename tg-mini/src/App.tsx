@@ -1111,9 +1111,11 @@ export default function App() {
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
+                            <div className="task-meta">
+                              <span className="status-badge approved compact">Выполнено</span>
+                            </div>
                           </div>
                           <div className="task-actions">
-                            <span className="status-badge approved">Выполнено</span>
                             <button
                               className="open-button icon"
                               type="button"

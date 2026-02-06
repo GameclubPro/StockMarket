@@ -748,6 +748,13 @@ body::before {
   white-space: nowrap;
 }
 
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .task-actions {
   display: flex;
   gap: 6px;
@@ -876,6 +883,11 @@ body::before {
   padding: 3px 8px;
   border-radius: 999px;
   font-weight: 600;
+}
+
+.status-badge.compact {
+  font-size: 10px;
+  padding: 2px 6px;
 }
 
 .status-badge.approved {
