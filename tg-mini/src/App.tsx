@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
   createCampaign,
@@ -1070,12 +1070,7 @@ export default function App() {
                 <div className="wheel-pointer" aria-hidden="true" />
                 <div
                   className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
-                  style={
-                    {
-                      transform: `rotate(${wheelRotation}deg)`,
-                      '--wheel-slice': `${DAILY_WHEEL_SLICE}deg`,
-                    } as CSSProperties
-                  }
+                  style={{ transform: `rotate(${wheelRotation}deg)` }}
                 >
                   {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
                     const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
