@@ -94,6 +94,36 @@ const formatCountdown = (ms: number) => {
   return `${seconds}с`;
 };
 
+const getTodayStamp = () => new Date().toISOString().slice(0, 10);
+
+const readPointsToday = (key: string) => {
+  if (!key) return 0;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { date?: string; value?: number } | null;
+    if (!parsed || parsed.date !== getTodayStamp()) return 0;
+    return typeof parsed.value === 'number' ? parsed.value : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const writePointsToday = (key: string, value: number) => {
+  if (!key) return;
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        date: getTodayStamp(),
+        value,
+      })
+    );
+  } catch {
+    // ignore
+  }
+};
+
 const getWheelTargetRotation = (currentRotation: number, index: number) => {
   const normalizedCurrent = ((currentRotation % 360) + 360) % 360;
   const targetAngle = ((DAILY_WHEEL_BASE_ROTATION - index * DAILY_WHEEL_SLICE) % 360 + 360) % 360;
@@ -106,7 +136,7 @@ export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
   const [points, setPoints] = useState(30);
-  const [pointsToday] = useState(0);
+  const [pointsToday, setPointsToday] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
   const [activeTab, setActiveTab] = useState<
@@ -164,6 +194,7 @@ export default function App() {
   const taskCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const taskBadgeRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
   const acknowledgedKeyRef = useRef('');
+  const pointsTodayKeyRef = useRef('');
   const animatingOutRef = useRef<Set<string>>(new Set());
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
   const spinTimeoutRef = useRef<number | null>(null);
@@ -194,6 +225,16 @@ export default function App() {
     (value: number) => calculatePayoutWithBonus(value, rankTier.bonusRate),
     [rankTier.bonusRate]
   );
+  const bumpPointsToday = useCallback((delta: number) => {
+    if (!Number.isFinite(delta) || delta === 0) return;
+    setPointsToday((prev) => {
+      const key = pointsTodayKeyRef.current;
+      const base = key ? readPointsToday(key) : prev;
+      const next = Math.max(0, base + delta);
+      if (key) writePointsToday(key, next);
+      return next;
+    });
+  }, []);
   const activeCampaignIds = useMemo(
     () => new Set(campaigns.map((campaign) => campaign.id)),
     [campaigns]
@@ -366,6 +407,13 @@ export default function App() {
       stored = [];
     }
     setAcknowledgedIds(stored);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const key = `jr:pointsToday:${userId}`;
+    pointsTodayKeyRef.current = key;
+    setPointsToday(readPointsToday(key));
   }, [userId]);
 
   const loadMyGroups = useCallback(async () => {
@@ -995,6 +1043,7 @@ export default function App() {
       const rewardIndex = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
       const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
       const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
+      if (rewardValue > 0) bumpPointsToday(rewardValue);
       const nextRotation = getWheelTargetRotation(wheelRotationRef.current, rewardIndex);
       setWheelRotation(nextRotation);
 
