@@ -24,6 +24,8 @@ const RANKS = [
   { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
 ];
 const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
+const MAX_TASK_PRICE = 50;
+const MAX_TOTAL_BUDGET = 1_000_000;
 
 const getRankTier = (totalEarned: number) => {
   let current = RANKS[0];
@@ -151,6 +153,12 @@ export default function App() {
     [points, pendingPayoutTotal]
   );
   const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
+  const maxAffordableCount = useMemo(() => {
+    if (!Number.isFinite(taskPrice) || taskPrice <= 0) return 1;
+    const byBalance = Math.floor(displayPoints / taskPrice);
+    const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPrice);
+    return Math.max(1, Math.min(byBalance, byBudget));
+  }, [displayPoints, taskPrice]);
   const minPayoutPreview = useMemo(() => calculateBasePayout(taskPrice), [taskPrice]);
   const maxPayoutPreview = useMemo(
     () => calculatePayoutWithBonus(taskPrice, MAX_BONUS_RATE),
@@ -216,6 +224,13 @@ export default function App() {
 
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!Number.isFinite(taskCount)) return;
+    if (taskCount > maxAffordableCount) {
+      setTaskCount(maxAffordableCount);
+    }
+  }, [taskCount, maxAffordableCount]);
 
   useEffect(() => {
     if (!userId) return;
@@ -674,6 +689,10 @@ export default function App() {
       setCreateError('Цена за действие должна быть не меньше 1 балла.');
       return;
     }
+    if (taskPrice > MAX_TASK_PRICE) {
+      setCreateError(`Цена за действие должна быть не больше ${MAX_TASK_PRICE} баллов.`);
+      return;
+    }
     if (!Number.isFinite(taskCount) || taskCount < 1) {
       setCreateError('Количество действий должно быть не меньше 1.');
       return;
@@ -684,8 +703,10 @@ export default function App() {
         return;
       }
     }
-    if (totalBudget > 1_000_000) {
-      setCreateError('Бюджет слишком большой. Максимум 1 000 000 баллов.');
+    if (totalBudget > MAX_TOTAL_BUDGET) {
+      setCreateError(
+        `Бюджет слишком большой. Максимум ${MAX_TOTAL_BUDGET.toLocaleString('ru-RU')} баллов.`
+      );
       return;
     }
     if (displayPoints < totalBudget) {
@@ -975,9 +996,14 @@ export default function App() {
                     <input
                       type="number"
                       min={1}
-                      max={10000}
+                      max={MAX_TASK_PRICE}
                       value={taskPrice}
-                      onChange={(event) => setTaskPrice(Number(event.target.value))}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value);
+                        if (!Number.isFinite(nextValue)) return;
+                        const clamped = Math.min(MAX_TASK_PRICE, Math.max(1, nextValue));
+                        setTaskPrice(clamped);
+                      }}
                     />
                     <div className="range-hint">
                       Ставка {taskPrice} баллов · Исполнитель получит {minPayoutPreview}–{maxPayoutPreview}{' '}
@@ -990,7 +1016,7 @@ export default function App() {
                       className="range-input"
                       type="range"
                       min={1}
-                      max={200}
+                      max={maxAffordableCount}
                       value={taskCount}
                       onChange={(event) => setTaskCount(Number(event.target.value))}
                     />
