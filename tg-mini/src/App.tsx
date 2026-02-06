@@ -238,23 +238,32 @@ export default function App() {
     }
   }, []);
 
-  const loadCampaigns = useCallback(async () => {
-    setCampaignsError('');
-    setCampaignsLoading(true);
+  const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setCampaignsError('');
+      setCampaignsLoading(true);
+    }
 
     try {
       const data = await fetchCampaigns();
       if (data.ok && Array.isArray(data.campaigns)) {
         setCampaigns(data.campaigns);
       } else {
+        if (!silent) {
+          setCampaigns([]);
+          setCampaignsError('Не удалось загрузить задания.');
+        }
+      }
+    } catch {
+      if (!silent) {
         setCampaigns([]);
         setCampaignsError('Не удалось загрузить задания.');
       }
-    } catch {
-      setCampaigns([]);
-      setCampaignsError('Не удалось загрузить задания.');
     } finally {
-      setCampaignsLoading(false);
+      if (!silent) {
+        setCampaignsLoading(false);
+      }
     }
   }, []);
 
@@ -278,23 +287,32 @@ export default function App() {
     }
   }, []);
 
-  const loadMyApplications = useCallback(async () => {
-    setApplicationsError('');
-    setApplicationsLoading(true);
+  const loadMyApplications = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setApplicationsError('');
+      setApplicationsLoading(true);
+    }
 
     try {
       const data = await fetchMyApplications();
       if (data.ok && Array.isArray(data.applications)) {
         setApplications(data.applications);
       } else {
+        if (!silent) {
+          setApplications([]);
+          setApplicationsError('Не удалось загрузить статусы.');
+        }
+      }
+    } catch {
+      if (!silent) {
         setApplications([]);
         setApplicationsError('Не удалось загрузить статусы.');
       }
-    } catch {
-      setApplications([]);
-      setApplicationsError('Не удалось загрузить статусы.');
     } finally {
-      setApplicationsLoading(false);
+      if (!silent) {
+        setApplicationsLoading(false);
+      }
     }
   }, []);
 
@@ -335,7 +353,11 @@ export default function App() {
     };
     const scrollTop = contentRef.current?.scrollTop ?? 0;
     void (async () => {
-      await Promise.allSettled([loadCampaigns(), loadMyApplications(), loadMe()]);
+      await Promise.allSettled([
+        loadCampaigns({ silent: true }),
+        loadMyApplications({ silent: true }),
+        loadMe(),
+      ]);
       restoreScrollTop(contentRef.current, scrollTop);
     })();
   }, [loadCampaigns, loadMyApplications, loadMe]);
@@ -344,14 +366,14 @@ export default function App() {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refreshTasksOnResume();
     };
-    const handleFocus = () => refreshTasksOnResume();
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('pageshow', handleFocus);
+    const handlePageShow = () => {
+      if (document.visibilityState === 'visible') refreshTasksOnResume();
+    };
+    window.addEventListener('pageshow', handlePageShow);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('pageshow', handleFocus);
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, [refreshTasksOnResume]);
 
