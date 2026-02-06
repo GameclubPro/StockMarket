@@ -133,14 +133,19 @@ export default function App() {
     (value: number) => calculatePayoutWithBonus(value, rankTier.bonusRate),
     [rankTier.bonusRate]
   );
+  const activeCampaignIds = useMemo(
+    () => new Set(campaigns.map((campaign) => campaign.id)),
+    [campaigns]
+  );
   const pendingPayoutTotal = useMemo(() => {
     const acknowledged = new Set(acknowledgedIds);
     return applications.reduce((sum, application) => {
       if (application.status !== 'APPROVED') return sum;
+      if (!activeCampaignIds.has(application.campaign.id)) return sum;
       if (acknowledged.has(application.campaign.id)) return sum;
       return sum + calculatePayout(application.campaign.rewardPoints);
     }, 0);
-  }, [applications, acknowledgedIds, calculatePayout]);
+  }, [applications, acknowledgedIds, calculatePayout, activeCampaignIds]);
   const displayPoints = useMemo(
     () => Math.max(0, points - pendingPayoutTotal),
     [points, pendingPayoutTotal]
