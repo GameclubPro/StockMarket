@@ -38,17 +38,47 @@ const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
 const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
 const DAILY_WHEEL_SEGMENTS = [
-  { label: '+10', value: 10 },
-  { label: '+50', value: 50 },
-  { label: '+15', value: 15 },
-  { label: '+50', value: 50 },
-  { label: '+10', value: 10 },
-  { label: '+20', value: 20 },
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+50', value: 50, weight: 1 },
+  { label: '+15', value: 15, weight: 3 },
+  { label: '+50', value: 50, weight: 1 },
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+20', value: 20, weight: 2 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
 const DAILY_WHEEL_SPIN_TURNS = 6;
 const DAILY_WHEEL_SPIN_MS = 4200;
+const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
+  (sum, segment) => sum + segment.weight,
+  0
+);
+const DAILY_WHEEL_MAX_REWARD = DAILY_WHEEL_SEGMENTS.reduce(
+  (max, segment) => Math.max(max, segment.value),
+  0
+);
+const DAILY_WHEEL_AVERAGE_REWARD =
+  DAILY_WHEEL_SEGMENTS.reduce((sum, segment) => sum + segment.value * segment.weight, 0) /
+  DAILY_WHEEL_TOTAL_WEIGHT;
+const DAILY_WHEEL_JACKPOT_CHANCE =
+  (DAILY_WHEEL_SEGMENTS.reduce(
+    (sum, segment) => (segment.value === DAILY_WHEEL_MAX_REWARD ? sum + segment.weight : sum),
+    0
+  ) /
+    DAILY_WHEEL_TOTAL_WEIGHT) *
+  100;
+const DAILY_WHEEL_VALUE_CHANCES = Array.from(
+  DAILY_WHEEL_SEGMENTS.reduce((map, segment) => {
+    map.set(segment.value, (map.get(segment.value) ?? 0) + segment.weight);
+    return map;
+  }, new Map<number, number>())
+)
+  .map(([value, weight]) => ({
+    value,
+    label: `+${value}`,
+    chance: (weight / DAILY_WHEEL_TOTAL_WEIGHT) * 100,
+  }))
+  .sort((a, b) => b.value - a.value);
 const REFERRAL_STEPS = [
   { label: 'Вход', orders: 0, reward: 10 },
   { label: '5 заказов', orders: 5, reward: 30 },
@@ -288,6 +318,17 @@ export default function App() {
     : dailyBonusAvailable
       ? 'Доступно сейчас'
       : `Доступно через ${formatCountdown(timeLeftMs)}`;
+  const dailyStreak = Math.max(0, dailyBonusStatus.streak ?? 0);
+  const nextSpinClockLabel = useMemo(() => {
+    if (dailyBonusAvailable || !nextAvailableAtMs) return 'сейчас';
+    return new Date(nextAvailableAtMs).toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [dailyBonusAvailable, nextAvailableAtMs]);
+  const wheelProgressLabel = dailyBonusAvailable
+    ? 'Колесо готово к прокрутке'
+    : `${dailyBonusTimerLabel} · следующий в ${nextSpinClockLabel}`;
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
@@ -1244,13 +1285,33 @@ export default function App() {
         {activeTab === 'home' && (
           <>
             <ProfileCard />
-            <section className="daily-bonus-card">
+            <section className={`daily-bonus-card ${dailyBonusAvailable ? 'ready' : ''}`}>
               <div className="daily-bonus-top">
-                <div>
+                <div className="daily-bonus-copy">
+                  <div className="daily-bonus-kicker">Daily Wheel</div>
                   <div className="daily-bonus-title">Ежедневный бонус</div>
-                  <div className="daily-bonus-sub">Крутите раз в 24 часа и получайте баллы.</div>
+                  <div className="daily-bonus-sub">
+                    Крутите раз в 24 часа и получайте бонусные баллы.
+                  </div>
                 </div>
-                <div className="daily-bonus-preview" aria-hidden="true" />
+                <div className="daily-bonus-preview-wrap" aria-hidden="true">
+                  <div className="daily-bonus-preview" />
+                  <div className="daily-bonus-preview-pointer" />
+                </div>
+              </div>
+              <div className="daily-bonus-metrics">
+                <div className="daily-bonus-metric">
+                  <span className="daily-bonus-metric-label">Серия</span>
+                  <span className="daily-bonus-metric-value">{dailyStreak} дн.</span>
+                </div>
+                <div className="daily-bonus-metric">
+                  <span className="daily-bonus-metric-label">Макс. приз</span>
+                  <span className="daily-bonus-metric-value">+{DAILY_WHEEL_MAX_REWARD}</span>
+                </div>
+                <div className="daily-bonus-metric">
+                  <span className="daily-bonus-metric-label">Средний бонус</span>
+                  <span className="daily-bonus-metric-value">~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</span>
+                </div>
               </div>
               <button
                 className="daily-bonus-cta"
@@ -1258,9 +1319,11 @@ export default function App() {
                 onClick={() => setActiveTab('wheel')}
                 disabled={dailyBonusLoading}
               >
-                Получить ежедневный бонус
+                {dailyBonusAvailable ? 'Крутить сейчас' : 'Открыть колесо'}
               </button>
-              <div className="daily-bonus-timer">{dailyBonusTimerLabel}</div>
+              <div className={`daily-bonus-timer ${dailyBonusAvailable ? 'ready' : ''}`}>
+                {wheelProgressLabel}
+              </div>
               {dailyBonusError && <div className="daily-bonus-error">{dailyBonusError}</div>}
             </section>
             <section className="invite-card">
@@ -1319,7 +1382,22 @@ export default function App() {
             </div>
 
             <section className="wheel-card">
+              <div className="wheel-head">
+                <div className="wheel-head-copy">
+                  <div className="wheel-kicker">Daily Wheel</div>
+                  <div className="wheel-title">Прокрут на сегодня</div>
+                  <div className="wheel-sub">
+                    Чем выше серия, тем стабильнее ваш ежедневный прогресс.
+                  </div>
+                </div>
+                <div className="wheel-streak-chip">
+                  <span>Серия</span>
+                  <strong>{dailyStreak} дн.</strong>
+                </div>
+              </div>
               <div className="wheel-wrapper">
+                <div className="wheel-orbit" aria-hidden="true" />
+                <div className="wheel-pointer-base" aria-hidden="true" />
                 <div className="wheel-pointer" aria-hidden="true" />
                 <div
                   className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
@@ -1338,7 +1416,32 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div className="wheel-center" aria-hidden="true" />
+                <div className="wheel-center" aria-hidden="true">
+                  <span>SPIN</span>
+                </div>
+              </div>
+              <div className="bonus-stats-grid">
+                <div className="bonus-stat">
+                  <div className="bonus-stat-label">Средний бонус</div>
+                  <div className="bonus-stat-value">~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</div>
+                  <div className="bonus-stat-sub">за один прокрут</div>
+                </div>
+                <div className="bonus-stat">
+                  <div className="bonus-stat-label">Шанс +{DAILY_WHEEL_MAX_REWARD}</div>
+                  <div className="bonus-stat-value">{DAILY_WHEEL_JACKPOT_CHANCE.toFixed(1)}%</div>
+                  <div className="bonus-stat-sub">редкий приз</div>
+                </div>
+              </div>
+              <div className="wheel-probabilities">
+                {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
+                  <div className="wheel-probability-row" key={`chance-${entry.value}`}>
+                    <span className="wheel-probability-reward">{entry.label}</span>
+                    <div className="wheel-probability-track">
+                      <span style={{ width: `${entry.chance}%` }} />
+                    </div>
+                    <span className="wheel-probability-value">{entry.chance.toFixed(1)}%</span>
+                  </div>
+                ))}
               </div>
               <button
                 className="wheel-cta"
@@ -1353,7 +1456,8 @@ export default function App() {
               </div>
               {wheelResult && (
                 <div className="wheel-result">
-                  Ваш бонус: <strong>{wheelResult.label}</strong>
+                  <span>Ваш бонус</span>
+                  <strong>{wheelResult.label}</strong>
                 </div>
               )}
               {dailyBonusError && <div className="wheel-error">{dailyBonusError}</div>}
