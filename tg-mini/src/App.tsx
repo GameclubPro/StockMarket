@@ -1320,12 +1320,31 @@ export default function App() {
               <div className="daily-bonus-top">
                 <div className="daily-bonus-copy">
                   <div className="daily-bonus-title">Ежедневный бонус</div>
-                  <div className="daily-bonus-sub">Раз в 24 часа</div>
+                  <div className="daily-bonus-sub">
+                    Крути колесо раз в <strong>24 часа</strong>
+                  </div>
                 </div>
                 <div className="daily-bonus-top-side">
                   <div className="daily-bonus-preview-wrap" aria-hidden="true">
                     <div className="daily-bonus-preview" />
                   </div>
+                </div>
+              </div>
+              <div className="daily-bonus-rewards">
+                <span className="daily-bonus-rewards-label">Награды:</span>
+                <div className="daily-bonus-rewards-values">
+                  {DAILY_WHEEL_SEGMENTS.map((segment, index) => (
+                    <span className="daily-bonus-reward-item" key={`home-wheel-reward-${segment.value}-${index}`}>
+                      {index > 0 && (
+                        <span className="daily-bonus-reward-divider" aria-hidden="true">
+                          /
+                        </span>
+                      )}
+                      <span className={`daily-bonus-reward-value ${segment.value >= 50 ? 'accent' : ''}`}>
+                        {segment.value}
+                      </span>
+                    </span>
+                  ))}
                 </div>
               </div>
               <button
