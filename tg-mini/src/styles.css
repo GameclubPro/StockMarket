@@ -3089,16 +3089,21 @@ button {
   --card: rgba(178, 244, 214, 0.06);
   --card-strong: rgba(178, 244, 214, 0.1);
   --stroke: rgba(159, 226, 197, 0.24);
-  --text: #ecfff4;
-  --muted: rgba(193, 214, 203, 0.72);
-  --accent: #c6ffde;
-  --green: #c6ffde;
-  --gold: #e4ffef;
+  --text: #f4fff9;
+  --muted: rgba(217, 238, 227, 0.86);
+  --accent: #8edbff;
+  --green: #8ff3be;
+  --gold: #ffe18f;
+  --yellow: #ffd978;
+  --sky: #8edbff;
+  --ink-dark: #0f261d;
   --shadow: 0 18px 38px rgba(0, 0, 0, 0.46);
 }
 
 body {
   background:
+    radial-gradient(1100px 720px at 82% -14%, rgba(132, 214, 255, 0.26) 0%, transparent 60%),
+    radial-gradient(850px 540px at 6% 86%, rgba(255, 218, 123, 0.15) 0%, transparent 56%),
     radial-gradient(1200px 900px at 16% -10%, rgba(32, 62, 52, 0.45) 0%, transparent 58%),
     radial-gradient(1100px 760px at 100% 18%, rgba(18, 45, 38, 0.5) 0%, transparent 64%),
     linear-gradient(180deg, var(--bg-1), var(--bg-0));
@@ -3106,9 +3111,9 @@ body {
 
 body::before {
   background:
-    radial-gradient(2px 2px at 20% 30%, rgba(184, 255, 224, 0.26) 0%, transparent 62%),
-    radial-gradient(1px 1px at 70% 60%, rgba(184, 255, 224, 0.2) 0%, transparent 62%),
-    radial-gradient(1px 1px at 40% 80%, rgba(184, 255, 224, 0.17) 0%, transparent 62%);
+    radial-gradient(2px 2px at 20% 30%, rgba(184, 255, 224, 0.22) 0%, transparent 62%),
+    radial-gradient(1px 1px at 70% 60%, rgba(150, 222, 255, 0.24) 0%, transparent 62%),
+    radial-gradient(1px 1px at 40% 80%, rgba(255, 224, 150, 0.2) 0%, transparent 62%);
   opacity: 0.42;
 }
 
@@ -3170,11 +3175,11 @@ body::before {
 .form-status,
 .balance-pill,
 .tabs-row {
-  background: linear-gradient(160deg, rgba(13, 20, 30, 0.93), rgba(5, 10, 17, 0.95));
-  border: 1px solid rgba(159, 226, 197, 0.24);
+  background: linear-gradient(165deg, rgba(12, 20, 29, 0.96), rgba(5, 11, 17, 0.98));
+  border: 1px solid rgba(153, 229, 194, 0.34);
   box-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(210, 251, 232, 0.1);
+    0 14px 28px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(212, 247, 234, 0.16);
 }
 
 .tabs-row {
@@ -3214,14 +3219,14 @@ body::before {
 .welcome-close,
 .link-tool {
   background: linear-gradient(180deg, rgba(17, 27, 37, 0.96), rgba(7, 13, 21, 0.98));
-  border: 1px solid rgba(170, 234, 204, 0.3);
-  color: rgba(216, 245, 232, 0.92);
+  border: 1px solid rgba(142, 216, 255, 0.36);
+  color: rgba(232, 250, 242, 0.96);
 }
 
 .link-tool.highlight,
 .link-tool.highlight-blue {
   background: linear-gradient(180deg, rgba(19, 33, 43, 0.96), rgba(8, 15, 23, 0.98));
-  border-color: rgba(182, 240, 214, 0.34);
+  border-color: rgba(255, 225, 151, 0.44);
   color: #e6fff2;
 }
 
@@ -3232,16 +3237,23 @@ body::before {
 .segment-button.active,
 .tab-button.active,
 .filter-toggle-button.active {
-  background: linear-gradient(180deg, rgba(103, 176, 141, 0.32), rgba(65, 122, 97, 0.2));
-  border-color: rgba(166, 241, 206, 0.5);
-  color: #e8fff2;
+  background: linear-gradient(
+    145deg,
+    rgba(143, 243, 190, 0.34),
+    rgba(142, 216, 255, 0.26),
+    rgba(255, 217, 120, 0.2)
+  );
+  border-color: rgba(255, 228, 166, 0.6);
+  color: #f1fff8;
 }
 
 .filter-divider {
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.03),
-    rgba(124, 255, 178, 0.42),
+    rgba(142, 216, 255, 0.36),
+    rgba(143, 243, 190, 0.44),
+    rgba(255, 220, 135, 0.36),
     rgba(255, 255, 255, 0.03)
   );
 }
@@ -3249,9 +3261,10 @@ body::before {
 .filter-chip::after {
   background: linear-gradient(
     90deg,
-    rgba(124, 255, 178, 0.1),
-    rgba(124, 255, 178, 0.86),
-    rgba(124, 255, 178, 0.1)
+    rgba(143, 243, 190, 0.08),
+    rgba(142, 216, 255, 0.72),
+    rgba(255, 217, 120, 0.72),
+    rgba(143, 243, 190, 0.08)
   );
 }
 
@@ -3261,21 +3274,27 @@ body::before {
 .open-button.confirm,
 .metric-plus,
 .sub {
-  background: linear-gradient(180deg, rgba(17, 28, 38, 0.98), rgba(7, 12, 20, 0.98));
-  border: 1px solid rgba(185, 240, 215, 0.42);
-  color: #e8fff2;
+  background: linear-gradient(
+    140deg,
+    rgba(143, 243, 190, 0.92) 0%,
+    rgba(142, 216, 255, 0.9) 62%,
+    rgba(255, 218, 126, 0.9) 100%
+  );
+  border: 1px solid rgba(255, 233, 176, 0.95);
+  color: var(--ink-dark);
+  text-shadow: none;
   box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(224, 255, 238, 0.2),
-    inset 0 -10px 16px rgba(2, 8, 12, 0.58),
-    0 0 18px rgba(106, 216, 167, 0.14);
+    0 12px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 251, 236, 0.55),
+    inset 0 -12px 18px rgba(84, 161, 130, 0.28),
+    0 0 18px rgba(128, 214, 255, 0.2);
 }
 
 .primary-button:hover,
 .invite-button:hover,
 .referral-share:hover,
 .sub:hover {
-  border-color: rgba(198, 247, 225, 0.58);
+  border-color: rgba(255, 240, 198, 0.98);
 }
 
 .metric-plus {
@@ -3290,8 +3309,8 @@ body::before {
 }
 
 .field input:focus {
-  border-color: rgba(182, 240, 214, 0.52);
-  box-shadow: 0 0 0 2px rgba(124, 255, 178, 0.12);
+  border-color: rgba(142, 216, 255, 0.62);
+  box-shadow: 0 0 0 2px rgba(142, 216, 255, 0.16);
 }
 
 .field input::placeholder {
@@ -3314,7 +3333,12 @@ body::before {
 }
 
 .range-input::-moz-range-progress {
-  background: linear-gradient(90deg, rgba(124, 255, 178, 0.88), rgba(123, 184, 255, 0.55));
+  background: linear-gradient(
+    90deg,
+    rgba(143, 243, 190, 0.88),
+    rgba(142, 216, 255, 0.6),
+    rgba(255, 217, 120, 0.45)
+  );
 }
 
 .range-input::-moz-range-thumb {
@@ -3326,23 +3350,28 @@ body::before {
 .invite-art,
 .referral-avatar,
 .referral-hero-art {
-  background: linear-gradient(150deg, rgba(138, 236, 179, 0.18), rgba(76, 149, 117, 0.12));
-  border-color: rgba(163, 236, 202, 0.4);
+  background: linear-gradient(
+    150deg,
+    rgba(143, 243, 190, 0.24),
+    rgba(142, 216, 255, 0.2),
+    rgba(255, 218, 126, 0.16)
+  );
+  border-color: rgba(184, 234, 210, 0.56);
   color: #eafff4;
 }
 
 .invite-gift,
 .referral-hero-gift {
-  background: linear-gradient(145deg, #c6ffe0, #6abc90);
+  background: linear-gradient(145deg, #ffe694, #93ddff 56%, #8ff3be);
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.38);
 }
 
 .invite-friends {
-  border-color: rgba(166, 241, 206, 0.5);
-  background: rgba(108, 188, 148, 0.26);
-  color: #dbffec;
+  border-color: rgba(255, 226, 158, 0.65);
+  background: rgba(142, 216, 255, 0.34);
+  color: #f9fffd;
 }
 
 .badge,
@@ -3366,9 +3395,14 @@ body::before {
 
 .referral-code,
 .invite-code {
-  border-color: rgba(166, 241, 206, 0.42);
-  background: rgba(96, 166, 133, 0.2);
-  color: #dcffec;
+  border-color: rgba(142, 216, 255, 0.5);
+  background: linear-gradient(
+    135deg,
+    rgba(142, 216, 255, 0.24),
+    rgba(143, 243, 190, 0.15),
+    rgba(255, 218, 126, 0.14)
+  );
+  color: #e9fff8;
 }
 
 .referral-goal-track,
@@ -3382,15 +3416,25 @@ body::before {
 .referral-goal-track span,
 .referral-progress-bar,
 .daily-bonus-info-track span {
-  background: linear-gradient(90deg, rgba(124, 255, 178, 0.9), rgba(123, 184, 255, 0.5));
-  box-shadow: 0 0 10px rgba(134, 214, 255, 0.24);
+  background: linear-gradient(
+    90deg,
+    rgba(143, 243, 190, 0.92),
+    rgba(142, 216, 255, 0.7),
+    rgba(255, 217, 120, 0.56)
+  );
+  box-shadow: 0 0 10px rgba(142, 216, 255, 0.28);
 }
 
 .referral-list-count,
 .referral-step-index {
-  border-color: rgba(166, 241, 206, 0.42);
-  background: rgba(95, 165, 132, 0.26);
-  color: #e7fff3;
+  border-color: rgba(255, 226, 158, 0.6);
+  background: linear-gradient(
+    145deg,
+    rgba(143, 243, 190, 0.3),
+    rgba(142, 216, 255, 0.24),
+    rgba(255, 217, 120, 0.22)
+  );
+  color: #f4fff8;
 }
 
 .task-form-placeholder.error,
@@ -3415,4 +3459,64 @@ body::before {
 .bottom-nav .active span {
   color: #ddffeb;
   text-shadow: 0 0 10px rgba(146, 252, 192, 0.2);
+}
+
+.referral-hero-kicker {
+  color: var(--yellow);
+}
+
+.referral-hero-sub,
+.invite-sub,
+.invite-meta,
+.referral-goal-sub,
+.referral-item-sub,
+.referral-item-next,
+.referral-progress-scale,
+.referral-step-sub,
+.referral-stat-sub,
+.referral-status {
+  color: rgba(227, 244, 235, 0.92);
+}
+
+.referral-stat-label,
+.referral-link-label,
+.referral-item-meta-label {
+  color: rgba(213, 236, 225, 0.88);
+}
+
+.invite-sub,
+.invite-meta,
+.referral-hero-sub,
+.referral-link {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.referral-stat-label,
+.referral-stat-sub,
+.referral-step-sub,
+.referral-item-meta-label,
+.referral-progress-scale {
+  font-size: 11px;
+}
+
+.referral-item-sub,
+.referral-item-next {
+  font-size: 12px;
+}
+
+.referral-status {
+  font-size: 13px;
+}
+
+.referral-stat:nth-child(1) .referral-stat-value {
+  color: var(--green);
+}
+
+.referral-stat:nth-child(2) .referral-stat-value {
+  color: var(--sky);
+}
+
+.referral-stat:nth-child(3) .referral-stat-value {
+  color: var(--yellow);
 }
