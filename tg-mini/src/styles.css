@@ -665,16 +665,16 @@ body::before {
 }
 
 .daily-bonus-card {
-  background: linear-gradient(160deg, rgba(24, 32, 50, 0.92), rgba(10, 14, 24, 0.98));
-  border-radius: 24px;
-  padding: 18px;
+  background: linear-gradient(160deg, rgba(22, 30, 46, 0.94), rgba(10, 14, 24, 0.98));
+  border-radius: 18px;
+  padding: 12px;
   border: 1px solid rgba(140, 203, 255, 0.24);
   box-shadow:
-    0 24px 44px rgba(0, 0, 0, 0.45),
+    0 16px 30px rgba(0, 0, 0, 0.38),
     inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -683,84 +683,55 @@ body::before {
 .daily-bonus-card::before {
   content: '';
   position: absolute;
-  width: 220px;
-  height: 220px;
-  right: -86px;
-  top: -86px;
+  width: 140px;
+  height: 140px;
+  right: -58px;
+  top: -58px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(114, 187, 255, 0.34), rgba(114, 187, 255, 0));
+  background: radial-gradient(circle, rgba(114, 187, 255, 0.25), rgba(114, 187, 255, 0));
   pointer-events: none;
   z-index: -1;
-}
-
-.daily-bonus-card::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(176, 223, 255, 0.35), transparent);
-  pointer-events: none;
 }
 
 .daily-bonus-card.ready {
   border-color: rgba(124, 255, 178, 0.45);
   box-shadow:
-    0 24px 44px rgba(0, 0, 0, 0.45),
-    0 0 26px rgba(124, 255, 178, 0.2);
+    0 16px 30px rgba(0, 0, 0, 0.38),
+    0 0 16px rgba(124, 255, 178, 0.18);
 }
 
 .daily-bonus-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
 }
 
 .daily-bonus-copy {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
-.daily-bonus-kicker {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: rgba(188, 226, 255, 0.72);
-  font-weight: 700;
-}
-
 .daily-bonus-title {
-  font-size: 20px;
+  font-size: 17px;
   line-height: 1.1;
   font-weight: 700;
 }
 
 .daily-bonus-sub {
-  font-size: 12px;
-  color: rgba(224, 232, 248, 0.72);
-  line-height: 1.45;
+  font-size: 11px;
+  color: rgba(204, 217, 237, 0.68);
+  line-height: 1.2;
 }
 
 .daily-bonus-preview-wrap {
   position: relative;
-  width: 74px;
-  height: 74px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-}
-
-.daily-bonus-preview-wrap::before {
-  content: '';
-  position: absolute;
-  inset: -7px;
-  border-radius: 50%;
-  border: 1px dashed rgba(150, 206, 255, 0.28);
-  opacity: 0.9;
-  animation: wheelPulse 3s ease-in-out infinite;
 }
 
 .daily-bonus-preview {
@@ -785,28 +756,17 @@ body::before {
       var(--bonus-5),
       var(--bonus-6)
     );
-  border: 3px solid rgba(167, 217, 255, 0.34);
-  box-shadow: 0 0 22px rgba(104, 178, 255, 0.46);
+  border: 2px solid rgba(167, 217, 255, 0.3);
+  box-shadow: 0 0 12px rgba(104, 178, 255, 0.34);
   position: relative;
-  animation: wheelPreviewSpin 15s linear infinite;
-}
-
-.daily-bonus-preview::before {
-  content: '';
-  position: absolute;
-  inset: 10%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.45), transparent 62%);
-  opacity: 0.6;
-  pointer-events: none;
 }
 
 .daily-bonus-preview::after {
   content: '';
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: radial-gradient(
@@ -818,51 +778,11 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
-.daily-bonus-preview-pointer {
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 16px;
-  height: 16px;
-  clip-path: polygon(50% 0, 0 100%, 100% 100%);
-  background: linear-gradient(180deg, #ffffff, #96d3ff);
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  box-shadow: 0 4px 10px rgba(14, 35, 58, 0.35);
-}
-
-.daily-bonus-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.daily-bonus-metric {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  padding: 8px 10px;
-  display: grid;
-  gap: 2px;
-}
-
-.daily-bonus-metric-label {
-  font-size: 10px;
-  color: rgba(213, 225, 242, 0.68);
-}
-
-.daily-bonus-metric-value {
-  font-size: 13px;
-  font-weight: 700;
-  color: #f3f8ff;
-  white-space: nowrap;
-}
-
 .daily-bonus-cta {
   background: linear-gradient(135deg, #ebf8ff, #8ac4ff 58%, #6ca5ff);
   border: 1px solid rgba(193, 231, 255, 0.96);
-  border-radius: 14px;
-  padding: 12px 16px;
+  border-radius: 12px;
+  padding: 10px 14px;
   font-size: 13px;
   letter-spacing: 0.2px;
   font-weight: 700;
@@ -884,9 +804,9 @@ body::before {
 }
 
 .daily-bonus-timer {
-  font-size: 11px;
+  font-size: 10px;
   color: rgba(202, 216, 235, 0.7);
-  text-align: center;
+  text-align: left;
   letter-spacing: 0.2px;
 }
 
@@ -1277,7 +1197,6 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
   .daily-bonus-preview,
-  .daily-bonus-preview-wrap::before,
   .wheel-orbit,
   .wheel-pointer {
     animation: none;
@@ -2750,15 +2669,7 @@ button {
   }
 
   .daily-bonus-title {
-    font-size: 18px;
-  }
-
-  .daily-bonus-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .daily-bonus-metric:last-child {
-    grid-column: span 2;
+    font-size: 16px;
   }
 
   .wheel-head {

@@ -326,9 +326,9 @@ export default function App() {
       minute: '2-digit',
     });
   }, [dailyBonusAvailable, nextAvailableAtMs]);
-  const wheelProgressLabel = dailyBonusAvailable
-    ? 'Колесо готово к прокрутке'
-    : `${dailyBonusTimerLabel} · следующий в ${nextSpinClockLabel}`;
+  const homeDailyBonusLabel = dailyBonusAvailable
+    ? 'Готово к прокрутке'
+    : `${dailyBonusTimerLabel} · ${nextSpinClockLabel}`;
   const referralMaxRewardPerFriend = useMemo(
     () => REFERRAL_STEPS.reduce((sum, step) => sum + step.reward, 0),
     []
@@ -1315,29 +1315,11 @@ export default function App() {
             <section className={`daily-bonus-card ${dailyBonusAvailable ? 'ready' : ''}`}>
               <div className="daily-bonus-top">
                 <div className="daily-bonus-copy">
-                  <div className="daily-bonus-kicker">Daily Wheel</div>
                   <div className="daily-bonus-title">Ежедневный бонус</div>
-                  <div className="daily-bonus-sub">
-                    Крутите раз в 24 часа и получайте бонусные баллы.
-                  </div>
+                  <div className="daily-bonus-sub">Раз в 24 часа</div>
                 </div>
                 <div className="daily-bonus-preview-wrap" aria-hidden="true">
                   <div className="daily-bonus-preview" />
-                  <div className="daily-bonus-preview-pointer" />
-                </div>
-              </div>
-              <div className="daily-bonus-metrics">
-                <div className="daily-bonus-metric">
-                  <span className="daily-bonus-metric-label">Серия</span>
-                  <span className="daily-bonus-metric-value">{dailyStreak} дн.</span>
-                </div>
-                <div className="daily-bonus-metric">
-                  <span className="daily-bonus-metric-label">Макс. приз</span>
-                  <span className="daily-bonus-metric-value">+{DAILY_WHEEL_MAX_REWARD}</span>
-                </div>
-                <div className="daily-bonus-metric">
-                  <span className="daily-bonus-metric-label">Средний бонус</span>
-                  <span className="daily-bonus-metric-value">~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</span>
                 </div>
               </div>
               <button
@@ -1349,7 +1331,7 @@ export default function App() {
                 {dailyBonusAvailable ? 'Крутить сейчас' : 'Открыть колесо'}
               </button>
               <div className={`daily-bonus-timer ${dailyBonusAvailable ? 'ready' : ''}`}>
-                {wheelProgressLabel}
+                {homeDailyBonusLabel}
               </div>
               {dailyBonusError && <div className="daily-bonus-error">{dailyBonusError}</div>}
             </section>
