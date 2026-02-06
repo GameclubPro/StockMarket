@@ -1293,7 +1293,7 @@ export default function App() {
 
 
   return (
-    <div className="screen">
+    <>
       <div className="content" ref={contentRef}>
         {welcomeBonus && (
           <div className="welcome-banner">
@@ -1349,17 +1349,22 @@ export default function App() {
                 <div className="invite-friends">+</div>
               </div>
               <div className="invite-info">
-                <div className="invite-title">Пригласи друзей</div>
-                <div className="invite-sub">До 200 баллов с каждого приглашённого.</div>
+                <div className="invite-title">Реферальная система</div>
+                <div className="invite-sub">
+                  До {referralMaxRewardPerFriend} баллов за каждого приглашённого.
+                </div>
                 {referralLoading && <div className="invite-meta">Загрузка…</div>}
                 {!referralLoading && referralStats && (
                   <>
                     <div className="invite-meta">
-                      Приглашено: {referralStats.stats.invited} • Заработано:{' '}
+                      Приглашено: {referralStats.stats.invited} • Начислено:{' '}
                       {referralStats.stats.earned} баллов
                     </div>
                     <div className="invite-code">Код: {referralStats.code}</div>
                   </>
+                )}
+                {!referralLoading && !referralStats && !referralError && (
+                  <div className="invite-meta">Ссылка станет доступна после входа в Mini App.</div>
                 )}
                 {referralError && <div className="invite-error">{referralError}</div>}
               </div>
@@ -1368,7 +1373,7 @@ export default function App() {
                 type="button"
                 onClick={() => setActiveTab('referrals')}
               >
-                Подробнее
+                Открыть
               </button>
             </section>
           </>
@@ -1529,17 +1534,17 @@ export default function App() {
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
-              <div className="page-title">Реферальная программа</div>
+              <div className="page-title">Реферальная система</div>
               <div className="header-spacer" aria-hidden="true" />
             </div>
 
             <section className="referral-hero">
               <div className="referral-hero-top">
                 <div className="referral-hero-copy">
-                  <div className="referral-hero-kicker">Referral Pro</div>
-                  <div className="referral-hero-title">Приглашайте друзей</div>
+                  <div className="referral-hero-kicker">Приглашения</div>
+                  <div className="referral-hero-title">Делитесь ссылкой и зарабатывайте</div>
                   <div className="referral-hero-sub">
-                    Получайте до {referralMaxRewardPerFriend} баллов с каждого приглашённого.
+                    До {referralMaxRewardPerFriend} баллов за каждого приглашённого.
                   </div>
                 </div>
                 <div className="referral-hero-art" aria-hidden="true">
@@ -2240,6 +2245,6 @@ export default function App() {
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }
