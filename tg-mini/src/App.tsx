@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
   createCampaign,
@@ -44,11 +44,6 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
   return Math.max(1, Math.min(value, base + bonus));
 };
 
-const getApprovalTimestamp = (application: ApplicationDto) => {
-  const stamp = application.reviewedAt ?? application.createdAt;
-  const parsed = Date.parse(stamp);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
 const BOT_SETUP_CHANNEL_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
 const BOT_SETUP_GROUP_URL =
   'https://t.me/JoinRush_bot?startgroup&admin=invite_users+restrict_members+delete_messages+pin_messages+manage_chat+manage_topics';
@@ -98,23 +93,15 @@ export default function App() {
   const [applications, setApplications] = useState<ApplicationDto[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
-  const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
   const [leavingIds, setLeavingIds] = useState<string[]>([]);
-  const [animationQueueTick, setAnimationQueueTick] = useState(0);
+  const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
   const resumeRefreshAtRef = useRef(0);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
   const historyTabRef = useRef<HTMLButtonElement | null>(null);
   const taskCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const taskBadgeRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
-  const approvalTrackerRef = useRef<
-    Map<string, { status: ApplicationDto['status']; reviewedAt?: string | null }>
-  >(new Map());
-  const pendingApprovalIdsRef = useRef<Set<string>>(new Set());
-  const autoRevealApprovalRef = useRef(false);
-  const approvalStorageKeyRef = useRef('');
-  const lastSeenApprovalAtRef = useRef(0);
-  const approvalBootstrappedRef = useRef(false);
+  const acknowledgedKeyRef = useRef('');
   const animatingOutRef = useRef<Set<string>>(new Set());
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
@@ -150,14 +137,14 @@ export default function App() {
     [taskPrice]
   );
   const activeCampaigns = useMemo(() => {
-    const animatingSet = new Set(animatingOutIds);
+    const acknowledgedSet = new Set(acknowledgedIds);
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
-      if (status === 'APPROVED' && !animatingSet.has(campaign.id)) return false;
+      if (status === 'APPROVED' && acknowledgedSet.has(campaign.id)) return false;
       if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
-  }, [applicationsByCampaign, campaigns, userId, animatingOutIds]);
+  }, [applicationsByCampaign, campaigns, userId, acknowledgedIds]);
   const visibleCampaigns = useMemo(() => {
     if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
@@ -212,18 +199,21 @@ export default function App() {
 
   useEffect(() => {
     if (!userId) return;
-    const key = `jr:lastSeenApprovalAt:${userId}`;
-    approvalStorageKeyRef.current = key;
-    let stored = 0;
+    const key = `jr:acknowledgedApprovals:${userId}`;
+    acknowledgedKeyRef.current = key;
+    let stored: string[] = [];
     try {
       const raw = localStorage.getItem(key);
-      const parsed = raw ? Number(raw) : 0;
-      stored = Number.isFinite(parsed) ? parsed : 0;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          stored = parsed.filter((item) => typeof item === 'string');
+        }
+      }
     } catch {
-      stored = 0;
+      stored = [];
     }
-    lastSeenApprovalAtRef.current = stored;
-    approvalBootstrappedRef.current = false;
+    setAcknowledgedIds(stored);
   }, [userId]);
 
   const loadMyGroups = useCallback(async () => {
@@ -456,14 +446,21 @@ export default function App() {
       target: HTMLElement,
       className: string,
       scale: number,
-      durationMs: number
+      durationMs: number,
+      textOverride?: string,
+      replaceClasses?: boolean
     ) => {
       const sourceRect = source.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
       const clone = source.cloneNode(true) as HTMLElement;
 
       clone.classList.remove('is-leaving');
-      clone.classList.add(className);
+      if (textOverride !== undefined) {
+        clone.textContent = textOverride;
+        clone.className = replaceClasses ? className : `${clone.className} ${className}`;
+      } else {
+        clone.classList.add(className);
+      }
       clone.style.position = 'fixed';
       clone.style.left = `${sourceRect.left}px`;
       clone.style.top = `${sourceRect.top}px`;
@@ -533,15 +530,26 @@ export default function App() {
   );
 
   const triggerCompletionAnimation = useCallback(
-    (campaignId: string) => {
+    (campaignId: string, scoreText: string) => {
       const card = taskCardRefs.current.get(campaignId);
       const badge = taskBadgeRefs.current.get(campaignId);
       const historyTab = historyTabRef.current;
       const balanceValue = balanceValueRef.current;
       const finish = () => {
         animatingOutRef.current.delete(campaignId);
-        setAnimatingOutIds((prev) => prev.filter((item) => item !== campaignId));
         setLeavingIds((prev) => prev.filter((item) => item !== campaignId));
+        setAcknowledgedIds((prev) => {
+          if (prev.includes(campaignId)) return prev;
+          const next = [...prev, campaignId];
+          if (acknowledgedKeyRef.current) {
+            try {
+              localStorage.setItem(acknowledgedKeyRef.current, JSON.stringify(next));
+            } catch {
+              // ignore
+            }
+          }
+          return next;
+        });
       };
 
       if (!card || !badge || !historyTab || !balanceValue) {
@@ -554,7 +562,15 @@ export default function App() {
       const cardDuration = 2400;
       const badgeDuration = 2000;
       const cardAnim = animateFlyout(card, historyTab, 'flyout-card', 0.2, cardDuration);
-      const badgeAnim = animateFlyout(badge, balanceValue, 'flyout-badge', 0.4, badgeDuration);
+      const badgeAnim = animateFlyout(
+        badge,
+        balanceValue,
+        'flyout-score',
+        0.4,
+        badgeDuration,
+        scoreText,
+        true
+      );
 
       balanceValue.classList.remove('balance-pulse');
       void balanceValue.offsetWidth;
@@ -666,147 +682,11 @@ export default function App() {
     openCampaignLink(campaign);
   };
 
-  useEffect(() => {
-    const previous = approvalTrackerRef.current;
-    const next = new Map<string, { status: ApplicationDto['status']; reviewedAt?: string | null }>();
-    const newlyApproved: ApplicationDto[] = [];
-    let maxApprovedAt = 0;
-
-    applications.forEach((application) => {
-      const approvedAt = getApprovalTimestamp(application);
-      if (application.status === 'APPROVED' && approvedAt > maxApprovedAt) {
-        maxApprovedAt = approvedAt;
-      }
-      next.set(application.campaign.id, {
-        status: application.status,
-        reviewedAt: application.reviewedAt ?? null,
-      });
-      const prevSnapshot = previous.get(application.campaign.id);
-      const wasApproved = prevSnapshot?.status === 'APPROVED';
-      const reviewedChanged = prevSnapshot?.reviewedAt !== (application.reviewedAt ?? null);
-      const isNewByTime = approvedAt > lastSeenApprovalAtRef.current;
-      if (
-        application.status === 'APPROVED' &&
-        (!wasApproved || reviewedChanged) &&
-        isNewByTime
-      ) {
-        newlyApproved.push(application);
-      }
-    });
-
-    approvalTrackerRef.current = next;
-
-    if (!approvalBootstrappedRef.current) {
-      approvalBootstrappedRef.current = true;
-      if (lastSeenApprovalAtRef.current === 0 && maxApprovedAt > 0) {
-        lastSeenApprovalAtRef.current = maxApprovedAt;
-        if (approvalStorageKeyRef.current) {
-          try {
-            localStorage.setItem(
-              approvalStorageKeyRef.current,
-              String(lastSeenApprovalAtRef.current)
-            );
-          } catch {
-            // ignore
-          }
-        }
-        return;
-      }
-    }
-
-    if (newlyApproved.length === 0) return;
-
-    const isVisible =
-      typeof document === 'undefined' ? true : document.visibilityState === 'visible';
-    const canAnimateNow = activeTab === 'tasks' && taskListFilter !== 'history' && isVisible;
-    let queued = false;
-    let latestApprovedAt = lastSeenApprovalAtRef.current;
-
-    newlyApproved.forEach((application) => {
-      const campaignId = application.campaign.id;
-      if (!animatingOutRef.current.has(campaignId)) {
-        animatingOutRef.current.add(campaignId);
-        setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
-      }
-      if (!pendingApprovalIdsRef.current.has(campaignId)) {
-        pendingApprovalIdsRef.current.add(campaignId);
-        queued = true;
-      }
-      const approvedAt = getApprovalTimestamp(application);
-      if (approvedAt > latestApprovedAt) latestApprovedAt = approvedAt;
-    });
-
-    if (queued) {
-      if (latestApprovedAt > lastSeenApprovalAtRef.current) {
-        lastSeenApprovalAtRef.current = latestApprovedAt;
-        if (approvalStorageKeyRef.current) {
-          try {
-            localStorage.setItem(
-              approvalStorageKeyRef.current,
-              String(lastSeenApprovalAtRef.current)
-            );
-          } catch {
-            // ignore
-          }
-        }
-      }
-      setAnimationQueueTick((tick) => tick + 1);
-    }
-
-    if (!canAnimateNow && isVisible && !autoRevealApprovalRef.current) {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        autoRevealApprovalRef.current = true;
-        setActiveTab('tasks');
-        if (taskListFilter === 'history') {
-          setTaskListFilter('new');
-        }
-      }
-    }
-  }, [applications, activeTab, taskListFilter]);
-
-  useLayoutEffect(() => {
-    const isVisible =
-      typeof document === 'undefined' ? true : document.visibilityState === 'visible';
-    if (!isVisible) return;
-    if (activeTab !== 'tasks' || taskListFilter === 'history') return;
-    if (pendingApprovalIdsRef.current.size === 0) {
-      autoRevealApprovalRef.current = false;
-      return;
-    }
-
-    const visibleIds = new Set(visibleCampaigns.map((campaign) => campaign.id));
-    const pendingIds = Array.from(pendingApprovalIdsRef.current);
-    let hasRenderablePending = false;
-    let missingRefs = false;
-
-    pendingIds.forEach((campaignId) => {
-      if (!visibleIds.has(campaignId)) return;
-      hasRenderablePending = true;
-      const card = taskCardRefs.current.get(campaignId);
-      const badge = taskBadgeRefs.current.get(campaignId);
-      const historyTab = historyTabRef.current;
-      const balanceValue = balanceValueRef.current;
-      if (!card || !badge || !historyTab || !balanceValue) {
-        missingRefs = true;
-        return;
-      }
-      if (!animatingOutRef.current.has(campaignId)) {
-        animatingOutRef.current.add(campaignId);
-        setAnimatingOutIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
-      }
-      pendingApprovalIdsRef.current.delete(campaignId);
-      triggerCompletionAnimation(campaignId);
-    });
-
-    if (pendingApprovalIdsRef.current.size === 0) {
-      autoRevealApprovalRef.current = false;
-      return;
-    }
-
-    if (hasRenderablePending && missingRefs) {
-      requestAnimationFrame(() => setAnimationQueueTick((tick) => tick + 1));
-    }
-  }, [activeTab, taskListFilter, visibleCampaigns, animationQueueTick, triggerCompletionAnimation]);
+  const handleConfirmReward = (campaignId: string, scoreValue: number) => {
+    if (animatingOutRef.current.has(campaignId)) return;
+    animatingOutRef.current.add(campaignId);
+    triggerCompletionAnimation(campaignId, String(scoreValue));
+  };
 
 
   return (
@@ -1287,9 +1167,8 @@ export default function App() {
                   visibleCampaigns.map((campaign) => {
                     const application = applicationsByCampaign.get(campaign.id);
                     const status = application?.status;
-                    const badgeLabel = `+${calculatePayout(campaign.rewardPoints)} ${formatPointsLabel(
-                      calculatePayout(campaign.rewardPoints)
-                    )}`;
+                    const payout = calculatePayout(campaign.rewardPoints);
+                    const badgeLabel = `+${payout} ${formatPointsLabel(payout)}`;
                     return (
                       <div
                         className={`task-card ${leavingIds.includes(campaign.id) ? 'is-leaving' : ''}`}
@@ -1328,11 +1207,20 @@ export default function App() {
                                 <path d="M5 19h10" />
                               </svg>
                             </button>
+                            {status === 'APPROVED' && !acknowledgedIds.includes(campaign.id) && (
+                              <button
+                                className="open-button confirm"
+                                type="button"
+                                onClick={() => handleConfirmReward(campaign.id, payout)}
+                                aria-label="Подтвердить и получить"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M5 13l4 4L19 7" />
+                                </svg>
+                              </button>
+                            )}
                             {status === 'PENDING' && (
                               <span className="status-badge pending">Ожидание</span>
-                            )}
-                            {status === 'APPROVED' && (
-                              <span className="status-badge approved">Получено</span>
                             )}
                           </div>
                         </div>

@@ -787,6 +787,18 @@ body::before {
   color: var(--text);
 }
 
+.open-button.confirm {
+  background: rgba(124, 255, 178, 0.25);
+  border-color: rgba(124, 255, 178, 0.5);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(68, 200, 135, 0.3);
+}
+
+.open-button.confirm:hover {
+  background: rgba(124, 255, 178, 0.35);
+  border-color: rgba(124, 255, 178, 0.7);
+}
+
 .open-button:active {
   transform: translateY(1px);
 }
@@ -806,6 +818,18 @@ body::before {
 
 .flyout-card {
   box-shadow: 0 18px 28px rgba(0, 0, 0, 0.45);
+}
+
+.flyout-score {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #d9ffe9;
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
 }
 
 .balance-pulse {
