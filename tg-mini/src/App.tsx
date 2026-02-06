@@ -165,6 +165,14 @@ export default function App() {
     () => calculatePayoutWithBonus(taskPrice, MAX_BONUS_RATE),
     [taskPrice]
   );
+  const rangeProgress = useMemo(() => {
+    const min = 1;
+    const max = maxAffordableCount;
+    if (max <= min) return '100%';
+    const pct = ((taskCount - min) / (max - min)) * 100;
+    const clamped = Math.min(100, Math.max(0, pct));
+    return `${clamped}%`;
+  }, [taskCount, maxAffordableCount]);
   const maxCountRef = useRef(maxAffordableCount);
   const activeCampaigns = useMemo(() => {
     const acknowledgedSet = new Set(acknowledgedIds);
@@ -1024,6 +1032,7 @@ export default function App() {
                       min={1}
                       max={maxAffordableCount}
                       value={taskCount}
+                      style={{ '--range-progress': rangeProgress } as React.CSSProperties}
                       onChange={(event) => setTaskCount(Number(event.target.value))}
                     />
                     <div className="range-meta">
