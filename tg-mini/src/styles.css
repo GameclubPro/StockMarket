@@ -3109,3 +3109,353 @@ button {
     gap: 4px;
   }
 }
+
+/* Global Wheel Theme */
+:root {
+  --bg-0: #04080d;
+  --bg-1: #070d15;
+  --bg-2: #0b151f;
+  --card: rgba(178, 244, 214, 0.06);
+  --card-strong: rgba(178, 244, 214, 0.1);
+  --stroke: rgba(159, 226, 197, 0.24);
+  --text: #ecfff4;
+  --muted: rgba(193, 214, 203, 0.72);
+  --accent: #c6ffde;
+  --green: #c6ffde;
+  --gold: #e4ffef;
+  --shadow: 0 18px 38px rgba(0, 0, 0, 0.46);
+}
+
+body {
+  background:
+    radial-gradient(1200px 900px at 16% -10%, rgba(32, 62, 52, 0.45) 0%, transparent 58%),
+    radial-gradient(1100px 760px at 100% 18%, rgba(18, 45, 38, 0.5) 0%, transparent 64%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-0));
+}
+
+body::before {
+  background:
+    radial-gradient(2px 2px at 20% 30%, rgba(184, 255, 224, 0.26) 0%, transparent 62%),
+    radial-gradient(1px 1px at 70% 60%, rgba(184, 255, 224, 0.2) 0%, transparent 62%),
+    radial-gradient(1px 1px at 40% 80%, rgba(184, 255, 224, 0.17) 0%, transparent 62%);
+  opacity: 0.42;
+}
+
+.screen {
+  background:
+    radial-gradient(120% 95% at 50% -15%, rgba(129, 231, 183, 0.2), transparent 62%),
+    linear-gradient(182deg, rgba(11, 16, 26, 0.96), rgba(6, 9, 15, 0.98));
+  border: 1px solid rgba(158, 226, 196, 0.16);
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(210, 251, 232, 0.08);
+}
+
+.screen::before {
+  background: radial-gradient(60% 80% at 40% 40%, rgba(120, 218, 172, 0.2), transparent 72%);
+}
+
+.page-title,
+.section-title,
+.task-title,
+.referral-hero-title,
+.invite-title,
+.daily-bonus-title,
+.wheel-title {
+  color: #effff4;
+}
+
+.section-text,
+.task-handle,
+.task-form-sub,
+.invite-sub,
+.invite-meta,
+.link-hint,
+.metric-sub,
+.metric-unit,
+.stat-title,
+.rank-progress-text,
+.referral-stat-label,
+.referral-stat-sub,
+.referral-goal-sub,
+.referral-link-label,
+.referral-item-sub,
+.referral-item-meta-label,
+.referral-progress-scale,
+.referral-step-sub,
+.daily-bonus-sub,
+.wheel-sub {
+  color: var(--muted);
+}
+
+.profile-card,
+.stats,
+.balance-header,
+.metric-card,
+.segment,
+.segment.filters,
+.section-card,
+.invite-card,
+.welcome-banner,
+.referral-hero,
+.referral-stat,
+.referral-goal-block,
+.referral-link-block,
+.referral-step,
+.referral-item,
+.referral-status,
+.task-form-card,
+.task-card,
+.bonus-stat,
+.link-picker,
+.link-option,
+.task-form-placeholder,
+.form-status,
+.balance-pill,
+.tabs-row {
+  background: linear-gradient(160deg, rgba(13, 20, 30, 0.93), rgba(5, 10, 17, 0.95));
+  border: 1px solid rgba(159, 226, 197, 0.24);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(210, 251, 232, 0.1);
+}
+
+.tabs-row {
+  border-radius: 999px;
+}
+
+.stat-main .gold {
+  color: #d7ffea;
+}
+
+.divider::after {
+  background: rgba(176, 236, 208, 0.22);
+}
+
+.avatar-ring {
+  background: conic-gradient(from 120deg, #9cf4c3, #3f765f, #132320, #9cf4c3);
+  box-shadow: 0 0 22px rgba(126, 220, 173, 0.34);
+}
+
+.avatar {
+  background: radial-gradient(circle at 30% 30%, #f3fff8 0%, #a7debe 34%, #182d27 84%);
+  border-color: rgba(0, 0, 0, 0.5);
+  color: #10211b;
+}
+
+.icon-button,
+.tab-button,
+.segment-button,
+.filter-toggle-button,
+.filter-chip,
+.choice-pill,
+.open-button,
+.open-button.secondary,
+.open-button.icon,
+.link-picker-refresh,
+.link-picker-close,
+.welcome-close,
+.link-tool {
+  background: linear-gradient(180deg, rgba(17, 27, 37, 0.96), rgba(7, 13, 21, 0.98));
+  border: 1px solid rgba(170, 234, 204, 0.3);
+  color: rgba(216, 245, 232, 0.92);
+}
+
+.link-tool.highlight,
+.link-tool.highlight-blue {
+  background: linear-gradient(180deg, rgba(19, 33, 43, 0.96), rgba(8, 15, 23, 0.98));
+  border-color: rgba(182, 240, 214, 0.34);
+  color: #e6fff2;
+}
+
+.icon-button svg {
+  color: rgba(216, 245, 232, 0.86);
+}
+
+.segment-button.active,
+.tab-button.active,
+.filter-toggle-button.active {
+  background: linear-gradient(180deg, rgba(103, 176, 141, 0.32), rgba(65, 122, 97, 0.2));
+  border-color: rgba(166, 241, 206, 0.5);
+  color: #e8fff2;
+}
+
+.filter-divider {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(124, 255, 178, 0.42),
+    rgba(255, 255, 255, 0.03)
+  );
+}
+
+.filter-chip::after {
+  background: linear-gradient(
+    90deg,
+    rgba(124, 255, 178, 0.1),
+    rgba(124, 255, 178, 0.86),
+    rgba(124, 255, 178, 0.1)
+  );
+}
+
+.primary-button,
+.invite-button,
+.referral-share,
+.open-button.confirm,
+.metric-plus,
+.sub {
+  background: linear-gradient(180deg, rgba(17, 28, 38, 0.98), rgba(7, 12, 20, 0.98));
+  border: 1px solid rgba(185, 240, 215, 0.42);
+  color: #e8fff2;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(224, 255, 238, 0.2),
+    inset 0 -10px 16px rgba(2, 8, 12, 0.58),
+    0 0 18px rgba(106, 216, 167, 0.14);
+}
+
+.primary-button:hover,
+.invite-button:hover,
+.referral-share:hover,
+.sub:hover {
+  border-color: rgba(198, 247, 225, 0.58);
+}
+
+.metric-plus {
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.field input {
+  background: rgba(7, 13, 21, 0.92);
+  border-color: rgba(159, 226, 197, 0.24);
+  color: var(--text);
+}
+
+.field input:focus {
+  border-color: rgba(182, 240, 214, 0.52);
+  box-shadow: 0 0 0 2px rgba(124, 255, 178, 0.12);
+}
+
+.field input::placeholder {
+  color: rgba(176, 201, 189, 0.56);
+}
+
+.range-input::-webkit-slider-runnable-track {
+  background: rgba(17, 32, 28, 0.8);
+  border-color: rgba(159, 226, 197, 0.26);
+}
+
+.range-input::-webkit-slider-thumb {
+  background: linear-gradient(180deg, #d5ffe8, #81d9ab);
+  border-color: rgba(220, 255, 238, 0.8);
+}
+
+.range-input::-moz-range-track {
+  background: rgba(17, 32, 28, 0.8);
+  border-color: rgba(159, 226, 197, 0.26);
+}
+
+.range-input::-moz-range-progress {
+  background: linear-gradient(90deg, rgba(124, 255, 178, 0.88), rgba(123, 184, 255, 0.55));
+}
+
+.range-input::-moz-range-thumb {
+  background: linear-gradient(180deg, #d5ffe8, #81d9ab);
+  border-color: rgba(220, 255, 238, 0.8);
+}
+
+.task-avatar,
+.invite-art,
+.referral-avatar,
+.referral-hero-art {
+  background: linear-gradient(150deg, rgba(138, 236, 179, 0.18), rgba(76, 149, 117, 0.12));
+  border-color: rgba(163, 236, 202, 0.4);
+  color: #eafff4;
+}
+
+.invite-gift,
+.referral-hero-gift {
+  background: linear-gradient(145deg, #c6ffe0, #6abc90);
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.invite-friends {
+  border-color: rgba(166, 241, 206, 0.5);
+  background: rgba(108, 188, 148, 0.26);
+  color: #dbffec;
+}
+
+.badge,
+.status-badge {
+  background: rgba(102, 175, 141, 0.2);
+  border-color: rgba(166, 241, 206, 0.38);
+  color: #dffff0;
+}
+
+.status-badge.pending {
+  background: rgba(137, 164, 145, 0.22);
+  border-color: rgba(179, 213, 193, 0.32);
+  color: rgba(224, 241, 232, 0.9);
+}
+
+.status-badge.rejected {
+  background: rgba(255, 138, 138, 0.16);
+  border-color: rgba(255, 170, 170, 0.28);
+  color: rgba(255, 205, 205, 0.95);
+}
+
+.referral-code,
+.invite-code {
+  border-color: rgba(166, 241, 206, 0.42);
+  background: rgba(96, 166, 133, 0.2);
+  color: #dcffec;
+}
+
+.referral-goal-track,
+.referral-progress,
+.daily-bonus-info-track,
+.wheel-info-popover .daily-bonus-info-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(178, 225, 201, 0.2);
+}
+
+.referral-goal-track span,
+.referral-progress-bar,
+.daily-bonus-info-track span {
+  background: linear-gradient(90deg, rgba(124, 255, 178, 0.9), rgba(123, 184, 255, 0.5));
+  box-shadow: 0 0 10px rgba(134, 214, 255, 0.24);
+}
+
+.referral-list-count,
+.referral-step-index {
+  border-color: rgba(166, 241, 206, 0.42);
+  background: rgba(95, 165, 132, 0.26);
+  color: #e7fff3;
+}
+
+.task-form-placeholder.error,
+.form-status.error,
+.referral-status.error {
+  background: rgba(255, 138, 138, 0.08);
+  border-color: rgba(255, 170, 170, 0.3);
+  color: rgba(255, 199, 199, 0.94);
+}
+
+.bottom-nav {
+  border-top: 1px solid rgba(159, 226, 197, 0.24);
+  background: linear-gradient(180deg, rgba(9, 15, 23, 0.6), rgba(6, 11, 18, 0.95));
+  color: rgba(186, 208, 197, 0.82);
+}
+
+.bottom-nav svg {
+  color: rgba(199, 224, 212, 0.8);
+}
+
+.bottom-nav .active svg,
+.bottom-nav .active span {
+  color: #ddffeb;
+  text-shadow: 0 0 10px rgba(146, 252, 192, 0.2);
+}
