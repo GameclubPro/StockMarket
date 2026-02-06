@@ -702,7 +702,7 @@ body::before {
 
 .daily-bonus-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
@@ -723,6 +723,34 @@ body::before {
   font-size: 11px;
   color: rgba(204, 217, 237, 0.68);
   line-height: 1.2;
+}
+
+.daily-bonus-top-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.daily-bonus-info-button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(186, 226, 255, 0.55);
+  background: rgba(145, 208, 255, 0.16);
+  color: rgba(226, 241, 255, 0.95);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.daily-bonus-info-button.active {
+  background: rgba(124, 255, 178, 0.2);
+  border-color: rgba(124, 255, 178, 0.58);
+  color: rgba(212, 255, 233, 0.95);
 }
 
 .daily-bonus-preview-wrap {
@@ -776,6 +804,87 @@ body::before {
     var(--bonus-center-dark) 100%
   );
   border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.daily-bonus-info-popover {
+  background: rgba(13, 18, 31, 0.76);
+  border: 1px solid rgba(173, 223, 255, 0.24);
+  border-radius: 12px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.daily-bonus-info-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.daily-bonus-info-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: grid;
+  gap: 2px;
+}
+
+.daily-bonus-info-item span {
+  font-size: 10px;
+  color: rgba(196, 213, 235, 0.68);
+}
+
+.daily-bonus-info-item strong {
+  font-size: 13px;
+  color: #f0f7ff;
+  line-height: 1.1;
+}
+
+.daily-bonus-info-label {
+  font-size: 10px;
+  color: rgba(196, 213, 235, 0.7);
+}
+
+.daily-bonus-info-chances {
+  display: grid;
+  gap: 5px;
+}
+
+.daily-bonus-info-chance {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.daily-bonus-info-reward {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(232, 243, 255, 0.94);
+  min-width: 24px;
+}
+
+.daily-bonus-info-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.daily-bonus-info-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(124, 255, 178, 0.9), rgba(123, 184, 255, 0.94));
+}
+
+.daily-bonus-info-value {
+  font-size: 10px;
+  color: rgba(194, 211, 233, 0.82);
+  min-width: 34px;
+  text-align: right;
 }
 
 .daily-bonus-cta {
@@ -2670,6 +2779,10 @@ button {
 
   .daily-bonus-title {
     font-size: 16px;
+  }
+
+  .daily-bonus-info-main {
+    grid-template-columns: 1fr;
   }
 
   .wheel-head {

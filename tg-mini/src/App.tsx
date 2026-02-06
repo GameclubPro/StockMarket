@@ -192,6 +192,7 @@ export default function App() {
   });
   const [dailyBonusLoading, setDailyBonusLoading] = useState(false);
   const [dailyBonusError, setDailyBonusError] = useState('');
+  const [dailyBonusInfoOpen, setDailyBonusInfoOpen] = useState(false);
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralError, setReferralError] = useState('');
@@ -1318,10 +1319,46 @@ export default function App() {
                   <div className="daily-bonus-title">Ежедневный бонус</div>
                   <div className="daily-bonus-sub">Раз в 24 часа</div>
                 </div>
-                <div className="daily-bonus-preview-wrap" aria-hidden="true">
-                  <div className="daily-bonus-preview" />
+                <div className="daily-bonus-top-side">
+                  <button
+                    className={`daily-bonus-info-button ${dailyBonusInfoOpen ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
+                    aria-label="Показать детали бонуса"
+                  >
+                    i
+                  </button>
+                  <div className="daily-bonus-preview-wrap" aria-hidden="true">
+                    <div className="daily-bonus-preview" />
+                  </div>
                 </div>
               </div>
+              {dailyBonusInfoOpen && (
+                <div className="daily-bonus-info-popover">
+                  <div className="daily-bonus-info-main">
+                    <div className="daily-bonus-info-item">
+                      <span>Серия</span>
+                      <strong>{dailyStreak} дн.</strong>
+                    </div>
+                    <div className="daily-bonus-info-item">
+                      <span>Средний бонус</span>
+                      <strong>~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</strong>
+                    </div>
+                  </div>
+                  <div className="daily-bonus-info-label">Шансы выпадения</div>
+                  <div className="daily-bonus-info-chances">
+                    {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
+                      <div className="daily-bonus-info-chance" key={`home-chance-${entry.value}`}>
+                        <span className="daily-bonus-info-reward">{entry.label}</span>
+                        <div className="daily-bonus-info-track">
+                          <span style={{ width: `${entry.chance}%` }} />
+                        </div>
+                        <span className="daily-bonus-info-value">{entry.chance.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button
                 className="daily-bonus-cta"
                 type="button"
