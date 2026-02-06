@@ -1178,7 +1178,8 @@ export default function App() {
     if (!referralStats?.link) return;
     const link = referralStats.link;
     const text = 'Присоединяйся и получай бонусы за задания!';
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    const shareText = `${text}\n${link}`;
+    const shareUrl = `https://t.me/share/url?text=${encodeURIComponent(shareText)}`;
     const tg = (window as any)?.Telegram?.WebApp;
 
     setInviteCopied(false);
