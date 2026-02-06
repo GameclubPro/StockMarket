@@ -24,6 +24,7 @@ const RANKS = [
   { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
 ];
 const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
+const MIN_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
 const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
@@ -715,8 +716,8 @@ export default function App() {
       setCreateError('Укажите цену за действие.');
       return;
     }
-    if (!Number.isFinite(parsedTaskPrice) || parsedTaskPrice < 1) {
-      setCreateError('Цена за действие должна быть не меньше 1 балла.');
+    if (!Number.isFinite(parsedTaskPrice) || parsedTaskPrice < MIN_TASK_PRICE) {
+      setCreateError(`Цена за действие должна быть не меньше ${MIN_TASK_PRICE} баллов.`);
       return;
     }
     if (parsedTaskPrice > MAX_TASK_PRICE) {
@@ -1025,7 +1026,7 @@ export default function App() {
                     <span>Цена за действие</span>
                     <input
                       type="number"
-                      min={1}
+                      min={MIN_TASK_PRICE}
                       max={MAX_TASK_PRICE}
                       value={taskPriceInput}
                       onChange={(event) => {
@@ -1036,7 +1037,7 @@ export default function App() {
                         }
                         const nextValue = Number(raw);
                         if (!Number.isFinite(nextValue)) return;
-                        const clamped = Math.min(MAX_TASK_PRICE, Math.max(1, nextValue));
+                        const clamped = Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, nextValue));
                         setTaskPriceInput(String(clamped));
                       }}
                     />
