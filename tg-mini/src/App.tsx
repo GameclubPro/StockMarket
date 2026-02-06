@@ -53,20 +53,9 @@ const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
 );
-const DAILY_WHEEL_MAX_REWARD = DAILY_WHEEL_SEGMENTS.reduce(
-  (max, segment) => Math.max(max, segment.value),
-  0
-);
 const DAILY_WHEEL_AVERAGE_REWARD =
   DAILY_WHEEL_SEGMENTS.reduce((sum, segment) => sum + segment.value * segment.weight, 0) /
   DAILY_WHEEL_TOTAL_WEIGHT;
-const DAILY_WHEEL_JACKPOT_CHANCE =
-  (DAILY_WHEEL_SEGMENTS.reduce(
-    (sum, segment) => (segment.value === DAILY_WHEEL_MAX_REWARD ? sum + segment.weight : sum),
-    0
-  ) /
-    DAILY_WHEEL_TOTAL_WEIGHT) *
-  100;
 const DAILY_WHEEL_VALUE_CHANCES = Array.from(
   DAILY_WHEEL_SEGMENTS.reduce((map, segment) => {
     map.set(segment.value, (map.get(segment.value) ?? 0) + segment.weight);
@@ -727,6 +716,12 @@ export default function App() {
   }, [activeTab, userId, loadDailyBonusStatus]);
 
   useEffect(() => {
+    if (activeTab === 'wheel') return;
+    if (!dailyBonusInfoOpen) return;
+    setDailyBonusInfoOpen(false);
+  }, [activeTab, dailyBonusInfoOpen]);
+
+  useEffect(() => {
     if (applicationsRequestedRef.current) return;
     applicationsRequestedRef.current = true;
     void loadMyApplications({ silent: true });
@@ -1320,45 +1315,11 @@ export default function App() {
                   <div className="daily-bonus-sub">Раз в 24 часа</div>
                 </div>
                 <div className="daily-bonus-top-side">
-                  <button
-                    className={`daily-bonus-info-button ${dailyBonusInfoOpen ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
-                    aria-label="Показать детали бонуса"
-                  >
-                    i
-                  </button>
                   <div className="daily-bonus-preview-wrap" aria-hidden="true">
                     <div className="daily-bonus-preview" />
                   </div>
                 </div>
               </div>
-              {dailyBonusInfoOpen && (
-                <div className="daily-bonus-info-popover">
-                  <div className="daily-bonus-info-main">
-                    <div className="daily-bonus-info-item">
-                      <span>Серия</span>
-                      <strong>{dailyStreak} дн.</strong>
-                    </div>
-                    <div className="daily-bonus-info-item">
-                      <span>Средний бонус</span>
-                      <strong>~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</strong>
-                    </div>
-                  </div>
-                  <div className="daily-bonus-info-label">Шансы выпадения</div>
-                  <div className="daily-bonus-info-chances">
-                    {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
-                      <div className="daily-bonus-info-chance" key={`home-chance-${entry.value}`}>
-                        <span className="daily-bonus-info-reward">{entry.label}</span>
-                        <div className="daily-bonus-info-track">
-                          <span style={{ width: `${entry.chance}%` }} />
-                        </div>
-                        <span className="daily-bonus-info-value">{entry.chance.toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               <button
                 className="daily-bonus-cta"
                 type="button"
@@ -1433,14 +1394,46 @@ export default function App() {
                   <div className="wheel-kicker">Daily Wheel</div>
                   <div className="wheel-title">Прокрут на сегодня</div>
                   <div className="wheel-sub">
-                    Чем выше серия, тем стабильнее ваш ежедневный прогресс.
+                    Крутите колесо раз в 24 часа и получайте бонусные баллы.
                   </div>
                 </div>
-                <div className="wheel-streak-chip">
-                  <span>Серия</span>
-                  <strong>{dailyStreak} дн.</strong>
-                </div>
+                <button
+                  className={`daily-bonus-info-button wheel-info-button ${
+                    dailyBonusInfoOpen ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
+                  aria-label="Показать детали бонуса"
+                >
+                  i
+                </button>
               </div>
+              {dailyBonusInfoOpen && (
+                <div className="daily-bonus-info-popover wheel-info-popover">
+                  <div className="daily-bonus-info-main">
+                    <div className="daily-bonus-info-item">
+                      <span>Серия</span>
+                      <strong>{dailyStreak} дн.</strong>
+                    </div>
+                    <div className="daily-bonus-info-item">
+                      <span>Средний бонус</span>
+                      <strong>~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</strong>
+                    </div>
+                  </div>
+                  <div className="daily-bonus-info-label">Шансы выпадения</div>
+                  <div className="daily-bonus-info-chances">
+                    {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
+                      <div className="daily-bonus-info-chance" key={`wheel-chance-${entry.value}`}>
+                        <span className="daily-bonus-info-reward">{entry.label}</span>
+                        <div className="daily-bonus-info-track">
+                          <span style={{ width: `${entry.chance}%` }} />
+                        </div>
+                        <span className="daily-bonus-info-value">{entry.chance.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="wheel-wrapper">
                 <div className="wheel-orbit" aria-hidden="true" />
                 <div className="wheel-pointer-base" aria-hidden="true" />
@@ -1465,29 +1458,6 @@ export default function App() {
                 <div className="wheel-center" aria-hidden="true">
                   <span>SPIN</span>
                 </div>
-              </div>
-              <div className="bonus-stats-grid">
-                <div className="bonus-stat">
-                  <div className="bonus-stat-label">Средний бонус</div>
-                  <div className="bonus-stat-value">~{Math.round(DAILY_WHEEL_AVERAGE_REWARD)}</div>
-                  <div className="bonus-stat-sub">за один прокрут</div>
-                </div>
-                <div className="bonus-stat">
-                  <div className="bonus-stat-label">Шанс +{DAILY_WHEEL_MAX_REWARD}</div>
-                  <div className="bonus-stat-value">{DAILY_WHEEL_JACKPOT_CHANCE.toFixed(1)}%</div>
-                  <div className="bonus-stat-sub">редкий приз</div>
-                </div>
-              </div>
-              <div className="wheel-probabilities">
-                {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
-                  <div className="wheel-probability-row" key={`chance-${entry.value}`}>
-                    <span className="wheel-probability-reward">{entry.label}</span>
-                    <div className="wheel-probability-track">
-                      <span style={{ width: `${entry.chance}%` }} />
-                    </div>
-                    <span className="wheel-probability-value">{entry.chance.toFixed(1)}%</span>
-                  </div>
-                ))}
               </div>
               <button
                 className="wheel-cta"

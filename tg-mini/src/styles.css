@@ -966,6 +966,43 @@ body::before {
   gap: 10px;
 }
 
+.wheel-info-button {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.wheel-info-popover {
+  margin-top: -4px;
+  padding: 11px 12px;
+  gap: 10px;
+  background: rgba(10, 15, 27, 0.86);
+  border-color: rgba(173, 223, 255, 0.28);
+}
+
+.wheel-info-popover .daily-bonus-info-item span {
+  font-size: 11px;
+}
+
+.wheel-info-popover .daily-bonus-info-item strong {
+  font-size: 15px;
+}
+
+.wheel-info-popover .daily-bonus-info-label {
+  font-size: 11px;
+}
+
+.wheel-info-popover .daily-bonus-info-reward,
+.wheel-info-popover .daily-bonus-info-value {
+  font-size: 11px;
+}
+
+.wheel-info-popover .daily-bonus-info-track {
+  height: 8px;
+}
+
 .wheel-head-copy {
   display: grid;
   gap: 4px;
