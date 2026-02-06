@@ -308,6 +308,14 @@ export default function App() {
     : dailyBonusAvailable
       ? 'Доступно сейчас'
       : `Доступно через ${formatCountdown(timeLeftMs)}`;
+  const wheelTimerValue = dailyBonusLoading
+    ? 'проверяем...'
+    : dailyBonusAvailable
+      ? 'сейчас'
+      : formatCountdown(timeLeftMs);
+  const wheelTimerPrefix = dailyBonusAvailable
+    ? 'Следующая попытка:'
+    : 'Следующая попытка через:';
   const dailyStreak = Math.max(0, dailyBonusStatus.streak ?? 0);
   const nextSpinClockLabel = useMemo(() => {
     if (dailyBonusAvailable || !nextAvailableAtMs) return 'сейчас';
@@ -1390,11 +1398,20 @@ export default function App() {
 
             <section className="wheel-card">
               <div className="wheel-head">
-                <div className="wheel-head-copy">
-                  <div className="wheel-kicker">Daily Wheel</div>
-                  <div className="wheel-title">Прокрут на сегодня</div>
-                  <div className="wheel-sub">
-                    Крутите колесо раз в 24 часа и получайте бонусные баллы.
+                <div className="wheel-head-main">
+                  <div className="wheel-head-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="4" y="10" width="16" height="10" rx="2" />
+                      <path d="M12 10v10" />
+                      <path d="M4 14h16" />
+                      <path d="M12 10c-1.5 0-3.5-.5-3.5-2.5S10 4 12 6.5c2-2.5 3.5-1.5 3.5 1S13.5 10 12 10z" />
+                    </svg>
+                  </div>
+                  <div className="wheel-head-copy">
+                    <div className="wheel-title">Ежедневный бонус</div>
+                    <div className="wheel-sub">
+                      Крути <strong>Колесо фортуны</strong> и получай баллы каждый день.
+                    </div>
                   </div>
                 </div>
                 <button
@@ -1407,6 +1424,36 @@ export default function App() {
                 >
                   i
                 </button>
+              </div>
+              <div className="wheel-rules">
+                <div className="wheel-rule-row">
+                  <span className="wheel-rule-clock" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                      <circle cx="12" cy="12" r="8" />
+                      <path d="M12 8v5l3 2" />
+                    </svg>
+                  </span>
+                  <span>
+                    <strong>1 прокрутка</strong> раз в <strong>24 часа</strong>
+                  </span>
+                </div>
+                <div className="wheel-rewards-row">
+                  <span className="wheel-rewards-label">Награды:</span>
+                  <div className="wheel-rewards-values">
+                    {DAILY_WHEEL_SEGMENTS.map((segment, index) => (
+                      <span className="wheel-reward-item" key={`wheel-reward-${segment.value}-${index}`}>
+                        {index > 0 && (
+                          <span className="wheel-reward-divider" aria-hidden="true">
+                            /
+                          </span>
+                        )}
+                        <span className={`wheel-reward-value ${segment.value >= 50 ? 'accent' : ''}`}>
+                          {segment.value}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
               {dailyBonusInfoOpen && (
                 <div className="daily-bonus-info-popover wheel-info-popover">
@@ -1435,6 +1482,7 @@ export default function App() {
                 </div>
               )}
               <div className="wheel-wrapper">
+                <div className="wheel-shell" aria-hidden="true" />
                 <div className="wheel-orbit" aria-hidden="true" />
                 <div className="wheel-pointer-base" aria-hidden="true" />
                 <div className="wheel-pointer" aria-hidden="true" />
@@ -1450,13 +1498,13 @@ export default function App() {
                         className="wheel-segment"
                         style={{ transform: `rotate(${angle}deg)` }}
                       >
-                        <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.label}</span>
+                        <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.value}</span>
                       </div>
                     );
                   })}
                 </div>
                 <div className="wheel-center" aria-hidden="true">
-                  <span>SPIN</span>
+                  <span className="wheel-center-star">★</span>
                 </div>
               </div>
               <button
@@ -1465,10 +1513,10 @@ export default function App() {
                 onClick={handleSpinDailyBonus}
                 disabled={wheelSpinning || dailyBonusLoading || !dailyBonusAvailable}
               >
-                {wheelSpinning ? 'Крутим...' : 'Получить ежедневный бонус'}
+                {wheelSpinning ? 'Крутим...' : 'Крутить'}
               </button>
               <div className={`wheel-timer ${dailyBonusAvailable ? 'ready' : ''}`}>
-                {dailyBonusTimerLabel}
+                <span>{wheelTimerPrefix}</span> <strong>{wheelTimerValue}</strong>
               </div>
               {wheelResult && (
                 <div className="wheel-result">
