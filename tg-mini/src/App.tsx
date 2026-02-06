@@ -1113,6 +1113,7 @@ export default function App() {
                             </div>
                           </div>
                           <div className="task-actions">
+                            <span className="status-badge approved">Выполнено</span>
                             <button
                               className="open-button icon"
                               type="button"
