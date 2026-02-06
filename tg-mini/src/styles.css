@@ -893,48 +893,6 @@ body::before {
     0 0 8px rgba(143, 240, 196, 0.26);
 }
 
-.daily-bonus-rewards {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 5px;
-  padding: 0 3px;
-}
-
-.daily-bonus-rewards-label {
-  font-size: 12px;
-  color: rgba(188, 212, 201, 0.84);
-}
-
-.daily-bonus-rewards-values {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  row-gap: 2px;
-}
-
-.daily-bonus-reward-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.daily-bonus-reward-divider {
-  color: rgba(180, 214, 198, 0.48);
-  font-size: 12px;
-}
-
-.daily-bonus-reward-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(227, 245, 236, 0.78);
-}
-
-.daily-bonus-reward-value.accent {
-  color: #c2ffdb;
-  text-shadow: 0 0 10px rgba(146, 252, 192, 0.28);
-}
-
 .daily-bonus-info-popover {
   background: rgba(13, 18, 31, 0.76);
   border: 1px solid rgba(173, 223, 255, 0.24);
@@ -1195,47 +1153,6 @@ body::before {
   height: 13px;
 }
 
-.wheel-rewards-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 5px;
-}
-
-.wheel-rewards-label {
-  font-size: 13px;
-  color: rgba(188, 212, 201, 0.84);
-}
-
-.wheel-rewards-values {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  row-gap: 1px;
-}
-
-.wheel-reward-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.wheel-reward-divider {
-  color: rgba(180, 214, 198, 0.48);
-  font-size: 13px;
-}
-
-.wheel-reward-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(227, 245, 236, 0.78);
-}
-
-.wheel-reward-value.accent {
-  color: #c2ffdb;
-  text-shadow: 0 0 12px rgba(146, 252, 192, 0.28);
-}
-
 .wheel-info-popover {
   margin-top: -2px;
   padding: 11px 12px;
@@ -1297,6 +1214,15 @@ body::before {
   width: min(320px, 88vw);
   aspect-ratio: 1;
   padding: 4px;
+}
+
+.wheel-rotor {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: transform 4.2s cubic-bezier(0.16, 0.86, 0.2, 1);
+  z-index: 1;
 }
 
 .wheel-shell {
@@ -1374,7 +1300,7 @@ body::before {
   box-shadow:
     0 10px 22px rgba(0, 0, 0, 0.42),
     0 0 18px rgba(132, 230, 183, 0.36);
-  z-index: 4;
+  z-index: 6;
 }
 
 .wheel {
@@ -1408,7 +1334,6 @@ body::before {
   z-index: 2;
   display: grid;
   place-items: center;
-  transition: transform 4.2s cubic-bezier(0.16, 0.86, 0.2, 1);
   isolation: isolate;
 }
 
@@ -1434,7 +1359,7 @@ body::before {
   z-index: 1;
 }
 
-.wheel.spinning {
+.wheel-rotor.spinning .wheel {
   filter: drop-shadow(0 0 14px rgba(165, 244, 200, 0.64));
 }
 
@@ -1513,7 +1438,7 @@ body::before {
     0 6px 16px rgba(8, 18, 20, 0.56),
     0 0 12px rgba(150, 242, 199, 0.44);
   border: 1px solid rgba(224, 255, 240, 0.72);
-  z-index: 5;
+  z-index: 7;
   animation: wheelPointerPulse 1.8s ease-in-out infinite;
 }
 
@@ -3120,11 +3045,6 @@ button {
     height: 64px;
   }
 
-  .daily-bonus-rewards-label,
-  .daily-bonus-reward-value {
-    font-size: 12px;
-  }
-
   .daily-bonus-timer {
     font-size: 11px;
   }
@@ -3147,10 +3067,6 @@ button {
 
   .wheel-rule-row {
     font-size: 13px;
-  }
-
-  .wheel-reward-value {
-    font-size: 14px;
   }
 
   .wheel-wrapper {

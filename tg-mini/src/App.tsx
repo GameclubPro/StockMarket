@@ -1330,23 +1330,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="daily-bonus-rewards">
-                <span className="daily-bonus-rewards-label">Награды:</span>
-                <div className="daily-bonus-rewards-values">
-                  {DAILY_WHEEL_SEGMENTS.map((segment, index) => (
-                    <span className="daily-bonus-reward-item" key={`home-wheel-reward-${segment.value}-${index}`}>
-                      {index > 0 && (
-                        <span className="daily-bonus-reward-divider" aria-hidden="true">
-                          /
-                        </span>
-                      )}
-                      <span className={`daily-bonus-reward-value ${segment.value >= 50 ? 'accent' : ''}`}>
-                        {segment.value}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
               <button
                 className="daily-bonus-cta"
                 type="button"
@@ -1456,23 +1439,6 @@ export default function App() {
                     <strong>1 прокрутка</strong> раз в <strong>24 часа</strong>
                   </span>
                 </div>
-                <div className="wheel-rewards-row">
-                  <span className="wheel-rewards-label">Награды:</span>
-                  <div className="wheel-rewards-values">
-                    {DAILY_WHEEL_SEGMENTS.map((segment, index) => (
-                      <span className="wheel-reward-item" key={`wheel-reward-${segment.value}-${index}`}>
-                        {index > 0 && (
-                          <span className="wheel-reward-divider" aria-hidden="true">
-                            /
-                          </span>
-                        )}
-                        <span className={`wheel-reward-value ${segment.value >= 50 ? 'accent' : ''}`}>
-                          {segment.value}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
               {dailyBonusInfoOpen && (
                 <div className="daily-bonus-info-popover wheel-info-popover">
@@ -1501,30 +1467,32 @@ export default function App() {
                 </div>
               )}
               <div className="wheel-wrapper">
-                <div className="wheel-shell" aria-hidden="true" />
-                <div className="wheel-orbit" aria-hidden="true" />
-                <div className="wheel-pointer-base" aria-hidden="true" />
-                <div className="wheel-pointer" aria-hidden="true" />
                 <div
-                  className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
+                  className={`wheel-rotor ${wheelSpinning ? 'spinning' : ''}`}
                   style={{ transform: `rotate(${wheelRotation}deg)` }}
                 >
-                  {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
-                    const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
-                    return (
-                      <div
-                        key={`${segment.label}-${index}`}
-                        className="wheel-segment"
-                        style={{ transform: `rotate(${angle}deg)` }}
-                      >
-                        <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.value}</span>
-                      </div>
-                    );
-                  })}
+                  <div className="wheel-shell" aria-hidden="true" />
+                  <div className="wheel-orbit" aria-hidden="true" />
+                  <div className="wheel">
+                    {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
+                      const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
+                      return (
+                        <div
+                          key={`${segment.label}-${index}`}
+                          className="wheel-segment"
+                          style={{ transform: `rotate(${angle}deg)` }}
+                        >
+                          <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="wheel-center" aria-hidden="true">
+                    <span className="wheel-center-star">★</span>
+                  </div>
                 </div>
-                <div className="wheel-center" aria-hidden="true">
-                  <span className="wheel-center-star">★</span>
-                </div>
+                <div className="wheel-pointer-base" aria-hidden="true" />
+                <div className="wheel-pointer" aria-hidden="true" />
               </div>
               <button
                 className="wheel-cta"
