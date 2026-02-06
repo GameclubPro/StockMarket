@@ -1096,34 +1096,47 @@ export default function App() {
     }
   };
 
-  const handleCopyInvite = async () => {
+  const handleShareInvite = async () => {
     if (!referralStats?.link) return;
-    const value = referralStats.link;
+    const link = referralStats.link;
+    const text = 'Присоединяйся и получай бонусы за задания!';
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    const tg = (window as any)?.Telegram?.WebApp;
+
     setInviteCopied(false);
     setReferralError('');
 
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = value;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+        return;
       }
-      setInviteCopied(true);
-      if (inviteCopyTimeoutRef.current) {
-        window.clearTimeout(inviteCopyTimeoutRef.current);
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      // fallback to clipboard
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = link;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        setInviteCopied(true);
+        if (inviteCopyTimeoutRef.current) {
+          window.clearTimeout(inviteCopyTimeoutRef.current);
+        }
+        inviteCopyTimeoutRef.current = window.setTimeout(() => {
+          setInviteCopied(false);
+        }, 2000);
+      } catch (error: any) {
+        setReferralError(error?.message ?? 'Не удалось поделиться ссылкой.');
       }
-      inviteCopyTimeoutRef.current = window.setTimeout(() => {
-        setInviteCopied(false);
-      }, 2000);
-    } catch (error: any) {
-      setReferralError(error?.message ?? 'Не удалось скопировать ссылку.');
     }
   };
 
@@ -1176,7 +1189,7 @@ export default function App() {
               <button
                 className="invite-button"
                 type="button"
-                onClick={handleCopyInvite}
+                onClick={handleShareInvite}
                 disabled={!referralStats?.link}
               >
                 {inviteCopied ? 'Скопировано' : 'Пригласить'}
