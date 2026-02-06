@@ -74,7 +74,7 @@ export default function App() {
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
-  const [taskPrice, setTaskPrice] = useState(10);
+  const [taskPriceInput, setTaskPriceInput] = useState('10');
   const [taskCount, setTaskCount] = useState(MAX_TASK_COUNT);
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
@@ -153,17 +153,29 @@ export default function App() {
     () => Math.max(0, points - pendingPayoutTotal),
     [points, pendingPayoutTotal]
   );
-  const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
+  const parsedTaskPrice = useMemo(() => {
+    if (!taskPriceInput.trim()) return null;
+    const parsed = Number(taskPriceInput);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [taskPriceInput]);
+  const taskPriceValue = parsedTaskPrice ?? 0;
+  const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
   const maxAffordableCount = useMemo(() => {
-    if (!Number.isFinite(taskPrice) || taskPrice <= 0) return 1;
-    const byBalance = Math.floor(displayPoints / taskPrice);
-    const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPrice);
+    if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 1;
+    const byBalance = Math.floor(displayPoints / taskPriceValue);
+    const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPriceValue);
     return Math.max(1, Math.min(MAX_TASK_COUNT, byBalance, byBudget));
-  }, [displayPoints, taskPrice]);
-  const minPayoutPreview = useMemo(() => calculateBasePayout(taskPrice), [taskPrice]);
+  }, [displayPoints, taskPriceValue]);
+  const minPayoutPreview = useMemo(() => {
+    if (!parsedTaskPrice || parsedTaskPrice <= 0) return 0;
+    return calculateBasePayout(parsedTaskPrice);
+  }, [parsedTaskPrice]);
   const maxPayoutPreview = useMemo(
-    () => calculatePayoutWithBonus(taskPrice, MAX_BONUS_RATE),
-    [taskPrice]
+    () =>
+      parsedTaskPrice && parsedTaskPrice > 0
+        ? calculatePayoutWithBonus(parsedTaskPrice, MAX_BONUS_RATE)
+        : 0,
+    [parsedTaskPrice]
   );
   const rangeProgress = useMemo(() => {
     const min = 1;
@@ -699,11 +711,15 @@ export default function App() {
       setCreateError('Сначала подключите канал/группу и выберите ее из списка.');
       return;
     }
-    if (!Number.isFinite(taskPrice) || taskPrice < 1) {
+    if (parsedTaskPrice === null) {
+      setCreateError('Укажите цену за действие.');
+      return;
+    }
+    if (!Number.isFinite(parsedTaskPrice) || parsedTaskPrice < 1) {
       setCreateError('Цена за действие должна быть не меньше 1 балла.');
       return;
     }
-    if (taskPrice > MAX_TASK_PRICE) {
+    if (parsedTaskPrice > MAX_TASK_PRICE) {
       setCreateError(`Цена за действие должна быть не больше ${MAX_TASK_PRICE} баллов.`);
       return;
     }
@@ -733,7 +749,7 @@ export default function App() {
       const data = await createCampaign({
         groupId,
         actionType: taskType,
-        rewardPoints: Math.round(taskPrice),
+        rewardPoints: Math.round(parsedTaskPrice),
         totalBudget: Math.round(totalBudget),
         targetMessageLink: taskType === 'reaction' ? reactionLink.trim() : undefined,
       });
@@ -1011,16 +1027,22 @@ export default function App() {
                       type="number"
                       min={1}
                       max={MAX_TASK_PRICE}
-                      value={taskPrice}
+                      value={taskPriceInput}
                       onChange={(event) => {
-                        const nextValue = Number(event.target.value);
+                        const raw = event.target.value;
+                        if (raw === '') {
+                          setTaskPriceInput('');
+                          return;
+                        }
+                        const nextValue = Number(raw);
                         if (!Number.isFinite(nextValue)) return;
                         const clamped = Math.min(MAX_TASK_PRICE, Math.max(1, nextValue));
-                        setTaskPrice(clamped);
+                        setTaskPriceInput(String(clamped));
                       }}
                     />
                     <div className="range-hint">
-                      Ставка {taskPrice} баллов · Исполнитель получит {minPayoutPreview}–{maxPayoutPreview}{' '}
+                      Ставка {taskPriceValue} баллов · Исполнитель получит {minPayoutPreview}–
+                      {maxPayoutPreview}{' '}
                       баллов (зависит от ранга)
                     </div>
                   </label>
