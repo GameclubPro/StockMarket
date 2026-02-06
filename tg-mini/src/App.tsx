@@ -4,6 +4,7 @@ import {
   createCampaign,
   fetchCampaigns,
   fetchDailyBonusStatus,
+  fetchReferralStats,
   fetchMe,
   fetchMyApplications,
   fetchMyCampaigns,
@@ -13,6 +14,7 @@ import {
   type CampaignDto,
   type DailyBonusStatus,
   type GroupDto,
+  type ReferralStats,
   verifyInitData,
 } from './api';
 import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
@@ -151,6 +153,10 @@ export default function App() {
   });
   const [dailyBonusLoading, setDailyBonusLoading] = useState(false);
   const [dailyBonusError, setDailyBonusError] = useState('');
+  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState('');
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
@@ -198,6 +204,7 @@ export default function App() {
   const animatingOutRef = useRef<Set<string>>(new Set());
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
   const spinTimeoutRef = useRef<number | null>(null);
+  const inviteCopyTimeoutRef = useRef<number | null>(null);
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -376,6 +383,9 @@ export default function App() {
       if (spinTimeoutRef.current) {
         window.clearTimeout(spinTimeoutRef.current);
       }
+      if (inviteCopyTimeoutRef.current) {
+        window.clearTimeout(inviteCopyTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -548,6 +558,26 @@ export default function App() {
     }
   }, []);
 
+  const loadReferralStats = useCallback(async () => {
+    setReferralError('');
+    setReferralLoading(true);
+    try {
+      const data = await fetchReferralStats();
+      if (data.ok) {
+        setReferralStats(data);
+        setInviteCopied(false);
+      } else {
+        setReferralStats(null);
+        setReferralError('Не удалось загрузить реферальные данные.');
+      }
+    } catch (error: any) {
+      setReferralStats(null);
+      setReferralError(error?.message ?? 'Не удалось загрузить реферальные данные.');
+    } finally {
+      setReferralLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
@@ -556,6 +586,11 @@ export default function App() {
     if (!userId) return;
     void loadDailyBonusStatus();
   }, [userId, loadDailyBonusStatus]);
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadReferralStats();
+  }, [userId, loadReferralStats]);
 
   useEffect(() => {
     if (activeTab !== 'wheel') return;
@@ -1061,6 +1096,37 @@ export default function App() {
     }
   };
 
+  const handleCopyInvite = async () => {
+    if (!referralStats?.link) return;
+    const value = referralStats.link;
+    setInviteCopied(false);
+    setReferralError('');
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setInviteCopied(true);
+      if (inviteCopyTimeoutRef.current) {
+        window.clearTimeout(inviteCopyTimeoutRef.current);
+      }
+      inviteCopyTimeoutRef.current = window.setTimeout(() => {
+        setInviteCopied(false);
+      }, 2000);
+    } catch (error: any) {
+      setReferralError(error?.message ?? 'Не удалось скопировать ссылку.');
+    }
+  };
+
 
   return (
     <div className="screen">
@@ -1086,6 +1152,35 @@ export default function App() {
               </button>
               <div className="daily-bonus-timer">{dailyBonusTimerLabel}</div>
               {dailyBonusError && <div className="daily-bonus-error">{dailyBonusError}</div>}
+            </section>
+            <section className="invite-card">
+              <div className="invite-art" aria-hidden="true">
+                <div className="invite-gift" />
+                <div className="invite-friends">+</div>
+              </div>
+              <div className="invite-info">
+                <div className="invite-title">Пригласи друзей</div>
+                <div className="invite-sub">+10 за вход друга, +30 за 5 заказов.</div>
+                {referralLoading && <div className="invite-meta">Загрузка…</div>}
+                {!referralLoading && referralStats && (
+                  <>
+                    <div className="invite-meta">
+                      Приглашено: {referralStats.stats.invited} • Заработано:{' '}
+                      {referralStats.stats.earned} баллов
+                    </div>
+                    <div className="invite-code">Код: {referralStats.code}</div>
+                  </>
+                )}
+                {referralError && <div className="invite-error">{referralError}</div>}
+              </div>
+              <button
+                className="invite-button"
+                type="button"
+                onClick={handleCopyInvite}
+                disabled={!referralStats?.link}
+              >
+                {inviteCopied ? 'Скопировано' : 'Пригласить'}
+              </button>
             </section>
           </>
         )}

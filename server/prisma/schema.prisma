@@ -32,6 +32,18 @@ enum LedgerType {
   ADJUST
 }
 
+enum ReferralRewardSide {
+  REFERRER
+  REFERRED
+}
+
+enum ReferralMilestone {
+  JOIN
+  ORDERS_5
+  ORDERS_15
+  ORDERS_30
+}
+
 model User {
   id         String   @id @default(cuid())
   telegramId String   @unique
@@ -42,6 +54,8 @@ model User {
   balance    Int      @default(30)
   totalEarned Int     @default(0)
   rating     Float    @default(0)
+  referralCode String? @unique
+  firstAuthAt DateTime?
   createdAt  DateTime @default(now())
 
   groups       Group[]
@@ -49,6 +63,8 @@ model User {
   campaigns    Campaign[]
   applications Application[]
   ledger       LedgerEntry[]
+  referrals    Referral[] @relation("ReferralReferrer")
+  referralFrom Referral?  @relation("ReferralReferred")
 }
 
 model Group {
@@ -123,4 +139,30 @@ model LedgerEntry {
 
   user       User       @relation(fields: [userId], references: [id])
   campaign   Campaign?  @relation(fields: [campaignId], references: [id])
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  referrerId     String
+  referredUserId String   @unique
+  completedOrders Int     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  referrer      User            @relation("ReferralReferrer", fields: [referrerId], references: [id])
+  referredUser  User            @relation("ReferralReferred", fields: [referredUserId], references: [id])
+  rewards       ReferralReward[]
+}
+
+model ReferralReward {
+  id         String             @id @default(cuid())
+  referralId String
+  side       ReferralRewardSide
+  milestone  ReferralMilestone
+  amount     Int
+  rewardedAt DateTime           @default(now())
+
+  referral   Referral           @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  @@unique([referralId, side, milestone])
 }

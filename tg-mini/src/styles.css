@@ -1025,6 +1025,21 @@ body::before {
   color: var(--muted);
 }
 
+.invite-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.invite-code {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.invite-error {
+  font-size: 12px;
+  color: #ff8e8e;
+}
+
 .invite-button {
   background: linear-gradient(135deg, rgba(124, 255, 178, 0.45), rgba(124, 255, 178, 0.2));
   border: 1px solid rgba(124, 255, 178, 0.6);
@@ -1035,6 +1050,11 @@ body::before {
   color: #ffffff;
   cursor: pointer;
   transition: 0.2s ease;
+}
+
+.invite-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .invite-button:active {

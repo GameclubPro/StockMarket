@@ -11,6 +11,7 @@ export type TelegramUser = {
 export type TelegramAuthData = {
   user?: TelegramUser;
   auth_date?: string;
+  start_param?: string;
   hash?: string;
   [key: string]: string | TelegramUser | undefined;
 };

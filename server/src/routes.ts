@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './db.js';
@@ -9,6 +10,7 @@ import {
   ensureBotIsAdmin,
   exportChatInviteLink,
   extractUsername,
+  getBotInfo,
   getChatMemberStatus,
   isActiveMemberStatus,
   isAdminMemberStatus,
@@ -68,6 +70,184 @@ const calculatePayoutWithBonus = (rewardPoints: number, bonusRate: number) => {
   const base = calculateBasePayout(rewardPoints);
   const bonus = Math.round(base * bonusRate);
   return Math.max(1, Math.min(rewardPoints, base + bonus));
+};
+
+const REFERRAL_MILESTONES = [
+  {
+    milestone: 'JOIN',
+    orders: 0,
+    referrer: 10,
+    referred: 10,
+    reasonReferrer: 'Реферальный бонус: вход друга',
+    reasonReferred: 'Бонус за вход по приглашению',
+  },
+  {
+    milestone: 'ORDERS_5',
+    orders: 5,
+    referrer: 30,
+    referred: 30,
+    reasonReferrer: 'Реферальный бонус: 5 заказов',
+    reasonReferred: 'Бонус за 5 заказов',
+  },
+  {
+    milestone: 'ORDERS_15',
+    orders: 15,
+    referrer: 60,
+    referred: 0,
+    reasonReferrer: 'Реферальный бонус: 15 заказов',
+    reasonReferred: '',
+  },
+  {
+    milestone: 'ORDERS_30',
+    orders: 30,
+    referrer: 100,
+    referred: 0,
+    reasonReferrer: 'Реферальный бонус: 30 заказов',
+    reasonReferred: '',
+  },
+] as const;
+
+const REFERRAL_JOIN_MILESTONE = REFERRAL_MILESTONES[0];
+const REFERRAL_CODE_BYTES = 5;
+const REFERRAL_CODE_ATTEMPTS = 6;
+
+type DbClient = Prisma.TransactionClient | typeof prisma;
+type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
+
+const generateReferralCode = () =>
+  crypto.randomBytes(REFERRAL_CODE_BYTES).toString('hex').toUpperCase();
+
+const normalizeReferralCode = (value: string) => value.trim().toUpperCase();
+const isValidReferralCode = (value: string) => /^[A-Z0-9]{6,20}$/.test(value);
+
+const createUniqueReferralCode = async (db: DbClient) => {
+  for (let attempt = 0; attempt < REFERRAL_CODE_ATTEMPTS; attempt += 1) {
+    const code = generateReferralCode();
+    const existing = await db.user.findUnique({ where: { referralCode: code } });
+    if (!existing) return code;
+  }
+  throw new Error('referral_code_collision');
+};
+
+const ensureReferralCodeForUser = async (
+  db: DbClient,
+  payload: { userId: string; current?: string | null }
+) => {
+  const current = payload.current?.trim();
+  if (current) return current;
+  const code = await createUniqueReferralCode(db);
+  const updated = await db.user.update({
+    where: { id: payload.userId },
+    data: { referralCode: code },
+    select: { referralCode: true },
+  });
+  return updated.referralCode ?? code;
+};
+
+const grantReferralReward = async (
+  tx: Prisma.TransactionClient,
+  payload: {
+    referralId: string;
+    userId: string;
+    side: 'REFERRER' | 'REFERRED';
+    milestone: 'JOIN' | 'ORDERS_5' | 'ORDERS_15' | 'ORDERS_30';
+    amount: number;
+    reason: string;
+  }
+) => {
+  if (payload.amount <= 0) return false;
+  const existing = await tx.referralReward.findUnique({
+    where: {
+      referralId_side_milestone: {
+        referralId: payload.referralId,
+        side: payload.side,
+        milestone: payload.milestone,
+      },
+    },
+    select: { id: true },
+  });
+  if (existing) return false;
+
+  await tx.referralReward.create({
+    data: {
+      referralId: payload.referralId,
+      side: payload.side,
+      milestone: payload.milestone,
+      amount: payload.amount,
+    },
+  });
+
+  await tx.user.update({
+    where: { id: payload.userId },
+    data: {
+      balance: { increment: payload.amount },
+      totalEarned: { increment: payload.amount },
+    },
+  });
+
+  await tx.ledgerEntry.create({
+    data: {
+      userId: payload.userId,
+      type: 'EARN',
+      amount: payload.amount,
+      reason: payload.reason,
+    },
+  });
+
+  return true;
+};
+
+const awardReferralMilestone = async (
+  tx: Prisma.TransactionClient,
+  referral: { id: string; referrerId: string; referredUserId: string },
+  milestone: ReferralMilestone
+) => {
+  await grantReferralReward(tx, {
+    referralId: referral.id,
+    userId: referral.referrerId,
+    side: 'REFERRER',
+    milestone: milestone.milestone,
+    amount: milestone.referrer,
+    reason: milestone.reasonReferrer,
+  });
+  if (milestone.referred > 0) {
+    await grantReferralReward(tx, {
+      referralId: referral.id,
+      userId: referral.referredUserId,
+      side: 'REFERRED',
+      milestone: milestone.milestone,
+      amount: milestone.referred,
+      reason: milestone.reasonReferred || milestone.reasonReferrer,
+    });
+  }
+};
+
+const updateReferralProgress = async (
+  tx: Prisma.TransactionClient,
+  payload: { userId: string; delta: number }
+) => {
+  if (!payload.delta) return;
+  const referral = await tx.referral.findUnique({
+    where: { referredUserId: payload.userId },
+    select: { id: true, referrerId: true, referredUserId: true, completedOrders: true },
+  });
+  if (!referral) return;
+
+  const nextCount = Math.max(0, referral.completedOrders + payload.delta);
+  if (nextCount === referral.completedOrders) return;
+
+  await tx.referral.update({
+    where: { id: referral.id },
+    data: { completedOrders: nextCount },
+  });
+
+  if (payload.delta < 0) return;
+
+  for (const milestone of REFERRAL_MILESTONES) {
+    if (milestone.orders <= 0) continue;
+    if (nextCount < milestone.orders) continue;
+    await awardReferralMilestone(tx, referral, milestone);
+  }
 };
 
 const DAILY_BONUS_REASON = 'Ежедневный бонус';
@@ -230,6 +410,8 @@ const creditUserForCampaign = async (
     },
   });
 
+  await updateReferralProgress(tx, { userId: payload.userId, delta: 1 });
+
   return payout;
 };
 
@@ -272,6 +454,8 @@ const applyUnsubscribePenalty = async (
     },
   });
 
+  await updateReferralProgress(tx, { userId: payload.userId, delta: -1 });
+
   return penalty;
 };
 
@@ -293,6 +477,11 @@ const ensureLegacyStats = async (user: User) => {
     });
     const total = Math.max(0, aggregate._sum.amount ?? 0);
     if (total > 0) data.totalEarned = total;
+  }
+
+  if (!user.referralCode) {
+    const code = await createUniqueReferralCode(prisma);
+    data.referralCode = code;
   }
 
   if (Object.keys(data).length === 0) return user;
@@ -771,24 +960,80 @@ export const registerRoutes = (app: FastifyInstance) => {
     const tgUser = authData.user;
     if (!tgUser) return reply.code(401).send({ ok: false, error: 'no user' });
 
-    const user = await prisma.user.upsert({
-      where: { telegramId: String(tgUser.id) },
-      update: {
-        username: tgUser.username,
-        firstName: tgUser.first_name,
-        lastName: tgUser.last_name,
-        photoUrl: tgUser.photo_url,
-      },
-      create: {
-        telegramId: String(tgUser.id),
-        username: tgUser.username,
-        firstName: tgUser.first_name,
-        lastName: tgUser.last_name,
-        photoUrl: tgUser.photo_url,
-        balance: 30,
-        totalEarned: 0,
-        rating: 0,
-      },
+    const rawStartParam =
+      typeof authData.start_param === 'string' ? normalizeReferralCode(authData.start_param) : '';
+    const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
+    const now = new Date();
+
+    const user = await prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { telegramId: String(tgUser.id) },
+      });
+      let current: User;
+      let isFirstAuth = false;
+
+      if (existing) {
+        const updateData: Prisma.UserUpdateInput = {
+          username: tgUser.username,
+          firstName: tgUser.first_name,
+          lastName: tgUser.last_name,
+          photoUrl: tgUser.photo_url,
+        };
+        if (!existing.firstAuthAt) {
+          updateData.firstAuthAt = now;
+          isFirstAuth = true;
+        }
+        current = await tx.user.update({ where: { id: existing.id }, data: updateData });
+      } else {
+        const referralCode = await createUniqueReferralCode(tx);
+        current = await tx.user.create({
+          data: {
+            telegramId: String(tgUser.id),
+            username: tgUser.username,
+            firstName: tgUser.first_name,
+            lastName: tgUser.last_name,
+            photoUrl: tgUser.photo_url,
+            balance: 30,
+            totalEarned: 0,
+            rating: 0,
+            firstAuthAt: now,
+            referralCode,
+          },
+        });
+        isFirstAuth = true;
+      }
+
+      if (!current.referralCode) {
+        current = await tx.user.update({
+          where: { id: current.id },
+          data: { referralCode: await createUniqueReferralCode(tx) },
+        });
+      }
+
+      if (isFirstAuth && startParam) {
+        const existingReferral = await tx.referral.findUnique({
+          where: { referredUserId: current.id },
+          select: { id: true },
+        });
+        if (!existingReferral) {
+          const referrer = await tx.user.findUnique({
+            where: { referralCode: startParam },
+            select: { id: true },
+          });
+          if (referrer && referrer.id !== current.id) {
+            const referral = await tx.referral.create({
+              data: {
+                referrerId: referrer.id,
+                referredUserId: current.id,
+                completedOrders: 0,
+              },
+            });
+            await awardReferralMilestone(tx, referral, REFERRAL_JOIN_MILESTONE);
+          }
+        }
+      }
+
+      return current;
     });
 
     const ensuredUser = await ensureLegacyStats(user);
@@ -831,6 +1076,85 @@ export const registerRoutes = (app: FastifyInstance) => {
           : error?.status && Number.isFinite(error.status)
             ? error.status
             : 400;
+      return reply.code(status).send({ ok: false, error: message });
+    }
+  });
+
+  app.get('/referrals/me', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const code = await ensureReferralCodeForUser(prisma, {
+        userId: user.id,
+        current: user.referralCode ?? null,
+      });
+
+      let link = '';
+      if (config.botToken) {
+        try {
+          const bot = await getBotInfo(config.botToken);
+          if (bot?.username) {
+            link = `https://t.me/${bot.username}?startapp=${code}`;
+          }
+        } catch {
+          // ignore bot lookup errors
+        }
+      }
+
+      const [invited, rewards] = await Promise.all([
+        prisma.referral.count({ where: { referrerId: user.id } }),
+        prisma.referralReward.aggregate({
+          where: { side: 'REFERRER', referral: { referrerId: user.id } },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      return {
+        ok: true,
+        code,
+        link,
+        stats: {
+          invited,
+          earned: Math.max(0, rewards._sum.amount ?? 0),
+        },
+      };
+    } catch (error: any) {
+      const message = error?.message ?? 'unauthorized';
+      const status = message === 'unauthorized' || message === 'no user' ? 401 : 400;
+      return reply.code(status).send({ ok: false, error: message });
+    }
+  });
+
+  app.get('/referrals/list', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const referrals = await prisma.referral.findMany({
+        where: { referrerId: user.id },
+        include: {
+          referredUser: true,
+          rewards: { where: { side: 'REFERRER' } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      const result = referrals.map((referral) => ({
+        id: referral.id,
+        createdAt: referral.createdAt.toISOString(),
+        completedOrders: referral.completedOrders,
+        referredUser: {
+          id: referral.referredUser.id,
+          username: referral.referredUser.username,
+          firstName: referral.referredUser.firstName,
+          lastName: referral.referredUser.lastName,
+          photoUrl: referral.referredUser.photoUrl,
+        },
+        earned: referral.rewards.reduce((sum, item) => sum + item.amount, 0),
+      }));
+
+      return { ok: true, referrals: result };
+    } catch (error: any) {
+      const message = error?.message ?? 'unauthorized';
+      const status = message === 'unauthorized' || message === 'no user' ? 401 : 400;
       return reply.code(status).send({ ok: false, error: message });
     }
   });

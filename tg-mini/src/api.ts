@@ -60,6 +60,15 @@ export type DailyBonusSpin = {
   streak?: number;
 };
 
+export type ReferralStats = {
+  code: string;
+  link: string;
+  stats: {
+    invited: number;
+    earned: number;
+  };
+};
+
 const request = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('sessionToken');
   const headers = new Headers(options.headers);
@@ -196,4 +205,9 @@ export const fetchDailyBonusStatus = async () => {
 export const spinDailyBonus = async () => {
   const data = await request('/api/daily-bonus/spin', { method: 'POST' });
   return data as { ok: boolean } & DailyBonusSpin;
+};
+
+export const fetchReferralStats = async () => {
+  const data = await request('/api/referrals/me');
+  return data as { ok: boolean } & ReferralStats;
 };
