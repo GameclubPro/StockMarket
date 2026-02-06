@@ -678,16 +678,25 @@ body::before {
 .daily-bonus-preview {
   width: 64px;
   height: 64px;
+  --preview-segments: 6;
   border-radius: 50%;
-  background: conic-gradient(
-    from -90deg,
-    #ff9f70,
-    #ffcf6b,
-    #7cffb2,
-    #8ad2ff,
-    #b28aff,
-    #ff9f70
-  );
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 255, 255, 0.35) 0deg,
+      rgba(255, 255, 255, 0.35) 1.1deg,
+      transparent 1.1deg,
+      transparent calc(360deg / var(--preview-segments))
+    ),
+    conic-gradient(
+      from -90deg,
+      #ff9f70,
+      #ffcf6b,
+      #7cffb2,
+      #8ad2ff,
+      #b28aff,
+      #ff9f70
+    );
   border: 3px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 0 18px rgba(255, 190, 120, 0.35);
   position: relative;
