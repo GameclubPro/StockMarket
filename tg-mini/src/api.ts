@@ -60,6 +60,11 @@ export type DailyBonusSpin = {
   streak?: number;
 };
 
+export type ReferralBonus = {
+  amount: number;
+  reason: string;
+};
+
 export type ReferralStats = {
   code: string;
   link: string;
@@ -67,6 +72,14 @@ export type ReferralStats = {
     invited: number;
     earned: number;
   };
+};
+
+export type ReferralListItem = {
+  id: string;
+  createdAt: string;
+  completedOrders: number;
+  earned: number;
+  referredUser: UserDto;
 };
 
 const request = async (path: string, options: RequestInit = {}) => {
@@ -106,7 +119,13 @@ export const verifyInitData = async (initData: string) => {
     throw new Error('auth failed');
   }
 
-  const data = (await response.json()) as { ok: boolean; token?: string; balance?: number; user?: UserDto };
+  const data = (await response.json()) as {
+    ok: boolean;
+    token?: string;
+    balance?: number;
+    user?: UserDto;
+    referralBonus?: ReferralBonus | null;
+  };
   if (!data.ok) {
     throw new Error('auth failed');
   }
@@ -210,4 +229,9 @@ export const spinDailyBonus = async () => {
 export const fetchReferralStats = async () => {
   const data = await request('/api/referrals/me');
   return data as { ok: boolean } & ReferralStats;
+};
+
+export const fetchReferralList = async () => {
+  const data = await request('/api/referrals/list');
+  return data as { ok: boolean; referrals: ReferralListItem[] };
 };

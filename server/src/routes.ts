@@ -202,7 +202,7 @@ const awardReferralMilestone = async (
   referral: { id: string; referrerId: string; referredUserId: string },
   milestone: ReferralMilestone
 ) => {
-  await grantReferralReward(tx, {
+  const referrerGranted = await grantReferralReward(tx, {
     referralId: referral.id,
     userId: referral.referrerId,
     side: 'REFERRER',
@@ -210,8 +210,9 @@ const awardReferralMilestone = async (
     amount: milestone.referrer,
     reason: milestone.reasonReferrer,
   });
+  let referredGranted = false;
   if (milestone.referred > 0) {
-    await grantReferralReward(tx, {
+    referredGranted = await grantReferralReward(tx, {
       referralId: referral.id,
       userId: referral.referredUserId,
       side: 'REFERRED',
@@ -220,6 +221,7 @@ const awardReferralMilestone = async (
       reason: milestone.reasonReferred || milestone.reasonReferrer,
     });
   }
+  return { referrerGranted, referredGranted };
 };
 
 const updateReferralProgress = async (
@@ -965,12 +967,13 @@ export const registerRoutes = (app: FastifyInstance) => {
     const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
     const now = new Date();
 
-    const user = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({
         where: { telegramId: String(tgUser.id) },
       });
       let current: User;
       let isFirstAuth = false;
+      let referralBonus: { amount: number; reason: string } | null = null;
 
       if (existing) {
         const updateData: Prisma.UserUpdateInput = {
@@ -1028,15 +1031,23 @@ export const registerRoutes = (app: FastifyInstance) => {
                 completedOrders: 0,
               },
             });
-            await awardReferralMilestone(tx, referral, REFERRAL_JOIN_MILESTONE);
+            const reward = await awardReferralMilestone(tx, referral, REFERRAL_JOIN_MILESTONE);
+            if (reward.referredGranted && REFERRAL_JOIN_MILESTONE.referred > 0) {
+              referralBonus = {
+                amount: REFERRAL_JOIN_MILESTONE.referred,
+                reason:
+                  REFERRAL_JOIN_MILESTONE.reasonReferred ||
+                  REFERRAL_JOIN_MILESTONE.reasonReferrer,
+              };
+            }
           }
         }
       }
 
-      return current;
+      return { user: current, referralBonus };
     });
 
-    const ensuredUser = await ensureLegacyStats(user);
+    const ensuredUser = await ensureLegacyStats(result.user);
 
     let token = '';
     if (config.appSecret) {
@@ -1047,7 +1058,13 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
     }
 
-    return { ok: true, user: ensuredUser, balance: ensuredUser.balance, token };
+    return {
+      ok: true,
+      user: ensuredUser,
+      balance: ensuredUser.balance,
+      token,
+      referralBonus: result.referralBonus,
+    };
   });
 
   app.get('/me', async (request, reply) => {

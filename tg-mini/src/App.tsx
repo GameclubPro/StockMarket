@@ -5,6 +5,7 @@ import {
   fetchCampaigns,
   fetchDailyBonusStatus,
   fetchReferralStats,
+  fetchReferralList,
   fetchMe,
   fetchMyApplications,
   fetchMyCampaigns,
@@ -14,6 +15,8 @@ import {
   type CampaignDto,
   type DailyBonusStatus,
   type GroupDto,
+  type ReferralBonus,
+  type ReferralListItem,
   type ReferralStats,
   verifyInitData,
 } from './api';
@@ -46,6 +49,12 @@ const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
 const DAILY_WHEEL_SPIN_TURNS = 6;
 const DAILY_WHEEL_SPIN_MS = 4200;
+const REFERRAL_STEPS = [
+  { label: 'Вход', orders: 0, reward: 10 },
+  { label: '5 заказов', orders: 5, reward: 30 },
+  { label: '15 заказов', orders: 15, reward: 60 },
+  { label: '30 заказов', orders: 30, reward: 100 },
+];
 
 const getRankTier = (totalEarned: number) => {
   let current = RANKS[0];
@@ -142,7 +151,7 @@ export default function App() {
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
   const [activeTab, setActiveTab] = useState<
-    'home' | 'promo' | 'tasks' | 'settings' | 'wheel'
+    'home' | 'promo' | 'tasks' | 'settings' | 'wheel' | 'referrals'
   >('home');
   const [dailyBonusStatus, setDailyBonusStatus] = useState<DailyBonusStatus>({
     available: false,
@@ -156,7 +165,11 @@ export default function App() {
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralError, setReferralError] = useState('');
+  const [referralList, setReferralList] = useState<ReferralListItem[]>([]);
+  const [referralListLoading, setReferralListLoading] = useState(false);
+  const [referralListError, setReferralListError] = useState('');
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
@@ -205,6 +218,7 @@ export default function App() {
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
   const spinTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
+  const welcomeTimeoutRef = useRef<number | null>(null);
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -360,6 +374,17 @@ export default function App() {
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
+        if (data.referralBonus?.amount && data.referralBonus.amount > 0 && data.user?.id) {
+          const key = `jr:referralWelcomeSeen:${data.user.id}`;
+          const seen = localStorage.getItem(key);
+          if (!seen) {
+            setWelcomeBonus({
+              amount: data.referralBonus.amount,
+              reason: data.referralBonus.reason,
+            });
+            localStorage.setItem(key, '1');
+          }
+        }
       } catch {
         // Keep default zeros on auth failure.
       }
@@ -386,8 +411,21 @@ export default function App() {
       if (inviteCopyTimeoutRef.current) {
         window.clearTimeout(inviteCopyTimeoutRef.current);
       }
+      if (welcomeTimeoutRef.current) {
+        window.clearTimeout(welcomeTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!welcomeBonus) return;
+    if (welcomeTimeoutRef.current) {
+      window.clearTimeout(welcomeTimeoutRef.current);
+    }
+    welcomeTimeoutRef.current = window.setTimeout(() => {
+      setWelcomeBonus(null);
+    }, 5000);
+  }, [welcomeBonus]);
 
   useEffect(() => {
     if (!Number.isFinite(taskCount)) return;
@@ -578,6 +616,25 @@ export default function App() {
     }
   }, []);
 
+  const loadReferralList = useCallback(async () => {
+    setReferralListError('');
+    setReferralListLoading(true);
+    try {
+      const data = await fetchReferralList();
+      if (data.ok && Array.isArray(data.referrals)) {
+        setReferralList(data.referrals);
+      } else {
+        setReferralList([]);
+        setReferralListError('Не удалось загрузить список приглашённых.');
+      }
+    } catch (error: any) {
+      setReferralList([]);
+      setReferralListError(error?.message ?? 'Не удалось загрузить список приглашённых.');
+    } finally {
+      setReferralListLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
@@ -591,6 +648,13 @@ export default function App() {
     if (!userId) return;
     void loadReferralStats();
   }, [userId, loadReferralStats]);
+
+  useEffect(() => {
+    if (activeTab !== 'referrals') return;
+    if (!userId) return;
+    void loadReferralStats();
+    void loadReferralList();
+  }, [activeTab, userId, loadReferralStats, loadReferralList]);
 
   useEffect(() => {
     if (activeTab !== 'wheel') return;
@@ -691,6 +755,20 @@ export default function App() {
     const clean = username.startsWith('@') ? username.slice(1) : username;
     if (!clean) return '';
     return `https://t.me/i/userpic/320/${clean}.jpg`;
+  };
+
+  const getReferralUserLabel = (user?: ReferralListItem['referredUser']) => {
+    if (!user) return 'Пользователь';
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+    if (fullName) return fullName;
+    if (user.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+    return 'Пользователь';
+  };
+
+  const getReferralProgressPercent = (orders: number) => {
+    if (!Number.isFinite(orders)) return '0%';
+    const value = Math.max(0, Math.min(orders, 30));
+    return `${Math.round((value / 30) * 100)}%`;
   };
 
   const resolveGroupId = () => {
@@ -1144,6 +1222,24 @@ export default function App() {
   return (
     <div className="screen">
       <div className="content" ref={contentRef}>
+        {welcomeBonus && (
+          <div className="welcome-banner">
+            <div className="welcome-text">
+              Вас пригласили! Вы получили <strong>+{welcomeBonus.amount}</strong> баллов.
+            </div>
+            <button
+              className="welcome-close"
+              type="button"
+              onClick={() => setWelcomeBonus(null)}
+              aria-label="Скрыть уведомление"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M6 6l12 12" />
+                <path d="M18 6l-12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
         {activeTab === 'home' && (
           <>
             <ProfileCard />
@@ -1173,7 +1269,7 @@ export default function App() {
               </div>
               <div className="invite-info">
                 <div className="invite-title">Пригласи друзей</div>
-                <div className="invite-sub">+10 за вход друга, +30 за 5 заказов.</div>
+                <div className="invite-sub">До 200 баллов с каждого приглашённого.</div>
                 {referralLoading && <div className="invite-meta">Загрузка…</div>}
                 {!referralLoading && referralStats && (
                   <>
@@ -1189,10 +1285,9 @@ export default function App() {
               <button
                 className="invite-button"
                 type="button"
-                onClick={handleShareInvite}
-                disabled={!referralStats?.link}
+                onClick={() => setActiveTab('referrals')}
               >
-                {inviteCopied ? 'Скопировано' : 'Пригласить'}
+                Подробнее
               </button>
             </section>
           </>
@@ -1261,6 +1356,136 @@ export default function App() {
                 </div>
               )}
               {dailyBonusError && <div className="wheel-error">{dailyBonusError}</div>}
+            </section>
+          </>
+        )}
+
+        {activeTab === 'referrals' && (
+          <>
+            <div className="page-header">
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setActiveTab('home')}
+                aria-label="Назад"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+              <div className="page-title">Реферальная программа</div>
+              <div className="header-spacer" aria-hidden="true" />
+            </div>
+
+            <section className="referral-hero">
+              <div className="referral-hero-top">
+                <div>
+                  <div className="referral-hero-title">Приглашайте друзей</div>
+                  <div className="referral-hero-sub">
+                    Получайте до 200 баллов с каждого приглашённого.
+                  </div>
+                </div>
+                <div className="referral-hero-art" aria-hidden="true">
+                  <div className="referral-hero-gift" />
+                </div>
+              </div>
+
+              {referralLoading && <div className="referral-status">Загрузка…</div>}
+              {!referralLoading && referralStats && (
+                <div className="referral-stats-grid">
+                  <div className="referral-stat">
+                    <div className="referral-stat-label">Приглашено</div>
+                    <div className="referral-stat-value">{referralStats.stats.invited}</div>
+                  </div>
+                  <div className="referral-stat">
+                    <div className="referral-stat-label">Заработано</div>
+                    <div className="referral-stat-value">
+                      {referralStats.stats.earned} баллов
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!referralLoading && referralStats && (
+                <div className="referral-link-block">
+                  <div className="referral-link-label">Ваша ссылка</div>
+                  <div className="referral-link">{referralStats.link || 'Ссылка недоступна'}</div>
+                  <div className="referral-code">Код: {referralStats.code}</div>
+                </div>
+              )}
+
+              {referralError && <div className="referral-status error">{referralError}</div>}
+
+              <button
+                className="referral-share"
+                type="button"
+                onClick={handleShareInvite}
+                disabled={!referralStats?.link}
+              >
+                {inviteCopied ? 'Скопировано' : 'Пригласить друга'}
+              </button>
+            </section>
+
+            <section className="referral-steps">
+              <div className="section-title">Награды за приглашённого</div>
+              <div className="referral-steps-grid">
+                {REFERRAL_STEPS.map((step) => (
+                  <div className="referral-step" key={step.label}>
+                    <div className="referral-step-label">{step.label}</div>
+                    <div className="referral-step-value">+{step.reward}</div>
+                    <div className="referral-step-sub">баллов</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="referral-list">
+              <div className="section-title">Прогресс приглашённых</div>
+              {referralListLoading && <div className="referral-status">Загрузка…</div>}
+              {!referralListLoading && referralListError && (
+                <div className="referral-status error">{referralListError}</div>
+              )}
+              {!referralListLoading && !referralListError && referralList.length === 0 && (
+                <div className="referral-status">Пока нет приглашённых.</div>
+              )}
+              {!referralListLoading &&
+                !referralListError &&
+                referralList.map((item) => (
+                  <div className="referral-item" key={item.id}>
+                    <div className="referral-item-head">
+                      <div className="referral-avatar">
+                        <span>{getReferralUserLabel(item.referredUser)[0]}</span>
+                      </div>
+                      <div className="referral-item-info">
+                        <div className="referral-item-name">
+                          {getReferralUserLabel(item.referredUser)}
+                        </div>
+                        <div className="referral-item-sub">
+                          Заказов: {item.completedOrders}/30
+                        </div>
+                      </div>
+                      <div className="referral-item-earned">+{item.earned}</div>
+                    </div>
+                    <div className="referral-progress">
+                      <div
+                        className="referral-progress-bar"
+                        style={{ width: getReferralProgressPercent(item.completedOrders) }}
+                      />
+                    </div>
+                    <div className="referral-milestones">
+                      {REFERRAL_STEPS.map((step) => (
+                        <span
+                          className={`referral-milestone ${
+                            item.completedOrders >= step.orders ? 'active' : ''
+                          }`}
+                          key={`${item.id}-${step.label}`}
+                        >
+                          {step.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
             </section>
           </>
         )}
@@ -1754,7 +1979,7 @@ export default function App() {
         )}
       </div>
 
-      {activeTab !== 'wheel' && (
+      {activeTab !== 'wheel' && activeTab !== 'referrals' && (
         <div className="bottom-nav">
           <button
             className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
