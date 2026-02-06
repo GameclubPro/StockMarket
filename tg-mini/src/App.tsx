@@ -131,6 +131,18 @@ export default function App() {
     (value: number) => calculatePayoutWithBonus(value, rankTier.bonusRate),
     [rankTier.bonusRate]
   );
+  const pendingPayoutTotal = useMemo(() => {
+    const acknowledged = new Set(acknowledgedIds);
+    return applications.reduce((sum, application) => {
+      if (application.status !== 'APPROVED') return sum;
+      if (acknowledged.has(application.campaign.id)) return sum;
+      return sum + calculatePayout(application.campaign.rewardPoints);
+    }, 0);
+  }, [applications, acknowledgedIds, calculatePayout]);
+  const displayPoints = useMemo(
+    () => Math.max(0, points - pendingPayoutTotal),
+    [points, pendingPayoutTotal]
+  );
   const totalBudget = useMemo(() => taskPrice * taskCount, [taskPrice, taskCount]);
   const minPayoutPreview = useMemo(() => calculateBasePayout(taskPrice), [taskPrice]);
   const maxPayoutPreview = useMemo(
@@ -606,12 +618,11 @@ export default function App() {
         true
       );
 
-      balanceValue.classList.remove('balance-pulse');
-      void balanceValue.offsetWidth;
-      balanceValue.classList.add('balance-pulse');
-      window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 750);
-
       Promise.allSettled([cardAnim, badgeAnim]).then(() => {
+        balanceValue.classList.remove('balance-pulse');
+        void balanceValue.offsetWidth;
+        balanceValue.classList.add('balance-pulse');
+        window.setTimeout(() => balanceValue.classList.remove('balance-pulse'), 750);
         finish();
       });
     },
@@ -623,9 +634,9 @@ export default function App() {
       <div className="balance-header-metrics">
         <div className="metric-card compact">
           <span className="metric-value" ref={balanceValueRef}>
-            {points}
+            {displayPoints}
           </span>
-          <span className="metric-unit">{formatPointsLabel(points)}</span>
+          <span className="metric-unit">{formatPointsLabel(displayPoints)}</span>
           <button className="metric-plus" type="button" aria-label="Пополнить баланс">
             +
           </button>
@@ -663,7 +674,7 @@ export default function App() {
       setCreateError('Бюджет слишком большой. Максимум 1 000 000 баллов.');
       return;
     }
-    if (points < totalBudget) {
+    if (displayPoints < totalBudget) {
       setCreateError('Недостаточно баллов для размещения.');
       return;
     }
@@ -749,8 +760,8 @@ export default function App() {
               <div className="stats">
                 <div className="stat divider">
                   <div className="stat-main">
-                    <span className="accent">{points}</span>
-                    <span>{formatPointsLabel(points)}</span>
+                    <span className="accent">{displayPoints}</span>
+                    <span>{formatPointsLabel(displayPoints)}</span>
                   </div>
                   <div className="stat-title">
                     {formatSigned(pointsToday)} {formatPointsLabel(pointsToday)} сегодня
@@ -1054,7 +1065,7 @@ export default function App() {
 
                 <div className="task-form-actions">
                   <div className="balance-pill">
-                    Баланс: {points} {formatPointsLabel(points)}
+                    Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
                   </div>
                   <button
                     className="primary-button"
