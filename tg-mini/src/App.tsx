@@ -93,9 +93,11 @@ export default function App() {
   const [applications, setApplications] = useState<ApplicationDto[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
+  const [applicationsFetched, setApplicationsFetched] = useState(false);
   const [leavingIds, setLeavingIds] = useState<string[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
   const resumeRefreshAtRef = useRef(0);
+  const applicationsRequestedRef = useRef(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
@@ -310,6 +312,7 @@ export default function App() {
       const data = await fetchMyApplications();
       if (data.ok && Array.isArray(data.applications)) {
         setApplications(data.applications);
+        setApplicationsFetched(true);
       } else {
         if (!silent) {
           setApplications([]);
@@ -346,9 +349,15 @@ export default function App() {
   }, [loadCampaigns]);
 
   useEffect(() => {
+    if (applicationsRequestedRef.current) return;
+    applicationsRequestedRef.current = true;
+    void loadMyApplications({ silent: true });
+  }, [loadMyApplications]);
+
+  useEffect(() => {
     if (activeTab !== 'tasks') return;
-    void loadMyApplications();
-  }, [activeTab, loadMyApplications]);
+    void loadMyApplications({ silent: applicationsFetched });
+  }, [activeTab, loadMyApplications, applicationsFetched]);
 
   const refreshTasksOnResume = useCallback(() => {
     const now = Date.now();
