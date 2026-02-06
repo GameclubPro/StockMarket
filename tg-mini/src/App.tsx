@@ -96,6 +96,7 @@ export default function App() {
   const [leavingIds, setLeavingIds] = useState<string[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
   const resumeRefreshAtRef = useRef(0);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
   const balanceValueRef = useRef<HTMLSpanElement | null>(null);
   const historyTabRef = useRef<HTMLButtonElement | null>(null);
@@ -323,9 +324,20 @@ export default function App() {
     const now = Date.now();
     if (now - resumeRefreshAtRef.current < 1200) return;
     resumeRefreshAtRef.current = now;
-    void loadCampaigns();
-    void loadMyApplications();
-    void loadMe();
+    const restoreScrollTop = (target: HTMLDivElement | null, top: number) => {
+      if (!target) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const max = target.scrollHeight - target.clientHeight;
+          target.scrollTop = Math.max(0, Math.min(top, max));
+        });
+      });
+    };
+    const scrollTop = contentRef.current?.scrollTop ?? 0;
+    void (async () => {
+      await Promise.allSettled([loadCampaigns(), loadMyApplications(), loadMe()]);
+      restoreScrollTop(contentRef.current, scrollTop);
+    })();
   }, [loadCampaigns, loadMyApplications, loadMe]);
 
   useEffect(() => {
@@ -691,7 +703,7 @@ export default function App() {
 
   return (
     <div className="screen">
-      <div className="content">
+      <div className="content" ref={contentRef}>
         {activeTab === 'home' && (
           <>
             <section className="profile-card">
