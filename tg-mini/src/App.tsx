@@ -25,6 +25,7 @@ const RANKS = [
 ];
 const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
 const MAX_TASK_PRICE = 50;
+const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
 
 const getRankTier = (totalEarned: number) => {
@@ -74,7 +75,7 @@ export default function App() {
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPrice, setTaskPrice] = useState(10);
-  const [taskCount, setTaskCount] = useState(10);
+  const [taskCount, setTaskCount] = useState(MAX_TASK_COUNT);
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -157,13 +158,14 @@ export default function App() {
     if (!Number.isFinite(taskPrice) || taskPrice <= 0) return 1;
     const byBalance = Math.floor(displayPoints / taskPrice);
     const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPrice);
-    return Math.max(1, Math.min(byBalance, byBudget));
+    return Math.max(1, Math.min(MAX_TASK_COUNT, byBalance, byBudget));
   }, [displayPoints, taskPrice]);
   const minPayoutPreview = useMemo(() => calculateBasePayout(taskPrice), [taskPrice]);
   const maxPayoutPreview = useMemo(
     () => calculatePayoutWithBonus(taskPrice, MAX_BONUS_RATE),
     [taskPrice]
   );
+  const maxCountRef = useRef(maxAffordableCount);
   const activeCampaigns = useMemo(() => {
     const acknowledgedSet = new Set(acknowledgedIds);
     return campaigns.filter((campaign) => {
@@ -227,9 +229,13 @@ export default function App() {
 
   useEffect(() => {
     if (!Number.isFinite(taskCount)) return;
+    const prevMax = maxCountRef.current;
     if (taskCount > maxAffordableCount) {
       setTaskCount(maxAffordableCount);
+    } else if (taskCount === prevMax && prevMax !== maxAffordableCount) {
+      setTaskCount(maxAffordableCount);
     }
+    maxCountRef.current = maxAffordableCount;
   }, [taskCount, maxAffordableCount]);
 
   useEffect(() => {
