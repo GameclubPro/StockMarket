@@ -145,6 +145,26 @@ export default function App() {
       return true;
     });
   }, [applicationsByCampaign, campaigns, userId, acknowledgedIds]);
+
+  const pendingRewardTotal = useMemo(() => {
+    if (acknowledgedIds.length === 0) {
+      return applications.reduce((sum, application) => {
+        if (application.status !== 'APPROVED') return sum;
+        return sum + calculatePayout(application.campaign.rewardPoints);
+      }, 0);
+    }
+    const acknowledgedSet = new Set(acknowledgedIds);
+    return applications.reduce((sum, application) => {
+      if (application.status !== 'APPROVED') return sum;
+      if (acknowledgedSet.has(application.campaign.id)) return sum;
+      return sum + calculatePayout(application.campaign.rewardPoints);
+    }, 0);
+  }, [applications, acknowledgedIds, calculatePayout]);
+
+  const displayPointsInTasks = useMemo(
+    () => Math.max(0, points - pendingRewardTotal),
+    [points, pendingRewardTotal]
+  );
   const visibleCampaigns = useMemo(() => {
     if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
@@ -530,9 +550,13 @@ export default function App() {
   );
 
   const triggerCompletionAnimation = useCallback(
-    (campaignId: string, scoreText: string) => {
-      const card = taskCardRefs.current.get(campaignId);
-      const badge = taskBadgeRefs.current.get(campaignId);
+    (
+      campaignId: string,
+      scoreText: string,
+      nodes?: { card?: HTMLDivElement | null; badge?: HTMLSpanElement | null }
+    ) => {
+      const card = nodes?.card ?? taskCardRefs.current.get(campaignId);
+      const badge = nodes?.badge ?? taskBadgeRefs.current.get(campaignId);
       const historyTab = historyTabRef.current;
       const balanceValue = balanceValueRef.current;
       const finish = () => {
@@ -553,8 +577,7 @@ export default function App() {
       };
 
       if (!card || !badge || !historyTab || !balanceValue) {
-        window.setTimeout(finish, 200);
-        return;
+        return false;
       }
 
       setLeavingIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
@@ -580,18 +603,19 @@ export default function App() {
       Promise.allSettled([cardAnim, badgeAnim]).then(() => {
         finish();
       });
+      return true;
     },
     [animateFlyout]
   );
 
-  const BalanceHeader = () => (
+  const BalanceHeader = ({ value }: { value: number }) => (
     <div className="balance-header">
       <div className="balance-header-metrics">
         <div className="metric-card compact">
           <span className="metric-value" ref={balanceValueRef}>
-            {points}
+            {value}
           </span>
-          <span className="metric-unit">{formatPointsLabel(points)}</span>
+          <span className="metric-unit">{formatPointsLabel(value)}</span>
           <button className="metric-plus" type="button" aria-label="Пополнить баланс">
             +
           </button>
@@ -682,10 +706,41 @@ export default function App() {
     openCampaignLink(campaign);
   };
 
-  const handleConfirmReward = (campaignId: string, scoreValue: number) => {
+  const handleConfirmReward = (
+    campaignId: string,
+    scoreValue: number,
+    sourceElement?: HTMLElement | null,
+    attempt = 0
+  ) => {
     if (animatingOutRef.current.has(campaignId)) return;
-    animatingOutRef.current.add(campaignId);
-    triggerCompletionAnimation(campaignId, String(scoreValue));
+
+    let card = taskCardRefs.current.get(campaignId) ?? null;
+    let badge = taskBadgeRefs.current.get(campaignId) ?? null;
+
+    if ((!card || !badge) && sourceElement) {
+      const cardElement = sourceElement.closest('.task-card') as HTMLDivElement | null;
+      if (cardElement && !card) {
+        card = cardElement;
+        taskCardRefs.current.set(campaignId, cardElement);
+      }
+      const badgeElement = cardElement?.querySelector('.badge.sticker') as HTMLSpanElement | null;
+      if (badgeElement && !badge) {
+        badge = badgeElement;
+        taskBadgeRefs.current.set(campaignId, badgeElement);
+      }
+    }
+
+    const started = triggerCompletionAnimation(campaignId, String(scoreValue), { card, badge });
+    if (started) {
+      animatingOutRef.current.add(campaignId);
+      return;
+    }
+
+    if (attempt < 6) {
+      requestAnimationFrame(() =>
+        handleConfirmReward(campaignId, scoreValue, sourceElement, attempt + 1)
+      );
+    }
   };
 
 
@@ -824,7 +879,7 @@ export default function App() {
 
         {activeTab === 'promo' && (
           <>
-            <BalanceHeader />
+            <BalanceHeader value={points} />
             <div className="segment center">
               <button
                 className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
@@ -1091,7 +1146,7 @@ export default function App() {
 
         {activeTab === 'tasks' && (
           <>
-            <BalanceHeader />
+            <BalanceHeader value={displayPointsInTasks} />
             <div className={`segment filters ${taskTypeFilter}`}>
               <span className="filter-toggle-indicator" aria-hidden="true" />
               <button
@@ -1211,7 +1266,13 @@ export default function App() {
                               <button
                                 className="open-button confirm"
                                 type="button"
-                                onClick={() => handleConfirmReward(campaign.id, payout)}
+                                onClick={(event) =>
+                                  handleConfirmReward(
+                                    campaign.id,
+                                    payout,
+                                    event.currentTarget as HTMLElement
+                                  )
+                                }
                                 aria-label="Подтвердить и получить"
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
