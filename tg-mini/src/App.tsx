@@ -329,6 +329,28 @@ export default function App() {
   const wheelProgressLabel = dailyBonusAvailable
     ? 'Колесо готово к прокрутке'
     : `${dailyBonusTimerLabel} · следующий в ${nextSpinClockLabel}`;
+  const referralMaxRewardPerFriend = useMemo(
+    () => REFERRAL_STEPS.reduce((sum, step) => sum + step.reward, 0),
+    []
+  );
+  const referralInvitedCount = referralStats?.stats.invited ?? 0;
+  const referralEarnedTotal = referralStats?.stats.earned ?? 0;
+  const referralAveragePerFriend =
+    referralInvitedCount > 0 ? Math.round(referralEarnedTotal / referralInvitedCount) : 0;
+  const referralPotentialTotal = referralInvitedCount * referralMaxRewardPerFriend;
+  const referralPotentialProgress =
+    referralPotentialTotal > 0
+      ? Math.min(100, Math.round((referralEarnedTotal / referralPotentialTotal) * 100))
+      : 0;
+  const referralBestOrders = useMemo(
+    () =>
+      referralList.reduce((max, item) => {
+        if (!Number.isFinite(item.completedOrders)) return max;
+        return Math.max(max, Math.max(0, item.completedOrders));
+      }, 0),
+    [referralList]
+  );
+  const referralHasInvites = referralInvitedCount > 0 || referralList.length > 0;
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
@@ -810,6 +832,11 @@ export default function App() {
     if (!Number.isFinite(orders)) return '0%';
     const value = Math.max(0, Math.min(orders, 30));
     return `${Math.round((value / 30) * 100)}%`;
+  };
+
+  const getReferralNextStep = (orders: number) => {
+    const value = Math.max(0, Math.floor(orders));
+    return REFERRAL_STEPS.find((step) => step.orders > value) ?? null;
   };
 
   const resolveGroupId = () => {
@@ -1484,10 +1511,11 @@ export default function App() {
 
             <section className="referral-hero">
               <div className="referral-hero-top">
-                <div>
+                <div className="referral-hero-copy">
+                  <div className="referral-hero-kicker">Referral Pro</div>
                   <div className="referral-hero-title">Приглашайте друзей</div>
                   <div className="referral-hero-sub">
-                    Получайте до 200 баллов с каждого приглашённого.
+                    Получайте до {referralMaxRewardPerFriend} баллов с каждого приглашённого.
                   </div>
                 </div>
                 <div className="referral-hero-art" aria-hidden="true">
@@ -1496,27 +1524,52 @@ export default function App() {
               </div>
 
               {referralLoading && <div className="referral-status">Загрузка…</div>}
-              {!referralLoading && referralStats && (
-                <div className="referral-stats-grid">
-                  <div className="referral-stat">
-                    <div className="referral-stat-label">Приглашено</div>
-                    <div className="referral-stat-value">{referralStats.stats.invited}</div>
-                  </div>
-                  <div className="referral-stat">
-                    <div className="referral-stat-label">Заработано</div>
-                    <div className="referral-stat-value">
-                      {referralStats.stats.earned} баллов
+              {!referralLoading && (
+                <>
+                  <div className="referral-stats-grid">
+                    <div className="referral-stat">
+                      <div className="referral-stat-label">Приглашено</div>
+                      <div className="referral-stat-value">{referralInvitedCount}</div>
+                    </div>
+                    <div className="referral-stat">
+                      <div className="referral-stat-label">Заработано</div>
+                      <div className="referral-stat-value">{referralEarnedTotal}</div>
+                      <div className="referral-stat-sub">баллов</div>
+                    </div>
+                    <div className="referral-stat referral-stat-wide">
+                      <div className="referral-stat-label">Средний доход с приглашённого</div>
+                      <div className="referral-stat-value">
+                        {referralInvitedCount > 0 ? `${referralAveragePerFriend}` : '—'}
+                      </div>
+                      <div className="referral-stat-sub">баллов</div>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {!referralLoading && referralStats && (
-                <div className="referral-link-block">
-                  <div className="referral-link-label">Ваша ссылка</div>
-                  <div className="referral-link">{referralStats.link || 'Ссылка недоступна'}</div>
-                  <div className="referral-code">Код: {referralStats.code}</div>
-                </div>
+                  <div className="referral-goal-block">
+                    <div className="referral-goal-head">
+                      <span>Освоено потенциала</span>
+                      <strong>{referralPotentialProgress}%</strong>
+                    </div>
+                    <div className="referral-goal-track" aria-hidden="true">
+                      <span style={{ width: `${referralPotentialProgress}%` }} />
+                    </div>
+                    <div className="referral-goal-sub">
+                      {referralInvitedCount > 0
+                        ? `${referralEarnedTotal} из ${referralPotentialTotal} баллов`
+                        : 'Пригласите первого друга, чтобы открыть прогресс'}
+                    </div>
+                  </div>
+
+                  <div className="referral-link-block">
+                    <div className="referral-link-label">Ваша ссылка</div>
+                    <div className="referral-link">
+                      {referralStats?.link || 'Ссылка появится после входа в Telegram Mini App'}
+                    </div>
+                    <div className="referral-code">
+                      Код: {referralStats?.code || 'недоступен'}
+                    </div>
+                  </div>
+                </>
               )}
 
               {referralError && <div className="referral-status error">{referralError}</div>}
@@ -1533,10 +1586,21 @@ export default function App() {
 
             <section className="referral-steps">
               <div className="section-title">Награды за приглашённого</div>
+              <div className="section-text">
+                Полный цикл приносит до {referralMaxRewardPerFriend} баллов.
+              </div>
               <div className="referral-steps-grid">
-                {REFERRAL_STEPS.map((step) => (
-                  <div className="referral-step" key={step.label}>
-                    <div className="referral-step-label">{step.label}</div>
+                {REFERRAL_STEPS.map((step, index) => (
+                  <div
+                    className={`referral-step ${
+                      referralHasInvites && step.orders <= referralBestOrders ? 'active' : ''
+                    }`}
+                    key={step.label}
+                  >
+                    <div className="referral-step-top">
+                      <div className="referral-step-index">{index + 1}</div>
+                      <div className="referral-step-label">{step.label}</div>
+                    </div>
                     <div className="referral-step-value">+{step.reward}</div>
                     <div className="referral-step-sub">баллов</div>
                   </div>
@@ -1545,7 +1609,12 @@ export default function App() {
             </section>
 
             <section className="referral-list">
-              <div className="section-title">Прогресс приглашённых</div>
+              <div className="referral-list-head">
+                <div className="section-title">Прогресс приглашённых</div>
+                {!referralListLoading && !referralListError && referralList.length > 0 && (
+                  <div className="referral-list-count">{referralList.length}</div>
+                )}
+              </div>
               {referralListLoading && <div className="referral-status">Загрузка…</div>}
               {!referralListLoading && referralListError && (
                 <div className="referral-status error">{referralListError}</div>
@@ -1555,42 +1624,58 @@ export default function App() {
               )}
               {!referralListLoading &&
                 !referralListError &&
-                referralList.map((item) => (
-                  <div className="referral-item" key={item.id}>
-                    <div className="referral-item-head">
-                      <div className="referral-avatar">
-                        <span>{getReferralUserLabel(item.referredUser)[0]}</span>
-                      </div>
-                      <div className="referral-item-info">
-                        <div className="referral-item-name">
-                          {getReferralUserLabel(item.referredUser)}
+                referralList.map((item) => {
+                  const nextStep = getReferralNextStep(item.completedOrders);
+                  const toNext = nextStep
+                    ? Math.max(0, nextStep.orders - Math.max(0, item.completedOrders))
+                    : 0;
+                  return (
+                    <div className="referral-item" key={item.id}>
+                      <div className="referral-item-head">
+                        <div className="referral-avatar">
+                          <span>{getReferralUserLabel(item.referredUser)[0]}</span>
                         </div>
-                        <div className="referral-item-sub">
-                          Заказов: {item.completedOrders}/30
+                        <div className="referral-item-info">
+                          <div className="referral-item-name">
+                            {getReferralUserLabel(item.referredUser)}
+                          </div>
+                          <div className="referral-item-sub">
+                            Заказов: {item.completedOrders}/30
+                          </div>
+                        </div>
+                        <div className="referral-item-earned">+{item.earned}</div>
+                      </div>
+                      <div className="referral-item-meta">
+                        <div className="referral-item-meta-label">Текущий прогресс</div>
+                        <div className={`referral-item-next ${nextStep ? '' : 'done'}`}>
+                          {nextStep ? `До этапа «${nextStep.label}»: ${toNext}` : 'Этапы завершены'}
                         </div>
                       </div>
-                      <div className="referral-item-earned">+{item.earned}</div>
+                      <div className="referral-progress">
+                        <div
+                          className="referral-progress-bar"
+                          style={{ width: getReferralProgressPercent(item.completedOrders) }}
+                        />
+                      </div>
+                      <div className="referral-progress-scale" aria-hidden="true">
+                        <span>0</span>
+                        <span>30</span>
+                      </div>
+                      <div className="referral-milestones">
+                        {REFERRAL_STEPS.map((step) => (
+                          <span
+                            className={`referral-milestone ${
+                              item.completedOrders >= step.orders ? 'active' : ''
+                            }`}
+                            key={`${item.id}-${step.label}`}
+                          >
+                            {step.label}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="referral-progress">
-                      <div
-                        className="referral-progress-bar"
-                        style={{ width: getReferralProgressPercent(item.completedOrders) }}
-                      />
-                    </div>
-                    <div className="referral-milestones">
-                      {REFERRAL_STEPS.map((step) => (
-                        <span
-                          className={`referral-milestone ${
-                            item.completedOrders >= step.orders ? 'active' : ''
-                          }`}
-                          key={`${item.id}-${step.label}`}
-                        >
-                          {step.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </section>
           </>
         )}
