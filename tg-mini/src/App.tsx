@@ -76,15 +76,6 @@ const formatPointsLabel = (value: number) => {
   if (mod10 >= 2 && mod10 <= 4) return 'балла';
   return 'баллов';
 };
-const formatDayLabel = (value: number) => {
-  const abs = Math.abs(value);
-  const mod100 = abs % 100;
-  if (mod100 >= 11 && mod100 <= 14) return 'дней';
-  const mod10 = abs % 10;
-  if (mod10 === 1) return 'день';
-  if (mod10 >= 2 && mod10 <= 4) return 'дня';
-  return 'дней';
-};
 const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
 const formatCountdown = (ms: number) => {
@@ -235,7 +226,6 @@ export default function App() {
     : dailyBonusAvailable
       ? 'Доступно сейчас'
       : `Доступно через ${formatCountdown(timeLeftMs)}`;
-  const dailyBonusStreak = typeof dailyBonusStatus.streak === 'number' ? dailyBonusStatus.streak : 0;
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
@@ -1075,8 +1065,6 @@ export default function App() {
               </div>
             </div>
 
-            <ProfileCard />
-
             <section className="wheel-card">
               <div className="wheel-wrapper">
                 <div className="wheel-pointer" aria-hidden="true" />
@@ -1116,47 +1104,6 @@ export default function App() {
                 </div>
               )}
               {dailyBonusError && <div className="wheel-error">{dailyBonusError}</div>}
-            </section>
-
-            <section className="invite-card">
-              <div className="invite-art" aria-hidden="true">
-                <div className="invite-gift" />
-                <div className="invite-friends">
-                  <span>+</span>
-                </div>
-              </div>
-              <div className="invite-info">
-                <div className="invite-title">Пригласи друга</div>
-                <div className="invite-sub">Получите до 200 баллов с другом.</div>
-              </div>
-              <button className="invite-button" type="button">
-                Пригласить
-              </button>
-            </section>
-
-            <section className="bonus-stats-grid">
-              <div className="bonus-stat">
-                <div className="bonus-stat-label">Баланс</div>
-                <div className="bonus-stat-value">{displayPoints}</div>
-                <div className="bonus-stat-sub">{formatPointsLabel(displayPoints)}</div>
-              </div>
-              <div className="bonus-stat">
-                <div className="bonus-stat-label">Сегодня заработано</div>
-                <div className="bonus-stat-value">{pointsToday}</div>
-                <div className="bonus-stat-sub">{formatPointsLabel(pointsToday)}</div>
-              </div>
-              <div className="bonus-stat">
-                <div className="bonus-stat-label">Серия дней</div>
-                <div className="bonus-stat-value">{dailyBonusStreak}</div>
-                <div className="bonus-stat-sub">
-                  {formatDayLabel(dailyBonusStreak)} подряд
-                </div>
-              </div>
-              <div className="bonus-stat">
-                <div className="bonus-stat-label">Бонус ранга</div>
-                <div className="bonus-stat-value">+{bonusPercent}%</div>
-                <div className="bonus-stat-sub">получи +5%</div>
-              </div>
             </section>
           </>
         )}
