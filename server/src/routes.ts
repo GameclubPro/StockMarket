@@ -70,6 +70,72 @@ const calculatePayoutWithBonus = (rewardPoints: number, bonusRate: number) => {
   return Math.max(1, Math.min(rewardPoints, base + bonus));
 };
 
+const DAILY_BONUS_REASON = 'Ежедневный бонус';
+const DAILY_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_SEGMENTS = [
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+50', value: 50, weight: 1 },
+  { label: '+15', value: 15, weight: 3 },
+  { label: '+50', value: 50, weight: 1 },
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+20', value: 20, weight: 2 },
+];
+
+const pickDailyBonus = () => {
+  const totalWeight = DAILY_BONUS_SEGMENTS.reduce((sum, item) => sum + item.weight, 0);
+  const roll = Math.random() * totalWeight;
+  let cursor = 0;
+  for (let index = 0; index < DAILY_BONUS_SEGMENTS.length; index += 1) {
+    cursor += DAILY_BONUS_SEGMENTS[index].weight;
+    if (roll <= cursor) {
+      const reward = DAILY_BONUS_SEGMENTS[index];
+      return { index, value: reward.value, label: reward.label };
+    }
+  }
+  const fallback = DAILY_BONUS_SEGMENTS[0];
+  return { index: 0, value: fallback.value, label: fallback.label };
+};
+
+const getDailyBonusWindow = async (tx: Prisma.TransactionClient, userId: string) => {
+  const lastEntry = await tx.ledgerEntry.findFirst({
+    where: { userId, reason: DAILY_BONUS_REASON },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+  const lastSpinAt = lastEntry?.createdAt ?? null;
+  const nextAvailableAt = lastSpinAt
+    ? new Date(lastSpinAt.getTime() + DAILY_BONUS_COOLDOWN_MS)
+    : null;
+  const available = !nextAvailableAt || Date.now() >= nextAvailableAt.getTime();
+  return { available, lastSpinAt, nextAvailableAt };
+};
+
+const calculateDailyBonusStreak = async (tx: Prisma.TransactionClient, userId: string) => {
+  const entries = await tx.ledgerEntry.findMany({
+    where: { userId, reason: DAILY_BONUS_REASON },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+    select: { createdAt: true },
+  });
+  if (!entries.length) return 0;
+  const dayNumbers: number[] = [];
+  for (const entry of entries) {
+    const dayNumber = Math.floor(entry.createdAt.getTime() / DAILY_BONUS_COOLDOWN_MS);
+    if (dayNumbers[dayNumbers.length - 1] !== dayNumber) {
+      dayNumbers.push(dayNumber);
+    }
+  }
+  let streak = 1;
+  for (let i = 1; i < dayNumbers.length; i += 1) {
+    if (dayNumbers[i] === dayNumbers[i - 1] - 1) {
+      streak += 1;
+    } else {
+      break;
+    }
+  }
+  return streak;
+};
+
 const parseMessageLink = (value: string) => {
   const raw = value.trim();
   if (!raw) return null;
@@ -766,6 +832,98 @@ export const registerRoutes = (app: FastifyInstance) => {
             ? error.status
             : 400;
       return reply.code(status).send({ ok: false, error: message });
+    }
+  });
+
+  app.get('/daily-bonus/status', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const [window, streak] = await Promise.all([
+        getDailyBonusWindow(prisma, user.id),
+        calculateDailyBonusStreak(prisma, user.id),
+      ]);
+      return {
+        ok: true,
+        available: window.available,
+        lastSpinAt: window.lastSpinAt ? window.lastSpinAt.toISOString() : null,
+        nextAvailableAt: window.nextAvailableAt ? window.nextAvailableAt.toISOString() : null,
+        cooldownMs: DAILY_BONUS_COOLDOWN_MS,
+        streak,
+      };
+    } catch (error: any) {
+      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    }
+  });
+
+  app.post('/daily-bonus/spin', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const result = await prisma.$transaction(async (tx) => {
+        const window = await getDailyBonusWindow(tx, user.id);
+        if (!window.available) {
+          const cooldownError = new Error('cooldown') as Error & {
+            status?: number;
+            window?: { lastSpinAt: Date | null; nextAvailableAt: Date | null };
+          };
+          cooldownError.status = 429;
+          cooldownError.window = {
+            lastSpinAt: window.lastSpinAt,
+            nextAvailableAt: window.nextAvailableAt,
+          };
+          throw cooldownError;
+        }
+
+        const reward = pickDailyBonus();
+        const spinAt = new Date();
+
+        const updatedUser = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            balance: { increment: reward.value },
+            totalEarned: { increment: reward.value },
+          },
+        });
+
+        await tx.ledgerEntry.create({
+          data: {
+            userId: user.id,
+            type: 'EARN',
+            amount: reward.value,
+            reason: DAILY_BONUS_REASON,
+            createdAt: spinAt,
+          },
+        });
+
+        const nextAvailableAt = new Date(spinAt.getTime() + DAILY_BONUS_COOLDOWN_MS);
+        const streak = await calculateDailyBonusStreak(tx, user.id);
+        return { reward, updatedUser, spinAt, nextAvailableAt, streak };
+      });
+
+      return {
+        ok: true,
+        reward: result.reward,
+        balance: result.updatedUser.balance,
+        totalEarned: result.updatedUser.totalEarned,
+        lastSpinAt: result.spinAt.toISOString(),
+        nextAvailableAt: result.nextAvailableAt.toISOString(),
+        cooldownMs: DAILY_BONUS_COOLDOWN_MS,
+        streak: result.streak,
+      };
+    } catch (error: any) {
+      if (error?.status === 429) {
+        return reply.code(429).send({
+          ok: false,
+          error: 'Бонус еще не доступен.',
+          lastSpinAt: error.window?.lastSpinAt
+            ? error.window.lastSpinAt.toISOString()
+            : null,
+          nextAvailableAt: error.window?.nextAvailableAt
+            ? error.window.nextAvailableAt.toISOString()
+            : null,
+          cooldownMs: DAILY_BONUS_COOLDOWN_MS,
+        });
+      }
+      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
     }
   });
 

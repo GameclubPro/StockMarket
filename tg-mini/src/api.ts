@@ -42,6 +42,24 @@ export type ApplicationDto = {
   applicant?: UserDto;
 };
 
+export type DailyBonusStatus = {
+  available: boolean;
+  lastSpinAt?: string | null;
+  nextAvailableAt?: string | null;
+  cooldownMs?: number;
+  streak?: number;
+};
+
+export type DailyBonusSpin = {
+  reward: { index: number; value: number; label: string };
+  balance: number;
+  totalEarned: number;
+  lastSpinAt: string;
+  nextAvailableAt: string;
+  cooldownMs: number;
+  streak?: number;
+};
+
 const request = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('sessionToken');
   const headers = new Headers(options.headers);
@@ -168,4 +186,14 @@ export const createGroup = async (payload: {
 export const fetchMyGroups = async () => {
   const data = await request('/api/groups/my');
   return data as { ok: boolean; groups: GroupDto[] };
+};
+
+export const fetchDailyBonusStatus = async () => {
+  const data = await request('/api/daily-bonus/status');
+  return data as { ok: boolean } & DailyBonusStatus;
+};
+
+export const spinDailyBonus = async () => {
+  const data = await request('/api/daily-bonus/spin', { method: 'POST' });
+  return data as { ok: boolean } & DailyBonusSpin;
 };

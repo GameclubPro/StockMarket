@@ -3,12 +3,15 @@ import {
   applyCampaign,
   createCampaign,
   fetchCampaigns,
+  fetchDailyBonusStatus,
   fetchMe,
   fetchMyApplications,
   fetchMyCampaigns,
   fetchMyGroups,
+  spinDailyBonus,
   type ApplicationDto,
   type CampaignDto,
+  type DailyBonusStatus,
   type GroupDto,
   verifyInitData,
 } from './api';
@@ -28,6 +31,19 @@ const MIN_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
 const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
+const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
+const DAILY_WHEEL_SEGMENTS = [
+  { label: '+10', value: 10 },
+  { label: '+50', value: 50 },
+  { label: '+15', value: 15 },
+  { label: '+50', value: 50 },
+  { label: '+10', value: 10 },
+  { label: '+20', value: 20 },
+];
+const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
+const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
+const DAILY_WHEEL_SPIN_TURNS = 6;
+const DAILY_WHEEL_SPIN_MS = 4200;
 
 const getRankTier = (totalEarned: number) => {
   let current = RANKS[0];
@@ -60,7 +76,40 @@ const formatPointsLabel = (value: number) => {
   if (mod10 >= 2 && mod10 <= 4) return 'балла';
   return 'баллов';
 };
+const formatDayLabel = (value: number) => {
+  const abs = Math.abs(value);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
+  const mod10 = abs % 10;
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
+};
 const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+
+const formatCountdown = (ms: number) => {
+  if (!Number.isFinite(ms) || ms <= 0) return 'сейчас';
+  const totalSeconds = Math.ceil(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}д ${remHours}ч`;
+  }
+  if (hours > 0) return `${hours}ч ${minutes}м`;
+  if (minutes > 0) return `${minutes}м ${seconds}с`;
+  return `${seconds}с`;
+};
+
+const getWheelTargetRotation = (currentRotation: number, index: number) => {
+  const normalizedCurrent = ((currentRotation % 360) + 360) % 360;
+  const targetAngle = ((DAILY_WHEEL_BASE_ROTATION - index * DAILY_WHEEL_SLICE) % 360 + 360) % 360;
+  const delta =
+    DAILY_WHEEL_SPIN_TURNS * 360 + ((targetAngle - normalizedCurrent + 360) % 360);
+  return currentRotation + delta;
+};
 
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
@@ -69,7 +118,22 @@ export default function App() {
   const [pointsToday] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'settings'>('home');
+  const [activeTab, setActiveTab] = useState<
+    'home' | 'promo' | 'tasks' | 'settings' | 'wheel'
+  >('home');
+  const [dailyBonusStatus, setDailyBonusStatus] = useState<DailyBonusStatus>({
+    available: false,
+    lastSpinAt: null,
+    nextAvailableAt: null,
+    cooldownMs: DAILY_BONUS_FALLBACK_MS,
+    streak: 0,
+  });
+  const [dailyBonusLoading, setDailyBonusLoading] = useState(false);
+  const [dailyBonusError, setDailyBonusError] = useState('');
+  const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
+  const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
@@ -110,6 +174,8 @@ export default function App() {
   const taskBadgeRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
   const acknowledgedKeyRef = useRef('');
   const animatingOutRef = useRef<Set<string>>(new Set());
+  const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
+  const spinTimeoutRef = useRef<number | null>(null);
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -154,6 +220,22 @@ export default function App() {
     () => Math.max(0, points - pendingPayoutTotal),
     [points, pendingPayoutTotal]
   );
+  const nextAvailableAtMs = useMemo(() => {
+    if (!dailyBonusStatus.nextAvailableAt) return null;
+    const parsed = Date.parse(dailyBonusStatus.nextAvailableAt);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [dailyBonusStatus.nextAvailableAt]);
+  const timeLeftMs = useMemo(() => {
+    if (!nextAvailableAtMs) return 0;
+    return Math.max(0, nextAvailableAtMs - clockNow);
+  }, [nextAvailableAtMs, clockNow]);
+  const dailyBonusAvailable = !nextAvailableAtMs || timeLeftMs <= 0;
+  const dailyBonusTimerLabel = dailyBonusLoading
+    ? 'Проверяем доступность...'
+    : dailyBonusAvailable
+      ? 'Доступно сейчас'
+      : `Доступно через ${formatCountdown(timeLeftMs)}`;
+  const dailyBonusStreak = typeof dailyBonusStatus.streak === 'number' ? dailyBonusStatus.streak : 0;
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
@@ -246,6 +328,24 @@ export default function App() {
     };
 
     void loadProfile();
+  }, []);
+
+  useEffect(() => {
+    wheelRotationRef.current = wheelRotation;
+  }, [wheelRotation]);
+
+  useEffect(() => {
+    if (!dailyBonusStatus.nextAvailableAt) return;
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [dailyBonusStatus.nextAvailableAt]);
+
+  useEffect(() => {
+    return () => {
+      if (spinTimeoutRef.current) {
+        window.clearTimeout(spinTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -391,9 +491,39 @@ export default function App() {
     }
   }, []);
 
+  const loadDailyBonusStatus = useCallback(async () => {
+    setDailyBonusError('');
+    setDailyBonusLoading(true);
+    try {
+      const data = await fetchDailyBonusStatus();
+      setDailyBonusStatus({
+        available: Boolean(data.available),
+        lastSpinAt: data.lastSpinAt ?? null,
+        nextAvailableAt: data.nextAvailableAt ?? null,
+        cooldownMs: data.cooldownMs ?? DAILY_BONUS_FALLBACK_MS,
+        streak: typeof data.streak === 'number' ? data.streak : 0,
+      });
+    } catch (error: any) {
+      setDailyBonusError(error?.message ?? 'Не удалось загрузить бонус.');
+    } finally {
+      setDailyBonusLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadDailyBonusStatus();
+  }, [userId, loadDailyBonusStatus]);
+
+  useEffect(() => {
+    if (activeTab !== 'wheel') return;
+    if (!userId) return;
+    void loadDailyBonusStatus();
+  }, [activeTab, userId, loadDailyBonusStatus]);
 
   useEffect(() => {
     if (applicationsRequestedRef.current) return;
@@ -685,6 +815,57 @@ export default function App() {
     [animateFlyout]
   );
 
+  const ProfileCard = () => (
+    <section className="profile-card">
+      <div className="profile-head">
+        <div className="avatar-ring">
+          <div className="avatar">
+            {userPhoto ? (
+              <img src={userPhoto} alt={userLabel} />
+            ) : (
+              <span>{initialLetter}</span>
+            )}
+          </div>
+        </div>
+        <div className="identity">
+          <div className="user-name">{userLabel}</div>
+          <button className="sub" type="button">
+            Пополнить баланс
+          </button>
+        </div>
+      </div>
+      <div className="stats">
+        <div className="stat divider">
+          <div className="stat-main">
+            <span className="accent">{displayPoints}</span>
+            <span>{formatPointsLabel(displayPoints)}</span>
+          </div>
+          <div className="stat-title">
+            {formatSigned(pointsToday)} {formatPointsLabel(pointsToday)} сегодня
+          </div>
+        </div>
+        <div className="stat">
+          <div className="stat-main">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path
+                d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
+                stroke="currentColor"
+              />
+            </svg>
+            <span className="gold">{rankTier.title}</span>
+          </div>
+          <div className="stat-title">Ранг · бонус +{bonusPercent}%</div>
+        </div>
+      </div>
+      <div className="rank-progress">
+        <div className="rank-progress-bar" aria-hidden="true">
+          <span style={{ width: `${progressValue * 100}%` }} />
+        </div>
+        <div className="rank-progress-text">{progressLabel}</div>
+      </div>
+    </section>
+  );
+
   const BalanceHeader = () => (
     <div className="balance-header">
       <div className="balance-header-metrics">
@@ -799,61 +980,184 @@ export default function App() {
     triggerCompletionAnimation(campaignId, String(scoreValue));
   };
 
+  const handleSpinDailyBonus = async () => {
+    if (wheelSpinning || dailyBonusLoading) return;
+    if (!dailyBonusAvailable) return;
+
+    setDailyBonusError('');
+    setWheelResult(null);
+    setWheelSpinning(true);
+
+    try {
+      const data = await spinDailyBonus();
+      if (typeof data.balance === 'number') setPoints(data.balance);
+      if (typeof data.totalEarned === 'number') setTotalEarned(data.totalEarned);
+
+      setDailyBonusStatus({
+        available: false,
+        lastSpinAt: data.lastSpinAt ?? null,
+        nextAvailableAt: data.nextAvailableAt ?? null,
+        cooldownMs: data.cooldownMs ?? DAILY_BONUS_FALLBACK_MS,
+        streak:
+          typeof data.streak === 'number' ? data.streak : dailyBonusStatus.streak ?? 0,
+      });
+
+      const rewardIndex = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
+      const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
+      const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
+      const nextRotation = getWheelTargetRotation(wheelRotationRef.current, rewardIndex);
+      setWheelRotation(nextRotation);
+
+      const result = { label: rewardLabel, value: rewardValue };
+      if (spinTimeoutRef.current) {
+        window.clearTimeout(spinTimeoutRef.current);
+      }
+      spinTimeoutRef.current = window.setTimeout(() => {
+        setWheelSpinning(false);
+        setWheelResult(result);
+      }, DAILY_WHEEL_SPIN_MS);
+    } catch (error: any) {
+      setWheelSpinning(false);
+      setDailyBonusError(error?.message ?? 'Не удалось получить бонус.');
+    }
+  };
+
 
   return (
     <div className="screen">
       <div className="content" ref={contentRef}>
         {activeTab === 'home' && (
           <>
-            <section className="profile-card">
-              <div className="profile-head">
-                <div className="avatar-ring">
-                  <div className="avatar">
-                    {userPhoto ? (
-                      <img src={userPhoto} alt={userLabel} />
-                    ) : (
-                      <span>{initialLetter}</span>
-                    )}
-                  </div>
+            <ProfileCard />
+            <section className="daily-bonus-card">
+              <div className="daily-bonus-top">
+                <div>
+                  <div className="daily-bonus-title">Ежедневный бонус</div>
+                  <div className="daily-bonus-sub">Крутите раз в 24 часа и получайте баллы.</div>
                 </div>
-                <div className="identity">
-                  <div className="user-name">{userLabel}</div>
-                  <button className="sub" type="button">
-                    Пополнить баланс
-                  </button>
-                </div>
+                <div className="daily-bonus-preview" aria-hidden="true" />
               </div>
-              <div className="stats">
-                <div className="stat divider">
-                  <div className="stat-main">
-                    <span className="accent">{displayPoints}</span>
-                    <span>{formatPointsLabel(displayPoints)}</span>
-                  </div>
-                  <div className="stat-title">
-                    {formatSigned(pointsToday)} {formatPointsLabel(pointsToday)} сегодня
-                  </div>
-                </div>
-                <div className="stat">
-                  <div className="stat-main">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <path
-                        d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.3L12 17.8 6.4 20.3l1.1-6.3L3 9.6l6.2-.9L12 3z"
-                        stroke="currentColor"
-                      />
-                    </svg>
-                    <span className="gold">{rankTier.title}</span>
-                  </div>
-                  <div className="stat-title">Ранг · бонус +{bonusPercent}%</div>
-                </div>
+              <button
+                className="daily-bonus-cta"
+                type="button"
+                onClick={() => setActiveTab('wheel')}
+                disabled={dailyBonusLoading}
+              >
+                Получить ежедневный бонус
+              </button>
+              <div className="daily-bonus-timer">{dailyBonusTimerLabel}</div>
+              {dailyBonusError && <div className="daily-bonus-error">{dailyBonusError}</div>}
+            </section>
+          </>
+        )}
+
+        {activeTab === 'wheel' && (
+          <>
+            <div className="page-header bonus-header">
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setActiveTab('home')}
+                aria-label="Назад"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path d="M6 6l12 12" />
+                  <path d="M18 6l-12 12" />
+                </svg>
+              </button>
+              <div className="page-title">Ежедневный бонус</div>
+              <div className="icon-button ghost" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <circle cx="12" cy="5" r="1.2" />
+                  <circle cx="12" cy="12" r="1.2" />
+                  <circle cx="12" cy="19" r="1.2" />
+                </svg>
               </div>
-              <div className="rank-progress">
-                <div className="rank-progress-bar" aria-hidden="true">
-                  <span style={{ width: `${progressValue * 100}%` }} />
+            </div>
+
+            <ProfileCard />
+
+            <section className="wheel-card">
+              <div className="wheel-wrapper">
+                <div className="wheel-pointer" aria-hidden="true" />
+                <div
+                  className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
+                  style={{ transform: `rotate(${wheelRotation}deg)` }}
+                >
+                  {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
+                    const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
+                    return (
+                      <div
+                        key={`${segment.label}-${index}`}
+                        className="wheel-segment"
+                        style={{ transform: `rotate(${angle}deg)` }}
+                      >
+                        <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="rank-progress-text">{progressLabel}</div>
+                <div className="wheel-center" aria-hidden="true" />
               </div>
+              <button
+                className="wheel-cta"
+                type="button"
+                onClick={handleSpinDailyBonus}
+                disabled={wheelSpinning || dailyBonusLoading || !dailyBonusAvailable}
+              >
+                {wheelSpinning ? 'Крутим...' : 'Получить ежедневный бонус'}
+              </button>
+              <div className={`wheel-timer ${dailyBonusAvailable ? 'ready' : ''}`}>
+                {dailyBonusTimerLabel}
+              </div>
+              {wheelResult && (
+                <div className="wheel-result">
+                  Ваш бонус: <strong>{wheelResult.label}</strong>
+                </div>
+              )}
+              {dailyBonusError && <div className="wheel-error">{dailyBonusError}</div>}
             </section>
 
+            <section className="invite-card">
+              <div className="invite-art" aria-hidden="true">
+                <div className="invite-gift" />
+                <div className="invite-friends">
+                  <span>+</span>
+                </div>
+              </div>
+              <div className="invite-info">
+                <div className="invite-title">Пригласи друга</div>
+                <div className="invite-sub">Получите до 200 баллов с другом.</div>
+              </div>
+              <button className="invite-button" type="button">
+                Пригласить
+              </button>
+            </section>
+
+            <section className="bonus-stats-grid">
+              <div className="bonus-stat">
+                <div className="bonus-stat-label">Баланс</div>
+                <div className="bonus-stat-value">{displayPoints}</div>
+                <div className="bonus-stat-sub">{formatPointsLabel(displayPoints)}</div>
+              </div>
+              <div className="bonus-stat">
+                <div className="bonus-stat-label">Сегодня заработано</div>
+                <div className="bonus-stat-value">{pointsToday}</div>
+                <div className="bonus-stat-sub">{formatPointsLabel(pointsToday)}</div>
+              </div>
+              <div className="bonus-stat">
+                <div className="bonus-stat-label">Серия дней</div>
+                <div className="bonus-stat-value">{dailyBonusStreak}</div>
+                <div className="bonus-stat-sub">
+                  {formatDayLabel(dailyBonusStreak)} подряд
+                </div>
+              </div>
+              <div className="bonus-stat">
+                <div className="bonus-stat-label">Бонус ранга</div>
+                <div className="bonus-stat-value">+{bonusPercent}%</div>
+                <div className="bonus-stat-sub">получи +5%</div>
+              </div>
+            </section>
           </>
         )}
 
@@ -1346,51 +1650,53 @@ export default function App() {
         )}
       </div>
 
-      <div className="bottom-nav">
-        <button
-          className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('home')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M3 11l9-7 9 7" />
-            <path d="M5 10v9h5v-5h4v5h5v-9" />
-          </svg>
-          <span>Главная</span>
-        </button>
-        <button
-          className={`nav-item ${activeTab === 'promo' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('promo')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M12 20s-7-4.6-7-10a4 4 0 017-2 4 4 0 017 2c0 5.4-7 10-7 10z" />
-          </svg>
-          <span>Продвижение</span>
-        </button>
-        <button
-          className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('tasks')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <rect x="4" y="5" width="16" height="14" rx="2" />
-            <path d="M8 9h8M8 13h6" />
-          </svg>
-          <span>Задания</span>
-        </button>
-        <button
-          className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('settings')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <circle cx="12" cy="12" r="3.5" />
-            <path d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z" />
-          </svg>
-          <span>Настройки</span>
-        </button>
-      </div>
+      {activeTab !== 'wheel' && (
+        <div className="bottom-nav">
+          <button
+            className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setActiveTab('home')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M3 11l9-7 9 7" />
+              <path d="M5 10v9h5v-5h4v5h5v-9" />
+            </svg>
+            <span>Главная</span>
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'promo' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setActiveTab('promo')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M12 20s-7-4.6-7-10a4 4 0 017-2 4 4 0 017 2c0 5.4-7 10-7 10z" />
+            </svg>
+            <span>Продвижение</span>
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setActiveTab('tasks')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <rect x="4" y="5" width="16" height="14" rx="2" />
+              <path d="M8 9h8M8 13h6" />
+            </svg>
+            <span>Задания</span>
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setActiveTab('settings')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <circle cx="12" cy="12" r="3.5" />
+              <path d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z" />
+            </svg>
+            <span>Настройки</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
