@@ -102,6 +102,7 @@ body::before {
 .content {
   padding: 18px 12px 12px;
   display: grid;
+  grid-auto-rows: max-content;
   gap: 16px;
   align-content: start;
   position: relative;
@@ -671,7 +672,8 @@ body::before {
   box-shadow:
     0 24px 44px rgba(0, 0, 0, 0.45),
     inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   position: relative;
   overflow: hidden;
