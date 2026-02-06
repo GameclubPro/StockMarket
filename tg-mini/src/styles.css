@@ -765,6 +765,7 @@ body::before {
 }
 
 .wheel {
+  --wheel-slice: 60deg;
   width: 100%;
   height: 100%;
   border-radius: 50%;
@@ -786,6 +787,20 @@ body::before {
   display: grid;
   place-items: center;
   transition: transform 4.2s cubic-bezier(0.16, 0.86, 0.2, 1);
+}
+
+.wheel::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from -90deg,
+    rgba(255, 255, 255, 0.55) 0deg 1.2deg,
+    rgba(255, 255, 255, 0) 1.2deg var(--wheel-slice)
+  );
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 .wheel.spinning {
