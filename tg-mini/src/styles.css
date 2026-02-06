@@ -767,16 +767,25 @@ body::before {
 .wheel {
   width: 100%;
   height: 100%;
+  --wheel-segments: 6;
   border-radius: 50%;
-  background: conic-gradient(
-    from -90deg,
-    #ff8a7a,
-    #ffb56d,
-    #7cffb2,
-    #8ad2ff,
-    #b08bff,
-    #ff8a7a
-  );
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 255, 255, 0.35) 0deg,
+      rgba(255, 255, 255, 0.35) 1.1deg,
+      transparent 1.1deg,
+      transparent calc(360deg / var(--wheel-segments))
+    ),
+    conic-gradient(
+      from -90deg,
+      #ff8a7a,
+      #ffb56d,
+      #7cffb2,
+      #8ad2ff,
+      #b08bff,
+      #ff8a7a
+    );
   border: 6px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.45),
@@ -799,6 +808,7 @@ body::before {
   align-items: flex-start;
   justify-content: center;
   pointer-events: none;
+  z-index: 2;
 }
 
 .wheel-segment span {
