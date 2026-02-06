@@ -1068,22 +1068,26 @@ export default function App() {
             <section className="wheel-card">
               <div className="wheel-wrapper">
                 <div className="wheel-pointer" aria-hidden="true" />
-                <div
-                  className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
-                  style={{ transform: `rotate(${wheelRotation}deg)` }}
-                >
-                  {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
-                    const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
-                    return (
-                      <div
-                        key={`${segment.label}-${index}`}
-                        className="wheel-segment"
-                        style={{ transform: `rotate(${angle}deg)` }}
-                      >
-                        <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.label}</span>
-                      </div>
-                    );
-                  })}
+                <div className="wheel-mask" aria-hidden="true">
+                  <div
+                    className={`wheel ${wheelSpinning ? 'spinning' : ''}`}
+                    style={{ transform: `rotate(${wheelRotation}deg)` }}
+                  >
+                    {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
+                      const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
+                      return (
+                        <div
+                          key={`${segment.label}-${index}`}
+                          className="wheel-segment"
+                          style={{ transform: `rotate(${angle}deg)` }}
+                        >
+                          <span style={{ transform: `rotate(${-angle}deg)` }}>
+                            {segment.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="wheel-center" aria-hidden="true" />
               </div>
