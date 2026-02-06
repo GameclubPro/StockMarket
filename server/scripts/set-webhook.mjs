@@ -13,7 +13,13 @@ const params = new URLSearchParams();
 params.set('url', webhookUrl);
 params.set(
   'allowed_updates',
-  JSON.stringify(['my_chat_member', 'message_reaction', 'message_reaction_count', 'chat_member'])
+  JSON.stringify([
+    'my_chat_member',
+    'message_reaction',
+    'message_reaction_count',
+    'chat_member',
+    'message',
+  ])
 );
 if (secret) params.set('secret_token', secret);
 

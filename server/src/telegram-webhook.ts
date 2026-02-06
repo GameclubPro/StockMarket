@@ -61,12 +61,21 @@ type TelegramMessageReactionCountUpdate = {
   reactions?: TelegramReactionCount[];
 };
 
+type TelegramMessage = {
+  message_id: number;
+  date?: number;
+  chat: TelegramChat;
+  from?: TelegramUser;
+  text?: string;
+};
+
 export type TelegramUpdate = {
   update_id: number;
   my_chat_member?: TelegramMyChatMemberUpdate;
   chat_member?: TelegramChatMemberUpdate;
   message_reaction?: TelegramMessageReactionUpdate;
   message_reaction_count?: TelegramMessageReactionCountUpdate;
+  message?: TelegramMessage;
 };
 
 type UpsertGroupPayload = {
@@ -95,12 +104,18 @@ export const handleBotWebhookUpdate = async (
       user: TelegramUser;
       status: TelegramChatMember['status'];
     }) => Promise<void>;
+    handleStartPayload?: (payload: {
+      chatId: number;
+      user: TelegramUser;
+      startParam: string;
+    }) => Promise<void>;
   }
 ) => {
   const payload = update.my_chat_member;
   const reaction = update.message_reaction;
   const reactionCount = update.message_reaction_count;
   const chatMember = update.chat_member;
+  const message = update.message;
 
   if (reaction && reaction.user && reaction.chat) {
     if (reaction.new_reaction && reaction.new_reaction.length > 0) {
@@ -134,6 +149,22 @@ export const handleBotWebhookUpdate = async (
       user: chatMember.new_chat_member.user,
       status,
     });
+  }
+
+  if (message?.text && message.from && message.chat?.type === 'private') {
+    const parts = message.text.trim().split(/\s+/);
+    const commandRaw = parts[0] ?? '';
+    const command = commandRaw.split('@')[0];
+    if (command === '/start') {
+      const param = parts[1] ?? '';
+      if (param) {
+        await deps.handleStartPayload?.({
+          chatId: message.chat.id,
+          user: message.from,
+          startParam: param,
+        });
+      }
+    }
   }
   if (!payload) return { ok: true };
 

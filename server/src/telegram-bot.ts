@@ -156,6 +156,15 @@ export const exportChatInviteLink = async (botToken: string, chatId: string) => 
   return result;
 };
 
+export const sendMessage = async (botToken: string, chatId: string, text: string) => {
+  if (!botToken) throw createBotCheckError('bot_token_missing', 'BOT_TOKEN is missing', 500);
+  const result = await botRequest<{ message_id: number }>(botToken, 'sendMessage', {
+    chat_id: toChatId(chatId),
+    text,
+  });
+  return result;
+};
+
 export const isActiveMemberStatus = (status: ChatMember['status']) =>
   status === 'member' || status === 'administrator' || status === 'creator';
 

@@ -14,6 +14,7 @@ import {
   getChatMemberStatus,
   isActiveMemberStatus,
   isAdminMemberStatus,
+  sendMessage,
 } from './telegram-bot.js';
 import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
@@ -142,6 +143,53 @@ const ensureReferralCodeForUser = async (
     select: { referralCode: true },
   });
   return updated.referralCode ?? code;
+};
+
+const linkReferralByCode = async (
+  tx: Prisma.TransactionClient,
+  payload: { referredUserId: string; referralCode: string; requireNoFirstAuth?: boolean }
+) => {
+  const normalized = normalizeReferralCode(payload.referralCode);
+  if (!isValidReferralCode(normalized)) return null;
+
+  const referred = await tx.user.findUnique({
+    where: { id: payload.referredUserId },
+    select: { id: true, firstAuthAt: true },
+  });
+  if (!referred) return null;
+  if (payload.requireNoFirstAuth && referred.firstAuthAt) return null;
+
+  const existing = await tx.referral.findUnique({
+    where: { referredUserId: payload.referredUserId },
+    select: { id: true },
+  });
+  if (existing) return null;
+
+  const referrer = await tx.user.findUnique({
+    where: { referralCode: normalized },
+    select: { id: true },
+  });
+  if (!referrer || referrer.id === payload.referredUserId) return null;
+
+  const referral = await tx.referral.create({
+    data: {
+      referrerId: referrer.id,
+      referredUserId: payload.referredUserId,
+      completedOrders: 0,
+    },
+  });
+
+  const reward = await awardReferralMilestone(tx, referral, REFERRAL_JOIN_MILESTONE);
+  const referredBonus =
+    reward.referredGranted && REFERRAL_JOIN_MILESTONE.referred > 0
+      ? {
+          amount: REFERRAL_JOIN_MILESTONE.referred,
+          reason:
+            REFERRAL_JOIN_MILESTONE.reasonReferred || REFERRAL_JOIN_MILESTONE.reasonReferrer,
+        }
+      : null;
+
+  return { referral, referredBonus };
 };
 
 const grantReferralReward = async (
@@ -947,6 +995,28 @@ export const registerRoutes = (app: FastifyInstance) => {
             });
           }
         },
+        handleStartPayload: async ({ chatId, user, startParam }) => {
+          const referred = await upsertUser(user);
+          if (referred.firstAuthAt) return;
+          const linked = await prisma.$transaction(async (tx) => {
+            return await linkReferralByCode(tx, {
+              referredUserId: referred.id,
+              referralCode: startParam,
+              requireNoFirstAuth: true,
+            });
+          });
+          if (linked?.referredBonus) {
+            try {
+              await sendMessage(
+                config.botToken,
+                String(chatId),
+                `Вас пригласили! Вы получили +${linked.referredBonus.amount} баллов.`
+              );
+            } catch {
+              // ignore notification errors
+            }
+          }
+        },
       });
       return reply.send(result);
     } catch {
@@ -1014,33 +1084,12 @@ export const registerRoutes = (app: FastifyInstance) => {
       }
 
       if (isFirstAuth && startParam) {
-        const existingReferral = await tx.referral.findUnique({
-          where: { referredUserId: current.id },
-          select: { id: true },
+        const linked = await linkReferralByCode(tx, {
+          referredUserId: current.id,
+          referralCode: startParam,
         });
-        if (!existingReferral) {
-          const referrer = await tx.user.findUnique({
-            where: { referralCode: startParam },
-            select: { id: true },
-          });
-          if (referrer && referrer.id !== current.id) {
-            const referral = await tx.referral.create({
-              data: {
-                referrerId: referrer.id,
-                referredUserId: current.id,
-                completedOrders: 0,
-              },
-            });
-            const reward = await awardReferralMilestone(tx, referral, REFERRAL_JOIN_MILESTONE);
-            if (reward.referredGranted && REFERRAL_JOIN_MILESTONE.referred > 0) {
-              referralBonus = {
-                amount: REFERRAL_JOIN_MILESTONE.referred,
-                reason:
-                  REFERRAL_JOIN_MILESTONE.reasonReferred ||
-                  REFERRAL_JOIN_MILESTONE.reasonReferrer,
-              };
-            }
-          }
+        if (linked?.referredBonus) {
+          referralBonus = linked.referredBonus;
         }
       }
 
@@ -1110,7 +1159,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         try {
           const bot = await getBotInfo(config.botToken);
           if (bot?.username) {
-            link = `https://t.me/${bot.username}?startapp=${code}`;
+            link = `https://t.me/${bot.username}?start=${code}`;
           }
         } catch {
           // ignore bot lookup errors
