@@ -38,20 +38,36 @@ const initViewportFullscreen = () => {
           ? stableHeight
           : 0;
 
-    if (baseHeight > 0) {
-      const topOffset = Math.max(0, Math.min(88, Math.round(window.innerHeight - baseHeight)));
-      root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
-    }
-
+    const safeTop = Number(tg.safeAreaInset?.top);
+    const contentTop = Number(tg.contentSafeAreaInset?.top);
     const safeBottom = Number(tg.safeAreaInset?.bottom);
     const contentBottom = Number(tg.contentSafeAreaInset?.bottom);
-    const bottomOffset = Number.isFinite(safeBottom)
-      ? safeBottom
-      : Number.isFinite(contentBottom)
-        ? contentBottom
-        : 0;
+    const topFromInsets = Math.max(
+      Number.isFinite(safeTop) ? safeTop : 0,
+      Number.isFinite(contentTop) ? contentTop : 0
+    );
+    const bottomFromInsets = Math.max(
+      Number.isFinite(safeBottom) ? safeBottom : 0,
+      Number.isFinite(contentBottom) ? contentBottom : 0
+    );
+
+    // Some Telegram Android builds return 0 top inset while still drawing header controls
+    // above the webview. Reserve a safe fallback so UI never overlaps system buttons.
+    const headerFallback = topFromInsets > 0 ? 0 : tg.isFullscreen ? 20 : 52;
+
+    if (baseHeight > 0) {
+      const viewportDelta = Math.max(0, Math.round(window.innerHeight - baseHeight));
+      const topOffset = Math.max(headerFallback, Math.min(88, viewportDelta));
+      root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
+    } else {
+      root.style.setProperty('--tg-legacy-top-offset', `${headerFallback}px`);
+    }
+
+    const bottomOffset = bottomFromInsets;
     if (bottomOffset > 0) {
       root.style.setProperty('--tg-legacy-bottom-offset', `${Math.round(bottomOffset)}px`);
+    } else {
+      root.style.setProperty('--tg-legacy-bottom-offset', '0px');
     }
   };
 
