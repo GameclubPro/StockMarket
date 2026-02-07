@@ -52,8 +52,8 @@ const initViewportFullscreen = () => {
     );
 
     // Some Telegram Android builds return 0 top inset while still drawing header controls
-    // above the webview. Reserve a safe fallback so UI never overlaps system buttons.
-    const headerFallback = topFromInsets > 0 ? 0 : tg.isFullscreen ? 20 : 52;
+    // above the webview. Reserve a stronger fallback so UI never overlaps system buttons.
+    const headerFallback = topFromInsets > 0 ? 0 : tg.isFullscreen ? 68 : 52;
 
     if (baseHeight > 0) {
       const viewportDelta = Math.max(0, Math.round(window.innerHeight - baseHeight));
@@ -134,6 +134,18 @@ const initViewportFullscreen = () => {
     bindVars();
     expandToFullscreen();
   });
+
+  try {
+    const tg = (window as any)?.Telegram?.WebApp;
+    if (tg?.onEvent) {
+      tg.onEvent('viewportChanged', syncLegacyViewportOffsets);
+      tg.onEvent('safeAreaChanged', syncLegacyViewportOffsets);
+      tg.onEvent('contentSafeAreaChanged', syncLegacyViewportOffsets);
+      tg.onEvent('fullscreenChanged', syncLegacyViewportOffsets);
+    }
+  } catch {
+    // noop
+  }
 
   try {
     window.addEventListener('resize', syncLegacyViewportOffsets, { passive: true });
