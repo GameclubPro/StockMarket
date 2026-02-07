@@ -51,17 +51,23 @@ const initViewportFullscreen = () => {
       Number.isFinite(contentBottom) ? contentBottom : 0
     );
 
-    // Some Telegram Android builds return 0 top inset while still drawing header controls
-    // above the webview. Reserve a stronger fallback so UI never overlaps system buttons.
-    const headerFallback = topFromInsets > 0 ? 0 : tg.isFullscreen ? 68 : 52;
+    const isFullscreen = Boolean(tg.isFullscreen);
+    const viewportDelta =
+      baseHeight > 0 ? Math.max(0, Math.round(window.innerHeight - baseHeight)) : 0;
 
-    if (baseHeight > 0) {
-      const viewportDelta = Math.max(0, Math.round(window.innerHeight - baseHeight));
-      const topOffset = Math.max(headerFallback, Math.min(88, viewportDelta));
-      root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
-    } else {
-      root.style.setProperty('--tg-legacy-top-offset', `${headerFallback}px`);
-    }
+    // Telegram can provide status-bar inset only (e.g. 20-28px) while header controls are
+    // still overlaid on top of the webview. Add a separate overlay offset only in this case.
+    const expectedHeaderHeight = isFullscreen ? 46 : 34;
+    const hasHeaderInInsets = topFromInsets >= expectedHeaderHeight + 10;
+    const hasHeaderInViewportDelta = viewportDelta >= expectedHeaderHeight - 4;
+    const headerOverlayOffset = hasHeaderInInsets || hasHeaderInViewportDelta
+      ? 0
+      : expectedHeaderHeight;
+    root.style.setProperty('--tg-header-overlay-offset', `${headerOverlayOffset}px`);
+
+    const statusFloor = Math.max(topFromInsets, isFullscreen ? 20 : 16);
+    const topOffset = Math.max(statusFloor, Math.min(88, viewportDelta));
+    root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
 
     const bottomOffset = bottomFromInsets;
     if (bottomOffset > 0) {
