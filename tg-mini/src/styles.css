@@ -3578,7 +3578,7 @@ body::before {
 }
 
 .content {
-  padding: calc(18px + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px)) 12px 12px;
+  padding: calc(26px + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px)) 12px 12px;
   overscroll-behavior: contain;
 }
 
