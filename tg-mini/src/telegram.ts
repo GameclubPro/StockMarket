@@ -1,4 +1,14 @@
-import { init, initData, miniApp, retrieveLaunchParams, themeParams } from '@telegram-apps/sdk';
+import {
+  bindViewportCssVars,
+  expandViewport,
+  init,
+  initData,
+  miniApp,
+  mountViewport,
+  requestFullscreen,
+  retrieveLaunchParams,
+  themeParams,
+} from '@telegram-apps/sdk';
 
 type User = {
   username?: string;
@@ -8,6 +18,49 @@ type User = {
 };
 
 let initialized = false;
+
+const initViewportFullscreen = () => {
+  const bindVars = () => {
+    try {
+      if (bindViewportCssVars.isAvailable?.()) bindViewportCssVars();
+    } catch {
+      // noop
+    }
+  };
+
+  const expandToFullscreen = () => {
+    try {
+      if (expandViewport.isAvailable?.()) expandViewport();
+    } catch {
+      // noop
+    }
+
+    try {
+      if (requestFullscreen.isAvailable?.()) {
+        void requestFullscreen();
+      }
+    } catch {
+      // noop
+    }
+  };
+
+  try {
+    if (mountViewport.isAvailable?.()) {
+      void mountViewport()
+        .catch(() => undefined)
+        .finally(() => {
+          bindVars();
+          expandToFullscreen();
+        });
+      return;
+    }
+  } catch {
+    // noop
+  }
+
+  bindVars();
+  expandToFullscreen();
+};
 
 export const isTelegram = () => {
   try {
@@ -110,6 +163,8 @@ export const initTelegram = () => {
   } catch {
     // noop
   }
+
+  initViewportFullscreen();
 
   try {
     if (typeof initData.restore === 'function') initData.restore();
