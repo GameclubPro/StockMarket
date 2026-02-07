@@ -3525,21 +3525,27 @@ body::before {
 :root {
   --tg-safe-top: max(
     env(safe-area-inset-top, 0px),
+    var(--tg-legacy-top-offset, 0px),
+    var(--tg-viewport-safe-area-inset-top, 0px),
     var(--tg-viewport-content-safe-area-inset-top, 0px)
   );
   --tg-safe-right: max(
     env(safe-area-inset-right, 0px),
+    var(--tg-viewport-safe-area-inset-right, 0px),
     var(--tg-viewport-content-safe-area-inset-right, 0px)
   );
   --tg-safe-bottom: max(
     env(safe-area-inset-bottom, 0px),
+    var(--tg-legacy-bottom-offset, 0px),
+    var(--tg-viewport-safe-area-inset-bottom, 0px),
     var(--tg-viewport-content-safe-area-inset-bottom, 0px)
   );
   --tg-safe-left: max(
     env(safe-area-inset-left, 0px),
+    var(--tg-viewport-safe-area-inset-left, 0px),
     var(--tg-viewport-content-safe-area-inset-left, 0px)
   );
-  --tg-app-height: var(--tg-viewport-stable-height, 100dvh);
+  --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
 }
 
 html,
@@ -3572,12 +3578,12 @@ body::before {
 }
 
 .content {
-  padding: calc(14px + var(--tg-safe-top)) 12px 12px;
+  padding: calc(18px + var(--tg-safe-top)) 12px 12px;
   overscroll-behavior: contain;
 }
 
 .bottom-nav {
-  padding: 10px 12px calc(12px + var(--tg-safe-bottom));
+  padding: 10px 12px calc(16px + var(--tg-safe-bottom));
   backdrop-filter: blur(14px);
 }
 

@@ -5,7 +5,9 @@ import {
   initData,
   miniApp,
   mountViewport,
+  requestContentSafeAreaInsets,
   requestFullscreen,
+  requestSafeAreaInsets,
   retrieveLaunchParams,
   themeParams,
 } from '@telegram-apps/sdk';
@@ -20,12 +22,65 @@ type User = {
 let initialized = false;
 
 const initViewportFullscreen = () => {
+  const syncLegacyViewportOffsets = () => {
+    if (typeof document === 'undefined') return;
+
+    const root = document.documentElement;
+    const tg = (window as any)?.Telegram?.WebApp;
+    if (!root || !tg) return;
+
+    const viewportHeight = Number(tg.viewportHeight);
+    const stableHeight = Number(tg.viewportStableHeight);
+    const baseHeight =
+      Number.isFinite(viewportHeight) && viewportHeight > 0
+        ? viewportHeight
+        : Number.isFinite(stableHeight) && stableHeight > 0
+          ? stableHeight
+          : 0;
+
+    if (baseHeight > 0) {
+      const topOffset = Math.max(0, Math.min(88, Math.round(window.innerHeight - baseHeight)));
+      root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
+    }
+
+    const safeBottom = Number(tg.safeAreaInset?.bottom);
+    const contentBottom = Number(tg.contentSafeAreaInset?.bottom);
+    const bottomOffset = Number.isFinite(safeBottom)
+      ? safeBottom
+      : Number.isFinite(contentBottom)
+        ? contentBottom
+        : 0;
+    if (bottomOffset > 0) {
+      root.style.setProperty('--tg-legacy-bottom-offset', `${Math.round(bottomOffset)}px`);
+    }
+  };
+
+  const requestInsets = async () => {
+    try {
+      if (requestSafeAreaInsets.isAvailable?.()) {
+        await requestSafeAreaInsets();
+      }
+    } catch {
+      // noop
+    }
+
+    try {
+      if (requestContentSafeAreaInsets.isAvailable?.()) {
+        await requestContentSafeAreaInsets();
+      }
+    } catch {
+      // noop
+    }
+  };
+
   const bindVars = () => {
     try {
       if (bindViewportCssVars.isAvailable?.()) bindViewportCssVars();
     } catch {
       // noop
     }
+
+    syncLegacyViewportOffsets();
   };
 
   const expandToFullscreen = () => {
@@ -48,6 +103,7 @@ const initViewportFullscreen = () => {
     if (mountViewport.isAvailable?.()) {
       void mountViewport()
         .catch(() => undefined)
+        .then(() => requestInsets())
         .finally(() => {
           bindVars();
           expandToFullscreen();
@@ -58,8 +114,16 @@ const initViewportFullscreen = () => {
     // noop
   }
 
-  bindVars();
-  expandToFullscreen();
+  void requestInsets().finally(() => {
+    bindVars();
+    expandToFullscreen();
+  });
+
+  try {
+    window.addEventListener('resize', syncLegacyViewportOffsets, { passive: true });
+  } catch {
+    // noop
+  }
 };
 
 export const isTelegram = () => {
