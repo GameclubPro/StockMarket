@@ -1549,59 +1549,57 @@ body::before {
 .wheel-segment::before {
   content: '';
   position: absolute;
-  top: 8%;
+  top: 7%;
   left: 50%;
   width: 2px;
-  height: 45%;
+  height: 48%;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: linear-gradient(180deg, #d7ffe8 0%, #80cead 45%, #24535f 100%);
+  background: linear-gradient(180deg, #effff7 0%, #9fd4c2 44%, #355f71 100%);
   box-shadow:
-    0 0 6px #72c9aa,
+    0 0 5px #9dd6bf,
     0 8px 12px #071a29;
 }
 
 .wheel-segment:nth-child(even)::before {
-  background: linear-gradient(180deg, #e4fff0 0%, #89d5b3 45%, #2a5962 100%);
+  background: linear-gradient(180deg, #f1f8ff 0%, #9bb9d6 44%, #355174 100%);
 }
 
 .wheel-segment::after {
   content: '';
   position: absolute;
-  top: 10%;
+  top: 9%;
   left: 50%;
-  width: 46%;
-  height: 44%;
+  width: 50%;
+  height: 50%;
   transform: translateX(-50%);
-  clip-path: polygon(50% 100%, 14% 0, 86% 0);
-  background: linear-gradient(180deg, #97e7c8 0%, #5ea88d 44%, #2a5a63 100%);
-  border: 1px solid #9bdfc2;
+  clip-path: polygon(50% 100%, 18% 0, 82% 0);
+  background: linear-gradient(180deg, #cbffe8 0%, #9fddc5 28%, #558c90 62%, #2e5466 100%);
+  border: 1px solid #c5f4e3;
   box-shadow:
-    inset 0 1px 0 #ebfff4,
-    inset 0 -8px 10px #214a58,
-    0 2px 7px #081d2b;
+    inset 0 1px 0 #f3fff9,
+    inset 0 -12px 16px #1f4252,
+    inset 8px 0 10px #3f787d,
+    inset -8px 0 10px #2f626a,
+    0 3px 9px #081d2b;
 }
 
 .wheel-segment:nth-child(even)::after {
-  background: linear-gradient(180deg, #5f7da0 0%, #385172 44%, #1f3551 100%);
-  border-color: #8eb3cc;
-}
-
-.wheel-segment:nth-child(4n + 1)::after {
-  background: linear-gradient(180deg, #9cebc9 0%, #63ad90 44%, #2b5f68 100%);
-  border-color: #a7e6cb;
-}
-
-.wheel-segment:nth-child(4n + 3)::after {
-  background: linear-gradient(180deg, #a38fbf 0%, #6f648f 44%, #3b385f 100%);
-  border-color: #b3a5cf;
+  background: linear-gradient(180deg, #cee3ff 0%, #a6c2df 28%, #5b7a9f 62%, #324c6d 100%);
+  border-color: #c5dcf4;
+  box-shadow:
+    inset 0 1px 0 #f4f9ff,
+    inset 0 -12px 16px #243e5f,
+    inset 8px 0 10px #6587ae,
+    inset -8px 0 10px #4b6f96,
+    0 3px 9px #081d2b;
 }
 
 .wheel-value {
   position: relative;
   z-index: 2;
-  margin-top: 20px;
-  font-size: clamp(22px, 5.2vw, 31px);
+  margin-top: 22px;
+  font-size: clamp(23px, 5.4vw, 32px);
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.35px;
@@ -1620,12 +1618,14 @@ body::before {
 }
 
 .wheel-segment.winner::after {
-  background: linear-gradient(180deg, #c3ffe9 0%, #83d8b8 50%, #377374 100%);
-  border: 1px solid #d8fff0;
+  background: linear-gradient(180deg, #e4fff3 0%, #b8efd8 30%, #69b8a2 62%, #356874 100%);
+  border: 1px solid #e9fff6;
   box-shadow:
-    inset 0 1px 0 #f3fff9,
-    inset 0 -10px 14px #2a5d68,
-    0 0 12px #5ac39d;
+    inset 0 1px 0 #f8fffb,
+    inset 0 -12px 16px #2c5765,
+    inset 8px 0 10px #72c5ad,
+    inset -8px 0 10px #4d8b8f,
+    0 0 14px #7dd8b6;
   animation: wheelWinnerFacet 800ms ease-out 2;
 }
 
