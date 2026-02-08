@@ -3546,6 +3546,7 @@ body::before {
     var(--tg-viewport-content-safe-area-inset-left, 0px)
   );
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
+  --tg-top-ui-gap: 10px;
 }
 
 html,
@@ -3578,7 +3579,8 @@ body::before {
 }
 
 .content {
-  padding: calc(26px + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px)) 12px 12px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px))
+    12px 12px;
   overscroll-behavior: contain;
 }
 
@@ -3617,18 +3619,19 @@ body::before {
 
 /* Home quality pass: tighter hierarchy, calmer glow, richer iconography */
 .content.home-content {
-  padding: calc(14px + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px)) 12px 8px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top) + var(--tg-header-overlay-offset, 0px))
+    12px 8px;
   gap: 8px;
 }
 
 .balance-header,
 .tabs-row,
 .segment.filters {
-  margin-top: calc(var(--tg-header-overlay-offset, 0px) * 0.4);
+  margin-top: 0;
 }
 
 .page-header {
-  margin-top: calc(var(--tg-header-overlay-offset, 0px) * 0.65);
+  margin-top: 0;
 }
 
 .profile-card {
@@ -3895,11 +3898,11 @@ body::before {
   .balance-header,
   .tabs-row,
   .segment.filters {
-    margin-top: calc(var(--tg-header-overlay-offset, 0px) * 0.35);
+    margin-top: 0;
   }
 
   .page-header {
-    margin-top: calc(var(--tg-header-overlay-offset, 0px) * 0.55);
+    margin-top: 0;
   }
 
   .invite-card-compact {
