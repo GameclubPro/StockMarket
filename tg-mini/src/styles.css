@@ -3548,7 +3548,7 @@ body::before {
     var(--tg-viewport-content-safe-area-inset-left, 0px)
   );
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
-  --tg-top-ui-gap: 20px;
+  --tg-top-ui-gap: 28px;
 }
 
 html,
