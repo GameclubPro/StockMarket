@@ -112,6 +112,7 @@ const usage = `
   --afterDir <path>  Папка after PNG (compare mode)
   --diffDir <path>   Папка diff PNG (compare mode)
   --mismatchThresholdPct <n> Порог расхождения, % (compare mode, default: ${DEFAULT_MISMATCH_THRESHOLD_PCT})
+  --noClean          Не очищать старые PNG перед screenshot/compare
   --headful          Запуск Chromium с UI
   --noMockApi        Отключить API-моки и использовать реальный backend
 `;
@@ -182,6 +183,7 @@ function parseConfig(mode, rawArgs) {
     rawArgs.mismatchThresholdPct,
     DEFAULT_MISMATCH_THRESHOLD_PCT
   );
+  const cleanOutput = !(rawArgs.noClean === true || rawArgs.noClean === 'true');
   const headful = rawArgs.headful === true || rawArgs.headful === 'true';
   const mockApi = !(rawArgs.noMockApi === true || rawArgs.noMockApi === 'true');
   const outDirDefault = `.logs/design-after-${width}x${height}`;
@@ -205,6 +207,7 @@ function parseConfig(mode, rawArgs) {
     tgMainButtonPx,
     tgMainButtonGapPx,
     telegramChrome,
+    cleanOutput,
     mismatchThresholdPct,
     headful,
     mockApi,
@@ -969,8 +972,17 @@ function buildScreenFileName(screenId, width, height) {
   return `${screenId}-${width}x${height}.png`;
 }
 
+async function resetOutputDir(dirPath) {
+  await fs.rm(dirPath, { recursive: true, force: true });
+  await fs.mkdir(dirPath, { recursive: true });
+}
+
 async function runScreenshotMode(page, config) {
-  await fs.mkdir(config.outDir, { recursive: true });
+  if (config.cleanOutput) {
+    await resetOutputDir(config.outDir);
+  } else {
+    await fs.mkdir(config.outDir, { recursive: true });
+  }
 
   await runFlow(page, config.waitMs, async (screenId) => {
     const file = path.join(config.outDir, buildScreenFileName(screenId, config.width, config.height));
@@ -1240,7 +1252,11 @@ async function runCompareMode(config) {
   let diffPercentSum = 0;
   let diffPercentCount = 0;
 
-  await fs.mkdir(config.diffDir, { recursive: true });
+  if (config.cleanOutput) {
+    await resetOutputDir(config.diffDir);
+  } else {
+    await fs.mkdir(config.diffDir, { recursive: true });
+  }
 
   for (const fileName of matched) {
     const baselineFile = path.join(config.baselineDir, fileName);

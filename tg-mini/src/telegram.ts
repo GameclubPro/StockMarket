@@ -22,7 +22,37 @@ type User = {
 let initialized = false;
 
 const initViewportFullscreen = () => {
-  const syncLegacyViewportOffsets = () => {
+  const setInsetVars = (topPx: number, bottomPx: number) => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (!root) return;
+
+    const roundedTop = Math.max(0, Math.round(topPx));
+    const roundedBottom = Math.max(0, Math.round(bottomPx));
+
+    root.style.setProperty('--tg-top-reserved', `${roundedTop}px`);
+    root.style.setProperty('--tg-bottom-reserved', `${roundedBottom}px`);
+
+    // Backward-compatible vars for existing styles/tools.
+    root.style.setProperty('--tg-header-overlay-offset', '0px');
+    root.style.setProperty('--tg-legacy-top-offset', `${roundedTop}px`);
+    root.style.setProperty('--tg-legacy-bottom-offset', `${roundedBottom}px`);
+  };
+
+  const setConservativeFallbackInsets = () => {
+    const tg = (window as any)?.Telegram?.WebApp;
+    const isFullscreen = Boolean(tg?.isFullscreen);
+    const fallbackTop = isFullscreen ? 46 : 34;
+    setInsetVars(fallbackTop, 0);
+  };
+
+  const readInset = (value: unknown) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, numeric);
+  };
+
+  const syncViewportInsets = () => {
     if (typeof document === 'undefined') return;
 
     const root = document.documentElement;
@@ -38,49 +68,36 @@ const initViewportFullscreen = () => {
           ? stableHeight
           : 0;
 
-    const safeTop = Number(tg.safeAreaInset?.top);
-    const contentTop = Number(tg.contentSafeAreaInset?.top);
-    const safeBottom = Number(tg.safeAreaInset?.bottom);
-    const contentBottom = Number(tg.contentSafeAreaInset?.bottom);
     const topFromInsets = Math.max(
-      Number.isFinite(safeTop) ? safeTop : 0,
-      Number.isFinite(contentTop) ? contentTop : 0
+      readInset(tg.contentSafeAreaInset?.top),
+      readInset(tg.safeAreaInset?.top)
     );
     const bottomFromInsets = Math.max(
-      Number.isFinite(safeBottom) ? safeBottom : 0,
-      Number.isFinite(contentBottom) ? contentBottom : 0
+      readInset(tg.contentSafeAreaInset?.bottom),
+      readInset(tg.safeAreaInset?.bottom)
     );
 
     const isFullscreen = Boolean(tg.isFullscreen);
     const viewportDelta =
       baseHeight > 0 ? Math.max(0, Math.round(window.innerHeight - baseHeight)) : 0;
+    const expectedTopControls = isFullscreen ? 46 : 34;
+    const topFromDelta = Math.max(0, Math.min(88, viewportDelta));
 
-    // Telegram can provide status-bar inset only (e.g. 20-28px) while header controls are
-    // still overlaid on top of the webview. Add a separate overlay offset only in this case.
-    const expectedHeaderHeight = isFullscreen ? 46 : 34;
-    const hasHeaderInInsets = topFromInsets >= expectedHeaderHeight + 10;
-    const hasHeaderInViewportDelta = viewportDelta >= expectedHeaderHeight - 4;
-    const headerOverlayOffset = hasHeaderInInsets || hasHeaderInViewportDelta
-      ? 0
-      : expectedHeaderHeight;
-    root.style.setProperty('--tg-header-overlay-offset', `${headerOverlayOffset}px`);
+    // Use content safe insets first, fallback to viewport delta, and keep a conservative floor
+    // for Telegram top controls to avoid overlap in fullscreen edge-cases.
+    const topReserve = Math.max(topFromInsets, topFromDelta, expectedTopControls);
 
-    const statusFloor = Math.max(topFromInsets, isFullscreen ? 20 : 16);
-    const topOffset = Math.max(statusFloor, Math.min(88, viewportDelta));
-    root.style.setProperty('--tg-legacy-top-offset', `${topOffset}px`);
+    const mainButtonVisible = Boolean(tg.MainButton?.isVisible);
+    const mainButtonReserve = mainButtonVisible ? 62 : 0;
+    const bottomReserve = Math.max(bottomFromInsets, mainButtonReserve);
 
-    const bottomOffset = bottomFromInsets;
-    if (bottomOffset > 0) {
-      root.style.setProperty('--tg-legacy-bottom-offset', `${Math.round(bottomOffset)}px`);
-    } else {
-      root.style.setProperty('--tg-legacy-bottom-offset', '0px');
-    }
+    setInsetVars(topReserve, bottomReserve);
   };
 
   const scheduleSync = () => {
     if (typeof window === 'undefined') return;
-    [0, 120, 360, 800].forEach((delay) => {
-      window.setTimeout(syncLegacyViewportOffsets, delay);
+    [0, 120, 360, 800, 1600, 3000].forEach((delay) => {
+      window.setTimeout(syncViewportInsets, delay);
     });
   };
 
@@ -109,7 +126,7 @@ const initViewportFullscreen = () => {
       // noop
     }
 
-    syncLegacyViewportOffsets();
+    syncViewportInsets();
   };
 
   const expandToFullscreen = () => {
@@ -137,21 +154,22 @@ const initViewportFullscreen = () => {
   try {
     const tg = (window as any)?.Telegram?.WebApp;
     if (tg?.onEvent) {
-      tg.onEvent('viewportChanged', syncLegacyViewportOffsets);
-      tg.onEvent('safeAreaChanged', syncLegacyViewportOffsets);
-      tg.onEvent('contentSafeAreaChanged', syncLegacyViewportOffsets);
-      tg.onEvent('fullscreenChanged', syncLegacyViewportOffsets);
+      tg.onEvent('viewportChanged', syncViewportInsets);
+      tg.onEvent('safeAreaChanged', syncViewportInsets);
+      tg.onEvent('contentSafeAreaChanged', syncViewportInsets);
+      tg.onEvent('fullscreenChanged', syncViewportInsets);
     }
   } catch {
     // noop
   }
 
   try {
-    window.addEventListener('resize', syncLegacyViewportOffsets, { passive: true });
+    window.addEventListener('resize', syncViewportInsets, { passive: true });
   } catch {
     // noop
   }
 
+  setConservativeFallbackInsets();
   scheduleSync();
 
   void (async () => {

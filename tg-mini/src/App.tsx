@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCampaign,
   createCampaign,
@@ -421,8 +421,11 @@ export default function App() {
     return trimmed ? trimmed[0].toUpperCase() : 'A';
   }, [userLabel]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     initTelegram();
+  }, []);
+
+  useEffect(() => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
 
