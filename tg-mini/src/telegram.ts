@@ -42,7 +42,7 @@ const initViewportFullscreen = () => {
   const setConservativeFallbackInsets = () => {
     const tg = (window as any)?.Telegram?.WebApp;
     const isFullscreen = Boolean(tg?.isFullscreen);
-    const fallbackTop = isFullscreen ? 46 : 34;
+    const fallbackTop = isFullscreen ? 64 : 34;
     setInsetVars(fallbackTop, 0);
   };
 
@@ -80,12 +80,14 @@ const initViewportFullscreen = () => {
     const isFullscreen = Boolean(tg.isFullscreen);
     const viewportDelta =
       baseHeight > 0 ? Math.max(0, Math.round(window.innerHeight - baseHeight)) : 0;
-    const expectedTopControls = isFullscreen ? (topFromInsets > 0 ? 46 : 56) : 34;
+    const expectedTopControls = isFullscreen ? (topFromInsets > 0 ? 56 : 64) : 34;
     const topFromDelta = Math.max(0, Math.min(88, viewportDelta));
+    const fullscreenTopBuffer = isFullscreen ? 8 : 0;
 
     // Use content safe insets first, fallback to viewport delta, and keep a conservative floor
     // for Telegram top controls to avoid overlap in fullscreen edge-cases.
-    const topReserve = Math.max(topFromInsets, topFromDelta, expectedTopControls);
+    const topReserve =
+      Math.max(topFromInsets, topFromDelta, expectedTopControls) + fullscreenTopBuffer;
 
     const mainButtonVisible = Boolean(tg.MainButton?.isVisible);
     const mainButtonReserve = mainButtonVisible ? 62 : 0;

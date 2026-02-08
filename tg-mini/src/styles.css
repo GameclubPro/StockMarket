@@ -3523,7 +3523,7 @@ body::before {
 
 /* Fullscreen Telegram Mini App + CTA palette refresh */
 :root {
-  --tg-top-reserved: 46px;
+  --tg-top-reserved: 64px;
   --tg-bottom-reserved: 0px;
   --tg-safe-top: max(
     env(safe-area-inset-top, 0px),
