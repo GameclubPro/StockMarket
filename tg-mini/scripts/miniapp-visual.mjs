@@ -112,7 +112,7 @@ const usage = `
   --afterDir <path>  Папка after PNG (compare mode)
   --diffDir <path>   Папка diff PNG (compare mode)
   --mismatchThresholdPct <n> Порог расхождения, % (compare mode, default: ${DEFAULT_MISMATCH_THRESHOLD_PCT})
-  --noClean          Не очищать старые PNG перед screenshot/compare
+  --clean            Очистить старые PNG перед screenshot/compare
   --headful          Запуск Chromium с UI
   --noMockApi        Отключить API-моки и использовать реальный backend
 `;
@@ -183,7 +183,7 @@ function parseConfig(mode, rawArgs) {
     rawArgs.mismatchThresholdPct,
     DEFAULT_MISMATCH_THRESHOLD_PCT
   );
-  const cleanOutput = !(rawArgs.noClean === true || rawArgs.noClean === 'true');
+  const cleanOutput = rawArgs.clean === true || rawArgs.clean === 'true';
   const headful = rawArgs.headful === true || rawArgs.headful === 'true';
   const mockApi = !(rawArgs.noMockApi === true || rawArgs.noMockApi === 'true');
   const outDirDefault = `.logs/design-after-${width}x${height}`;
