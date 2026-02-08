@@ -15,7 +15,11 @@ const DEFAULT_HEIGHT = 844;
 const DEFAULT_WAIT_MS = 260;
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_SAFE_BOTTOM_PX = 16;
+const DEFAULT_SAFE_TOP_PX = 0;
 const DEFAULT_MISMATCH_THRESHOLD_PCT = 0.25;
+const DEFAULT_TG_TOP_BAR_PX = 48;
+const DEFAULT_TG_MAIN_BUTTON_PX = 0;
+const DEFAULT_TG_MAIN_BUTTON_GAP_PX = 12;
 const FIXTURE_NOW_MS = Date.parse('2026-01-15T12:00:00.000Z');
 const APP_READY_SELECTOR = '.profile-card';
 
@@ -98,7 +102,12 @@ const usage = `
   --baseUrl <url>    Готовый URL приложения, если dev-сервер уже запущен
   --port <number>    Порт локального dev-сервера (default: ${DEFAULT_PORT})
   --waitMs <number>  Пауза после переходов (default: ${DEFAULT_WAIT_MS})
+  --safeTopPx <n>    Верхняя safe-area зона риска в px (scan mode, default: динамически)
   --safeBottomPx <n> Нижняя safe-area зона риска в px (scan mode, default: ${DEFAULT_SAFE_BOTTOM_PX})
+  --tgTopBarPx <n>   Высота Telegram верхнего chrome в px (default: ${DEFAULT_TG_TOP_BAR_PX})
+  --tgMainButtonPx <n> Высота Telegram Main Button в px (default: ${DEFAULT_TG_MAIN_BUTTON_PX})
+  --tgMainButtonGapPx <n> Отступ Main Button снизу в px (default: ${DEFAULT_TG_MAIN_BUTTON_GAP_PX})
+  --noTelegramChrome Отключить визуальную эмуляцию Telegram chrome
   --baselineDir <p>  Папка baseline PNG (compare mode)
   --afterDir <path>  Папка after PNG (compare mode)
   --diffDir <path>   Папка diff PNG (compare mode)
@@ -137,6 +146,12 @@ function toInt(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function toNonNegativeInt(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function toFloat(value, fallback) {
   if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number.parseFloat(String(value));
@@ -152,7 +167,17 @@ function parseConfig(mode, rawArgs) {
   const height = toInt(rawArgs.height, DEFAULT_HEIGHT);
   const waitMs = toInt(rawArgs.waitMs, DEFAULT_WAIT_MS);
   const port = toInt(rawArgs.port, DEFAULT_PORT);
-  const safeBottomPx = toInt(rawArgs.safeBottomPx, DEFAULT_SAFE_BOTTOM_PX);
+  const telegramChrome = !(rawArgs.noTelegramChrome === true || rawArgs.noTelegramChrome === 'true');
+  const tgTopBarPx = toNonNegativeInt(rawArgs.tgTopBarPx, DEFAULT_TG_TOP_BAR_PX);
+  const tgMainButtonPx = toNonNegativeInt(rawArgs.tgMainButtonPx, DEFAULT_TG_MAIN_BUTTON_PX);
+  const tgMainButtonGapPx = toNonNegativeInt(rawArgs.tgMainButtonGapPx, DEFAULT_TG_MAIN_BUTTON_GAP_PX);
+  const safeTopDefault = telegramChrome ? Math.max(DEFAULT_SAFE_TOP_PX, tgTopBarPx) : DEFAULT_SAFE_TOP_PX;
+  const safeBottomDefault = Math.max(
+    DEFAULT_SAFE_BOTTOM_PX,
+    telegramChrome && tgMainButtonPx > 0 ? tgMainButtonPx + tgMainButtonGapPx : 0
+  );
+  const safeTopPx = toNonNegativeInt(rawArgs.safeTopPx, safeTopDefault);
+  const safeBottomPx = toNonNegativeInt(rawArgs.safeBottomPx, safeBottomDefault);
   const mismatchThresholdPct = toFloat(
     rawArgs.mismatchThresholdPct,
     DEFAULT_MISMATCH_THRESHOLD_PCT
@@ -174,7 +199,12 @@ function parseConfig(mode, rawArgs) {
     height,
     waitMs,
     port,
+    safeTopPx,
     safeBottomPx,
+    tgTopBarPx,
+    tgMainButtonPx,
+    tgMainButtonGapPx,
+    telegramChrome,
     mismatchThresholdPct,
     headful,
     mockApi,
@@ -657,12 +687,21 @@ async function registerApiMocks(page) {
   });
 }
 
-async function installTelegramMocks(page) {
-  await page.addInitScript(() => {
+async function installTelegramMocks(page, config) {
+  await page.addInitScript((params) => {
+    const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
+    const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
+    const bottomOffsetPx = mainButtonPx > 0 ? mainButtonPx + mainButtonGapPx : 0;
+
+    document.documentElement.style.setProperty('--tg-legacy-top-offset', '0px');
+    document.documentElement.style.setProperty('--tg-header-overlay-offset', `${topBarPx}px`);
+    document.documentElement.style.setProperty('--tg-legacy-bottom-offset', `${bottomOffsetPx}px`);
+
     const webApp = {
       isExpanded: true,
-      viewportHeight: window.innerHeight,
-      viewportStableHeight: window.innerHeight,
+      viewportHeight: Math.max(0, window.innerHeight - topBarPx - bottomOffsetPx),
+      viewportStableHeight: Math.max(0, window.innerHeight - topBarPx - bottomOffsetPx),
       platform: 'android',
       version: '8.0',
       colorScheme: 'dark',
@@ -692,6 +731,10 @@ async function installTelegramMocks(page) {
       enableClosingConfirmation: () => {},
       disableClosingConfirmation: () => {},
       MainButton: {
+        isVisible: mainButtonPx > 0,
+        isActive: true,
+        isProgressVisible: false,
+        text: 'Продолжить',
         show: () => {},
         hide: () => {},
         setText: () => {},
@@ -703,6 +746,133 @@ async function installTelegramMocks(page) {
       writable: true,
       value: { WebApp: webApp },
     });
+  }, {
+    tgTopBarPx: config.tgTopBarPx,
+    tgMainButtonPx: config.tgMainButtonPx,
+    tgMainButtonGapPx: config.tgMainButtonGapPx,
+  });
+}
+
+async function installTelegramChrome(page, config) {
+  if (!config.telegramChrome) return;
+
+  const forcedTopOffset = Math.max(0, Number(config.tgTopBarPx) || 0);
+  const forcedBottomOffset =
+    Math.max(0, Number(config.tgMainButtonPx) || 0) +
+    Math.max(0, Number(config.tgMainButtonGapPx) || 0);
+
+  await page.addStyleTag({
+    content: `
+      :root {
+        --tg-header-overlay-offset: ${forcedTopOffset}px !important;
+        --tg-legacy-top-offset: 0px !important;
+        --tg-legacy-bottom-offset: ${forcedBottomOffset}px !important;
+      }
+
+      .tg-visual-chrome {
+        position: fixed;
+        left: 0;
+        right: 0;
+        z-index: 2147483646;
+        pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      .tg-visual-chrome-top {
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        background:
+          linear-gradient(180deg, rgba(14, 20, 28, 0.96), rgba(10, 15, 22, 0.92));
+        border-bottom: 1px solid rgba(210, 232, 250, 0.14);
+        color: rgba(229, 244, 255, 0.92);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+      }
+
+      .tg-visual-top-side {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .tg-visual-back {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 1px solid rgba(219, 241, 255, 0.26);
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+      }
+
+      .tg-visual-chrome-main-button-wrap {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        z-index: 2147483646;
+        pointer-events: none;
+      }
+
+      .tg-visual-chrome-main-button {
+        width: 100%;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #062236;
+        background: linear-gradient(140deg, #9cecff 0%, #78d0ff 100%);
+        border: 1px solid rgba(235, 250, 255, 0.75);
+        box-shadow:
+          0 10px 22px rgba(0, 0, 0, 0.36),
+          inset 0 1px 0 rgba(255, 255, 255, 0.74);
+      }
+    `,
+  });
+
+  await page.evaluate((params) => {
+    const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
+    const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
+
+    document.querySelectorAll('.tg-visual-chrome').forEach((node) => node.remove());
+    document.querySelectorAll('.tg-visual-chrome-main-button-wrap').forEach((node) => node.remove());
+
+    if (topBarPx > 0) {
+      const top = document.createElement('div');
+      top.className = 'tg-visual-chrome tg-visual-chrome-top';
+      top.style.height = `${topBarPx}px`;
+      top.innerHTML = `
+        <div class="tg-visual-top-side">
+          <span class="tg-visual-back">◀</span>
+          <span>Telegram</span>
+        </div>
+        <div class="tg-visual-top-side">
+          <span>⋮</span>
+        </div>
+      `;
+      document.body.appendChild(top);
+    }
+
+    if (mainButtonPx > 0) {
+      const wrap = document.createElement('div');
+      wrap.className = 'tg-visual-chrome-main-button-wrap';
+      wrap.style.bottom = `${mainButtonGapPx}px`;
+      const btn = document.createElement('div');
+      btn.className = 'tg-visual-chrome-main-button';
+      btn.style.height = `${mainButtonPx}px`;
+      btn.textContent = 'Main Button';
+      wrap.appendChild(btn);
+      document.body.appendChild(wrap);
+    }
+  }, {
+    tgTopBarPx: config.tgTopBarPx,
+    tgMainButtonPx: config.tgMainButtonPx,
+    tgMainButtonGapPx: config.tgMainButtonGapPx,
   });
 }
 
@@ -809,10 +979,11 @@ async function runScreenshotMode(page, config) {
   });
 }
 
-async function collectAudit(page, screenId, safeBottomPx) {
-  const result = await page.evaluate((bottomSafeInsetPx) => {
+async function collectAudit(page, screenId, safeBottomPx, safeTopPx) {
+  const result = await page.evaluate(({ bottomSafeInsetPx, topSafeInsetPx }) => {
     const minSize = 44;
     const safeInset = Math.max(0, Number(bottomSafeInsetPx) || 0);
+    const topSafeInset = Math.max(0, Number(topSafeInsetPx) || 0);
     const interactiveSelector = [
       'button',
       'a[href]',
@@ -824,6 +995,7 @@ async function collectAudit(page, screenId, safeBottomPx) {
     ].join(', ');
     const tooSmall = [];
     const bottomRisk = [];
+    const topRisk = [];
 
     document.querySelectorAll(interactiveSelector).forEach((element) => {
       const style = window.getComputedStyle(element);
@@ -845,6 +1017,19 @@ async function collectAudit(page, screenId, safeBottomPx) {
           text: text || '(без текста)',
           width: Number(rect.width.toFixed(1)),
           height: Number(rect.height.toFixed(1)),
+        });
+      }
+
+      if (topSafeInset > 0 && rect.top < topSafeInset && !element.closest('.tg-visual-chrome')) {
+        const text = (element.textContent || element.getAttribute('aria-label') || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 40);
+        topRisk.push({
+          tag: element.tagName.toLowerCase(),
+          text: text || '(без текста)',
+          top: Number(rect.top.toFixed(1)),
+          distanceFromTop: Number(rect.top.toFixed(1)),
         });
       }
 
@@ -892,6 +1077,8 @@ async function collectAudit(page, screenId, safeBottomPx) {
       horizontalOverflowPx,
       tooSmallTapTargets: tooSmall,
       tooSmallCount: tooSmall.length,
+      topSafeAreaRiskTargets: topRisk,
+      topSafeAreaRiskCount: topRisk.length,
       bottomSafeAreaRiskTargets: bottomRisk,
       bottomSafeAreaRiskCount: bottomRisk.length,
       contentMetrics,
@@ -899,9 +1086,10 @@ async function collectAudit(page, screenId, safeBottomPx) {
       issueCount:
         (horizontalOverflowPx > 0 ? 1 : 0) +
         (tooSmall.length > 0 ? 1 : 0) +
+        (topRisk.length > 0 ? 1 : 0) +
         (bottomRisk.length > 0 ? 1 : 0),
     };
-  }, safeBottomPx);
+  }, { bottomSafeInsetPx: safeBottomPx, topSafeInsetPx: safeTopPx });
 
   return { screenId, ...result };
 }
@@ -918,22 +1106,26 @@ async function runScanMode(page, config) {
       totalScreens: SCREEN_STEPS.length,
       screensWithOverflow: 0,
       screensWithTapTargetIssues: 0,
+      screensWithTopSafeAreaRisks: 0,
       screensWithSafeAreaRisks: 0,
       totalSmallTapTargets: 0,
+      totalTopSafeAreaRiskTargets: 0,
       totalSafeAreaRiskTargets: 0,
     },
   };
 
   await runFlow(page, config.waitMs, async (screenId) => {
-    const audit = await collectAudit(page, screenId, config.safeBottomPx);
+    const audit = await collectAudit(page, screenId, config.safeBottomPx, config.safeTopPx);
     report.screens[screenId] = audit;
     if (audit.horizontalOverflowPx > 0) report.summary.screensWithOverflow += 1;
     if (audit.tooSmallCount > 0) report.summary.screensWithTapTargetIssues += 1;
+    if (audit.topSafeAreaRiskCount > 0) report.summary.screensWithTopSafeAreaRisks += 1;
     if (audit.bottomSafeAreaRiskCount > 0) report.summary.screensWithSafeAreaRisks += 1;
     report.summary.totalSmallTapTargets += audit.tooSmallCount;
+    report.summary.totalTopSafeAreaRiskTargets += audit.topSafeAreaRiskCount;
     report.summary.totalSafeAreaRiskTargets += audit.bottomSafeAreaRiskCount;
     console.log(
-      `[scan] ${screenId}: overflow=${audit.horizontalOverflowPx}px, smallTargets=${audit.tooSmallCount}, safeAreaRisks=${audit.bottomSafeAreaRiskCount}`
+      `[scan] ${screenId}: overflow=${audit.horizontalOverflowPx}px, smallTargets=${audit.tooSmallCount}, topSafeAreaRisks=${audit.topSafeAreaRiskCount}, bottomSafeAreaRisks=${audit.bottomSafeAreaRiskCount}`
     );
   });
 
@@ -1125,13 +1317,14 @@ async function createRuntime(config) {
   const page = await context.newPage();
 
   await blockUnstableAssets(page);
-  await installTelegramMocks(page);
+  await installTelegramMocks(page, config);
   if (config.mockApi) {
     await registerApiMocks(page);
   }
 
   await page.goto(`${baseUrl}/?${TELEGRAM_MOCK_QUERY}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector(APP_READY_SELECTOR, { timeout: 15_000 });
+  await installTelegramChrome(page, config);
   await waitForFonts(page);
   await disableMotion(page);
   await sleep(config.waitMs);
