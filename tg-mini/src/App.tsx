@@ -49,6 +49,10 @@ const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
 const DAILY_WHEEL_SPIN_TURNS = 6;
 const DAILY_WHEEL_SPIN_MS = 4200;
+const DAILY_WHEEL_BRAKE_MS = 1320;
+const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
+const DAILY_WHEEL_CELEBRATE_MS = 1400;
+const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.15;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
@@ -192,6 +196,11 @@ export default function App() {
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelSpinPhase, setWheelSpinPhase] = useState<'idle' | 'cruise' | 'brake' | 'celebrate'>(
+    'idle'
+  );
+  const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
+  const [wheelCelebrating, setWheelCelebrating] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -237,6 +246,8 @@ export default function App() {
   const animatingOutRef = useRef<Set<string>>(new Set());
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
   const spinTimeoutRef = useRef<number | null>(null);
+  const spinPhaseTimeoutRef = useRef<number | null>(null);
+  const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
   const applicationsByCampaign = useMemo(() => {
@@ -471,6 +482,12 @@ export default function App() {
     return () => {
       if (spinTimeoutRef.current) {
         window.clearTimeout(spinTimeoutRef.current);
+      }
+      if (spinPhaseTimeoutRef.current) {
+        window.clearTimeout(spinPhaseTimeoutRef.current);
+      }
+      if (wheelCelebrateTimeoutRef.current) {
+        window.clearTimeout(wheelCelebrateTimeoutRef.current);
       }
       if (inviteCopyTimeoutRef.current) {
         window.clearTimeout(inviteCopyTimeoutRef.current);
@@ -1225,6 +1242,19 @@ export default function App() {
     setDailyBonusError('');
     setWheelResult(null);
     setWheelSpinning(true);
+    setWheelSpinPhase('cruise');
+    setWheelCelebrating(false);
+    setWheelWinningIndex(null);
+
+    if (spinTimeoutRef.current) {
+      window.clearTimeout(spinTimeoutRef.current);
+    }
+    if (spinPhaseTimeoutRef.current) {
+      window.clearTimeout(spinPhaseTimeoutRef.current);
+    }
+    if (wheelCelebrateTimeoutRef.current) {
+      window.clearTimeout(wheelCelebrateTimeoutRef.current);
+    }
 
     try {
       const data = await spinDailyBonus();
@@ -1240,23 +1270,40 @@ export default function App() {
           typeof data.streak === 'number' ? data.streak : dailyBonusStatus.streak ?? 0,
       });
 
-      const rewardIndex = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
+      const rewardIndexRaw = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
+      const rewardIndex = Math.max(
+        0,
+        Math.min(DAILY_WHEEL_SEGMENTS.length - 1, Math.round(rewardIndexRaw))
+      );
       const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
       const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const nextRotation = getWheelTargetRotation(wheelRotationRef.current, rewardIndex);
-      setWheelRotation(nextRotation);
+      const cruiseRotation = nextRotation - DAILY_WHEEL_CRUISE_OFFSET;
+      setWheelWinningIndex(rewardIndex);
+      setWheelSpinPhase('cruise');
+      setWheelRotation(cruiseRotation);
+
+      spinPhaseTimeoutRef.current = window.setTimeout(() => {
+        setWheelSpinPhase('brake');
+        setWheelRotation(nextRotation);
+      }, DAILY_WHEEL_CRUISE_MS);
 
       const result = { label: rewardLabel, value: rewardValue };
-      if (spinTimeoutRef.current) {
-        window.clearTimeout(spinTimeoutRef.current);
-      }
       spinTimeoutRef.current = window.setTimeout(() => {
         setWheelSpinning(false);
+        setWheelSpinPhase('celebrate');
+        setWheelCelebrating(true);
         setWheelResult(result);
+        wheelCelebrateTimeoutRef.current = window.setTimeout(() => {
+          setWheelCelebrating(false);
+          setWheelSpinPhase('idle');
+        }, DAILY_WHEEL_CELEBRATE_MS);
       }, DAILY_WHEEL_SPIN_MS);
     } catch (error: any) {
       setWheelSpinning(false);
+      setWheelSpinPhase('idle');
+      setWheelCelebrating(false);
       setDailyBonusError(error?.message ?? 'Не удалось получить бонус.');
     }
   };
@@ -1512,21 +1559,28 @@ export default function App() {
               )}
               <div className="wheel-wrapper">
                 <div
-                  className={`wheel-rotor ${wheelSpinning ? 'spinning' : ''}`}
+                  className={`wheel-rotor phase-${wheelSpinPhase} ${wheelSpinning ? 'spinning' : ''} ${
+                    wheelCelebrating ? 'celebrate' : ''
+                  }`}
                   style={{ transform: `rotate(${wheelRotation}deg)` }}
                 >
                   <div className="wheel-shell" aria-hidden="true" />
                   <div className="wheel-orbit" aria-hidden="true" />
                   <div className="wheel">
+                    <div className="wheel-facet-disk" aria-hidden="true" />
                     {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
                       const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
                       return (
                         <div
                           key={`${segment.label}-${index}`}
-                          className="wheel-segment"
+                          className={`wheel-segment ${
+                            wheelWinningIndex === index && wheelCelebrating ? 'winner' : ''
+                          }`}
                           style={{ transform: `rotate(${angle}deg)` }}
                         >
-                          <span style={{ transform: `rotate(${-angle}deg)` }}>{segment.value}</span>
+                          <span className="wheel-value" style={{ transform: `rotate(${-angle}deg)` }}>
+                            {segment.value}
+                          </span>
                         </div>
                       );
                     })}
@@ -1536,7 +1590,12 @@ export default function App() {
                   </div>
                 </div>
                 <div className="wheel-pointer-base" aria-hidden="true" />
-                <div className="wheel-pointer" aria-hidden="true" />
+                <div
+                  className={`wheel-pointer ${wheelSpinning ? 'ticking' : ''} ${
+                    wheelCelebrating ? 'celebrate' : ''
+                  }`}
+                  aria-hidden="true"
+                />
               </div>
               <button
                 className="wheel-cta"
