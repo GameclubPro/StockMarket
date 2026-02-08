@@ -3586,7 +3586,7 @@ body::before {
 }
 
 .bottom-nav {
-  padding: 10px 12px calc(16px + var(--tg-safe-bottom));
+  padding: 10px 12px calc(22px + var(--tg-safe-bottom));
   backdrop-filter: blur(14px);
 }
 
@@ -3869,7 +3869,8 @@ body::before {
 .bottom-nav .nav-item {
   min-height: 56px;
   border-radius: 15px;
-  padding: 8px 2px 4px;
+  padding: 6px 2px 8px;
+  align-content: center;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   border: 1px solid transparent;
 }
