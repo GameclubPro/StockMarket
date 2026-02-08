@@ -769,12 +769,12 @@ body::before {
 
 .daily-bonus-preview-wrap {
   position: relative;
-  width: 74px;
-  height: 74px;
+  width: 76px;
+  height: 76px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  filter: drop-shadow(0 12px 14px #041324);
+  filter: drop-shadow(0 14px 14px #041320);
 }
 
 .daily-bonus-preview-wrap::before {
@@ -783,47 +783,47 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background: repeating-conic-gradient(
-    from -10deg,
-    #f6fbff 0deg,
-    #f6fbff 2.8deg,
-    #9fc3dc 2.8deg,
-    #9fc3dc 5.6deg,
-    #3d5e7d 5.6deg,
-    #3d5e7d 11.8deg
+    from -8deg,
+    #e7fff3 0deg,
+    #e7fff3 2.2deg,
+    #7fd8b6 2.2deg,
+    #7fd8b6 4.4deg,
+    #1e6a67 4.4deg,
+    #1e6a67 9.2deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 17px),
-    #000 calc(100% - 17px),
-    #000 calc(100% - 9px),
-    transparent calc(100% - 9px)
+    transparent calc(100% - 16px),
+    #000 calc(100% - 16px),
+    #000 calc(100% - 8px),
+    transparent calc(100% - 8px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 17px),
-    #000 calc(100% - 17px),
-    #000 calc(100% - 9px),
-    transparent calc(100% - 9px)
+    transparent calc(100% - 16px),
+    #000 calc(100% - 16px),
+    #000 calc(100% - 8px),
+    transparent calc(100% - 8px)
   );
   box-shadow:
-    0 0 12px #3a678f,
-    inset 0 0 11px #1a3551;
+    0 0 14px #235851,
+    inset 0 0 10px #163936;
 }
 
 .daily-bonus-preview-wrap::after {
   content: '';
   position: absolute;
-  top: 8px;
+  top: 7px;
   left: 50%;
   transform: translateX(-50%);
-  width: 11px;
-  height: 11px;
-  background: linear-gradient(180deg, #f7fcff 0%, #c8ddef 52%, #5b7c9a 100%);
+  width: 12px;
+  height: 13px;
+  background: linear-gradient(180deg, #d9ffe4 0%, #7fd8b6 45%, #2b726e 100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
-  border: 1px solid #edf7ff;
+  border: 1px solid #beffe1;
   box-shadow:
-    0 0 10px #7aa9cd,
-    0 4px 8px #061526;
+    0 0 11px #5cbfa0,
+    0 4px 8px #081f22;
   z-index: 3;
 }
 
@@ -832,42 +832,57 @@ body::before {
   height: 80%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 16%, #d0edff 0%, #72a7cb 30%, #2a628d 56%, #0d2842 100%),
-    repeating-conic-gradient(
-      from -90deg,
-      #d8eefe 0deg,
-      #d8eefe 1.1deg,
-      #2a5d85 1.1deg,
-      #2a5d85 2.2deg,
-      transparent 2.2deg,
-      transparent 60deg
-    ),
+    radial-gradient(circle at 50% 20%, #2a4b57 0%, #152b3d 56%, #0a1827 100%),
     conic-gradient(
       from -90deg,
-      #58b3e4 0deg 60deg,
-      #2e7db0 60deg 120deg,
-      #4ca6d8 120deg 180deg,
-      #296d9b 180deg 240deg,
-      #56b1e0 240deg 300deg,
-      #2b78aa 300deg 360deg
+      #255f6a 0deg 45deg,
+      #1a3247 45deg 90deg,
+      #2b6b73 90deg 135deg,
+      #162d42 135deg 180deg,
+      #2d7476 180deg 225deg,
+      #1a3248 225deg 270deg,
+      #2a636d 270deg 315deg,
+      #172f45 315deg 360deg
     );
-  border: 4px solid #d9edfd;
+  border: 4px solid #c0f8dd;
   box-shadow:
-    0 10px 18px #041326,
-    inset 0 2px 0 #f4fbff,
-    inset 0 -8px 12px #12324f,
-    0 0 12px #2f678f;
+    0 10px 18px #04111b,
+    inset 0 1px 0 #d5ffec,
+    inset 0 -10px 14px #0f2739,
+    0 0 14px #1f5f63;
   position: relative;
-  animation: wheelPreviewSpin 18s linear infinite;
+  animation: wheelPreviewSpin 20s linear infinite;
 }
 
 .daily-bonus-preview::before {
   content: '';
   position: absolute;
-  inset: 8%;
+  inset: 6%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 32% 26%, #f4fbff 0%, #bcd7ea 25%, #5f84a3 58%, #244762 100%);
+    repeating-conic-gradient(
+      from -90deg,
+      #d7ffe5 0deg,
+      #d7ffe5 1.2deg,
+      #84d8b8 1.2deg,
+      #84d8b8 2.4deg,
+      #2e6c73 2.4deg,
+      #2e6c73 45deg
+    );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
   pointer-events: none;
 }
 
@@ -875,16 +890,16 @@ body::before {
   content: '';
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 34% 30%, #f6fcff, #b8d2e6 52%, #4f6f8b 100%);
-  border: 2px solid #e4f1fb;
+  background: radial-gradient(circle at 32% 28%, #dcffe8 0%, #95e8c8 46%, #2c6d6e 100%);
+  border: 2px solid #c7ffe4;
   box-shadow:
-    inset 0 2px 4px #eff8ff,
-    inset 0 -5px 8px #385b79,
-    0 0 9px #49749a;
+    inset 0 2px 4px #edfff5,
+    inset 0 -6px 8px #21535c,
+    0 0 9px #4eb996;
 }
 
 .daily-bonus-info-popover {
@@ -1119,6 +1134,8 @@ body::before {
   display: grid;
   gap: 6px;
   padding: 0 6px;
+  position: relative;
+  z-index: 3;
 }
 
 .wheel-rule-row {
@@ -1232,9 +1249,41 @@ body::before {
   display: grid;
   place-items: center;
   margin: 0 auto;
-  width: min(322px, 88vw);
+  width: min(330px, 89vw);
   aspect-ratio: 1;
   padding: 4px;
+  z-index: 1;
+}
+
+.wheel-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -9% -10% -12%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 46% 80%, #1d4e5d 0%, #0d2d40 40%, #08182a 74%, #071321 100%);
+  box-shadow:
+    0 0 36px #133945,
+    inset 0 0 34px #0a2436;
+  filter: blur(0.4px);
+  z-index: 0;
+}
+
+.wheel-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: -4%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 16% 22%, #63d5ad 0%, #63d5ad 1.2%, #0a2234 1.6%),
+    radial-gradient(circle at 79% 18%, #7dd9be 0%, #7dd9be 1.1%, #0a2234 1.5%),
+    radial-gradient(circle at 24% 83%, #61c9ad 0%, #61c9ad 1.1%, #0a2234 1.6%),
+    radial-gradient(circle at 72% 76%, #7bd8be 0%, #7bd8be 1%, #0a2234 1.5%),
+    radial-gradient(circle at 51% 43%, #63d4ac 0%, #63d4ac 0.6%, #0a2234 1%);
+  opacity: 0.82;
+  animation: wheelCosmosDrift 9s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .wheel-rotor {
@@ -1263,8 +1312,11 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 20%, #3f6a8d 0%, #264d6d 52%, #17334d 100%),
-    radial-gradient(circle at 50% 82%, #203f5f 0%, #17324d 58%, #11273f 100%);
+    radial-gradient(circle at 50% 18%, #34606b 0%, #1a3b4f 52%, #102336 100%),
+    radial-gradient(circle at 50% 84%, #1d4650 0%, #153245 56%, #0d2236 100%);
+  box-shadow:
+    0 0 24px #10333f,
+    inset 0 0 18px #123242;
   pointer-events: none;
   z-index: 0;
 }
@@ -1275,55 +1327,80 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background: repeating-conic-gradient(
-    from -8deg,
-    #f3f9ff 0deg,
-    #f3f9ff 2.4deg,
-    #9dbbd1 2.4deg,
-    #9dbbd1 4.8deg,
-    #395977 4.8deg,
-    #395977 11deg
+    from -6deg,
+    #deffe9 0deg,
+    #deffe9 2.1deg,
+    #77d0ad 2.1deg,
+    #77d0ad 4.2deg,
+    #205b63 4.2deg,
+    #205b63 9deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 23px),
-    #000 calc(100% - 23px),
-    #000 calc(100% - 12px),
-    transparent calc(100% - 12px)
+    transparent calc(100% - 24px),
+    #000 calc(100% - 24px),
+    #000 calc(100% - 14px),
+    transparent calc(100% - 14px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 23px),
-    #000 calc(100% - 23px),
-    #000 calc(100% - 12px),
-    transparent calc(100% - 12px)
+    transparent calc(100% - 24px),
+    #000 calc(100% - 24px),
+    #000 calc(100% - 14px),
+    transparent calc(100% - 14px)
   );
   box-shadow:
-    0 0 16px #3d668a,
-    inset 0 0 16px #1b3852;
-  animation: wheelLightsPulse 3.8s ease-in-out infinite;
+    0 0 18px #3ca786,
+    inset 0 0 15px #1f5d62;
+  animation:
+    wheelRimSweep 12s linear infinite,
+    wheelLightsPulse 3.4s ease-in-out infinite;
 }
 
 .wheel-shell::after {
   content: '';
   position: absolute;
-  inset: 8px;
+  inset: 9px;
   border-radius: 50%;
-  border: 2px solid #9fc1da;
+  border: 2px solid #9dddc9;
   box-shadow:
-    inset 0 0 0 2px #2a4f70,
-    inset 0 2px 2px #e7f4ff,
-    0 0 14px #355f84;
+    inset 0 0 0 2px #184153,
+    inset 0 2px 2px #cbffe7,
+    0 0 14px #2c7770;
   pointer-events: none;
 }
 
 .wheel-orbit {
   position: absolute;
-  inset: 7.8%;
+  inset: 6.7%;
   border-radius: 50%;
-  border: 1px solid #89afcd;
+  border: 1px solid #86d8b6;
+  background: repeating-conic-gradient(
+    from -90deg,
+    #e1ffec 0deg,
+    #e1ffec 1.9deg,
+    #79c6a8 1.9deg,
+    #79c6a8 4.6deg,
+    #164f58 4.6deg,
+    #164f58 9deg
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 12px),
+    #000 calc(100% - 12px),
+    #000 calc(100% - 4px),
+    transparent calc(100% - 4px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 12px),
+    #000 calc(100% - 12px),
+    #000 calc(100% - 4px),
+    transparent calc(100% - 4px)
+  );
   box-shadow:
-    inset 0 0 0 1px #2e5577,
-    inset 0 8px 14px #1b3c5a;
+    inset 0 0 0 1px #295861,
+    0 0 16px #3ca786;
   animation: wheelPulse 3.2s ease-in-out infinite;
   z-index: 0;
 }
@@ -1333,31 +1410,31 @@ body::before {
   top: 6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 66px;
-  height: 50px;
+  width: 60px;
+  height: 48px;
   clip-path: polygon(50% 100%, 14% 10%, 86% 10%);
-  background: linear-gradient(180deg, #f6fcff 0%, #ccdeee 52%, #5d7f9c 100%);
-  border: 2px solid #edf7ff;
+  background: linear-gradient(180deg, #d9ffe8 0%, #90dec0 48%, #2f7770 100%);
+  border: 2px solid #cbffe5;
   box-shadow:
-    0 10px 22px #041425,
-    0 0 18px #46739a;
+    0 12px 22px #071622,
+    0 0 16px #42b090;
   z-index: 6;
 }
 
 .wheel {
-  width: 86%;
-  height: 86%;
+  width: 84%;
+  height: 84%;
   border-radius: 50%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 76%, #0a2039 0%, #06192d 62%, #051224 100%),
-    radial-gradient(circle at 50% 18%, #20486b 0%, #123152 44%, #081d36 100%);
-  border: 10px solid #d8edfc;
+    radial-gradient(circle at 50% 76%, #0a1e31 0%, #061526 58%, #040f1a 100%),
+    radial-gradient(circle at 50% 18%, #21415d 0%, #142e45 42%, #091d31 100%);
+  border: 10px solid #d4fff1;
   box-shadow:
-    0 22px 44px #041323,
-    inset 0 2px 0 #f2f9ff,
-    inset 0 -12px 16px #143653,
-    0 0 30px #315f84;
+    0 22px 44px #041220,
+    inset 0 2px 0 #e6fff5,
+    inset 0 -14px 20px #113047,
+    0 0 26px #318f81;
   position: relative;
   z-index: 2;
   display: grid;
@@ -1367,25 +1444,17 @@ body::before {
 
 .wheel-facet-disk {
   position: absolute;
-  inset: 9.6%;
+  inset: 10.6%;
   border-radius: 50%;
   background:
-    conic-gradient(
-      from -90deg,
-      #5ab6e6 0deg 60deg,
-      #2f7eb0 60deg 120deg,
-      #4fa9dc 120deg 180deg,
-      #2a6f9e 180deg 240deg,
-      #58b3e4 240deg 300deg,
-      #2e7bad 300deg 360deg
-    ),
-    radial-gradient(circle at 50% 16%, #caebff 0%, #7cb0d2 28%, #2f6e99 56%, #123655 100%);
-  border: 3px solid #dff0ff;
+    radial-gradient(circle at 50% 14%, #28495f 0%, #163249 44%, #0e263a 72%, #0a1c2e 100%),
+    radial-gradient(circle at 50% 86%, #11293f 0%, #0d2032 100%);
+  border: 3px solid #c0ffe2;
   box-shadow:
-    0 0 0 2px #29506f,
-    inset 0 2px 0 #f0f8ff,
-    inset 0 -16px 22px #12314f,
-    0 16px 18px #07192c;
+    0 0 0 2px #1f4f5d,
+    inset 0 2px 0 #e5fff3,
+    inset 0 -18px 26px #0f293f,
+    0 12px 18px #061726;
   z-index: 1;
 }
 
@@ -1394,45 +1463,57 @@ body::before {
   position: absolute;
   inset: 4%;
   border-radius: 50%;
-  background:
-    repeating-conic-gradient(
-      from -90deg,
-      #e8f6ff 0deg,
-      #e8f6ff 1.2deg,
-      #7da4c6 1.2deg,
-      #7da4c6 2.4deg,
-      transparent 2.4deg,
-      transparent 60deg
-    ),
-    radial-gradient(circle at 50% 26%, #8ac2e6 0%, #356f99 40%, #163c5d 100%);
-  border: 2px solid #a6c8e0;
+  background: repeating-conic-gradient(
+    from -90deg,
+    #d9ffe8 0deg,
+    #d9ffe8 1.2deg,
+    #7ed3b1 1.2deg,
+    #7ed3b1 2.2deg,
+    transparent 2.2deg,
+    transparent 45deg
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
+  border: 0;
   box-shadow:
-    inset 0 2px 0 #edf8ff,
-    inset 0 -10px 14px #173f5f;
+    0 0 9px #4fb38f,
+    inset 0 0 10px #1b4957;
 }
 
 .wheel-facet-disk::after {
   content: '';
   position: absolute;
-  inset: 35%;
+  inset: 33%;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 26%, #6ea9d1 0%, #2c648c 42%, #123452 100%);
-  border: 1px solid #8eb4d3;
+  background: radial-gradient(circle at 30% 26%, #1f4d5e 0%, #17364d 42%, #0f243a 100%);
+  border: 1px solid #74d0af;
   box-shadow:
-    inset 0 2px 0 #dff2ff,
-    inset 0 -8px 10px #12324f;
+    inset 0 1px 0 #deffed,
+    inset 0 -8px 10px #0f263b;
 }
 
 .wheel::before {
   content: '';
   position: absolute;
-  inset: 3%;
+  inset: 2.6%;
   border-radius: 50%;
-  border: 1px solid #a3c2da;
-  background: radial-gradient(circle at 50% 10%, #c6e4f9 0%, #3f6f95 30%, #173854 66%, #0a223a 100%);
+  border: 1px solid #9ddfc5;
+  background: radial-gradient(circle at 50% 10%, #2f5a68 0%, #1d3d53 30%, #10283e 62%, #091b2d 100%);
   box-shadow:
-    inset 0 2px 0 #eff9ff,
-    inset 0 -2px 0 #2f5576;
+    inset 0 2px 0 #e6fff2,
+    inset 0 -2px 0 #21525f;
   pointer-events: none;
   z-index: 2;
 }
@@ -1440,19 +1521,19 @@ body::before {
 .wheel::after {
   content: '';
   position: absolute;
-  inset: 8%;
+  inset: 8.5%;
   border-radius: 50%;
-  border: 1px solid #537799;
-  background: radial-gradient(circle at 50% 120%, #0a1e35 0%, #08172a 100%);
+  border: 1px solid #5fbf9f;
+  background: radial-gradient(circle at 50% 120%, #0a1f32 0%, #081525 100%);
   box-shadow:
-    inset 0 10px 18px #133555,
-    inset 0 -10px 16px #081a2f;
+    inset 0 12px 18px #14334b,
+    inset 0 -10px 16px #071527;
   pointer-events: none;
   z-index: 2;
 }
 
 .wheel-rotor.spinning .wheel {
-  filter: drop-shadow(0 0 18px #4d83ad);
+  filter: drop-shadow(0 0 20px #3ca786);
 }
 
 .wheel-segment {
@@ -1468,81 +1549,92 @@ body::before {
 .wheel-segment::before {
   content: '';
   position: absolute;
-  top: 6%;
+  top: 8%;
   left: 50%;
   width: 2px;
-  height: 46%;
+  height: 45%;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: linear-gradient(180deg, #f1f9ff 0%, #abcbe2 45%, #345d7e 100%);
+  background: linear-gradient(180deg, #d7ffe8 0%, #80cead 45%, #24535f 100%);
   box-shadow:
-    0 0 5px #8eb5d2,
-    0 8px 10px #082039;
+    0 0 6px #72c9aa,
+    0 8px 12px #071a29;
 }
 
 .wheel-segment:nth-child(even)::before {
-  background: linear-gradient(180deg, #f5fbff 0%, #96bdd8 45%, #2b5273 100%);
+  background: linear-gradient(180deg, #e4fff0 0%, #89d5b3 45%, #2a5962 100%);
 }
 
 .wheel-segment::after {
   content: '';
   position: absolute;
-  top: 9%;
+  top: 10%;
   left: 50%;
-  width: 52%;
-  height: 52%;
+  width: 46%;
+  height: 44%;
   transform: translateX(-50%);
-  clip-path: polygon(22% 0, 78% 0, 70% 100%, 30% 100%);
-  background: linear-gradient(180deg, #67bde9 0%, #3b8dbf 52%, #296492 100%);
-  border: 1px solid #b8dbf1;
+  clip-path: polygon(50% 100%, 14% 0, 86% 0);
+  background: linear-gradient(180deg, #97e7c8 0%, #5ea88d 44%, #2a5a63 100%);
+  border: 1px solid #9bdfc2;
   box-shadow:
-    inset 0 1px 0 #eff8ff,
-    inset 0 -10px 12px #1d4b70,
-    0 2px 8px #0a2641;
+    inset 0 1px 0 #ebfff4,
+    inset 0 -8px 10px #214a58,
+    0 2px 7px #081d2b;
 }
 
 .wheel-segment:nth-child(even)::after {
-  background: linear-gradient(180deg, #57b3e4 0%, #377fb0 52%, #265e89 100%);
+  background: linear-gradient(180deg, #5f7da0 0%, #385172 44%, #1f3551 100%);
+  border-color: #8eb3cc;
+}
+
+.wheel-segment:nth-child(4n + 1)::after {
+  background: linear-gradient(180deg, #9cebc9 0%, #63ad90 44%, #2b5f68 100%);
+  border-color: #a7e6cb;
+}
+
+.wheel-segment:nth-child(4n + 3)::after {
+  background: linear-gradient(180deg, #a38fbf 0%, #6f648f 44%, #3b385f 100%);
+  border-color: #b3a5cf;
 }
 
 .wheel-value {
   position: relative;
   z-index: 2;
-  margin-top: 18px;
-  font-size: clamp(28px, 6.6vw, 40px);
+  margin-top: 20px;
+  font-size: clamp(22px, 5.2vw, 31px);
   font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.45px;
-  color: #f0f9ff;
-  -webkit-text-stroke: 0.6px #163651;
+  letter-spacing: 0.35px;
+  color: #f0fff8;
+  -webkit-text-stroke: 0.45px #172b3d;
   text-shadow:
-    0 0 10px #5b87ab,
-    0 2px 8px #06192d;
+    0 0 9px #8fe1c2,
+    0 2px 8px #091626;
   font-variant-numeric: tabular-nums;
 }
 
 .wheel-segment.winner::before {
   box-shadow:
-    0 0 6px #bde6ff,
-    0 0 10px #7fb6dc;
+    0 0 7px #cbffe8,
+    0 0 12px #7dd2ae;
 }
 
 .wheel-segment.winner::after {
-  background: linear-gradient(180deg, #83d3ff 0%, #4c9dd2 50%, #2f719d 100%);
-  border: 1px solid #e4f4ff;
+  background: linear-gradient(180deg, #c3ffe9 0%, #83d8b8 50%, #377374 100%);
+  border: 1px solid #d8fff0;
   box-shadow:
-    inset 0 1px 0 #f7fdff,
-    inset 0 -10px 14px #225577,
-    0 0 12px #73b8e7;
+    inset 0 1px 0 #f3fff9,
+    inset 0 -10px 14px #2a5d68,
+    0 0 12px #5ac39d;
   animation: wheelWinnerFacet 800ms ease-out 2;
 }
 
 .wheel-segment.winner .wheel-value {
   color: #ffffff;
-  -webkit-text-stroke: 0.6px #13354f;
+  -webkit-text-stroke: 0.5px #153742;
   text-shadow:
-    0 0 16px #9fd7fb,
-    0 2px 10px #08243d;
+    0 0 16px #8de8c2,
+    0 2px 10px #081b2c;
   animation: wheelWinnerValue 820ms ease-out 2;
 }
 
@@ -1552,21 +1644,21 @@ body::before {
 
 .wheel-center {
   position: absolute;
-  width: 90px;
-  height: 90px;
+  width: 94px;
+  height: 94px;
   border-radius: 50%;
   background: radial-gradient(
     circle at 30% 30%,
-    #f8fcff 0%,
-    #c8dced 48%,
-    #56748f 100%
+    #ddffeb 0%,
+    #8fe0bf 46%,
+    #2e6c70 100%
   );
-  border: 4px solid #e6f3fd;
+  border: 4px solid #c6ffe6;
   box-shadow:
-    inset 0 6px 12px #eef8ff,
-    inset 0 -10px 14px #45647f,
-    0 14px 28px #041322,
-    0 0 18px #3f6c93;
+    inset 0 6px 12px #ebfff6,
+    inset 0 -10px 14px #265b62,
+    0 14px 28px #041421,
+    0 0 18px #319c85;
   z-index: 5;
   display: grid;
   place-items: center;
@@ -1575,51 +1667,51 @@ body::before {
 .wheel-center::before {
   content: '';
   position: absolute;
-  inset: 9px;
+  inset: 10px;
   border-radius: 50%;
-  border: 1px solid #f4fbff;
-  background: radial-gradient(circle at 32% 26%, #e7f4ff 0%, #9fbdd4 58%, #476884 100%);
+  border: 1px solid #dbffef;
+  background: radial-gradient(circle at 32% 26%, #e8fff2 0%, #9ce6c8 56%, #2e696f 100%);
   box-shadow:
-    inset 0 1px 0 #f4fbff,
-    inset 0 -8px 10px #35556f;
+    inset 0 1px 0 #f1fff9,
+    inset 0 -8px 10px #214f5b;
 }
 
 .wheel-center::after {
   content: '';
   position: absolute;
-  inset: 20px;
+  inset: 22px;
   border-radius: 50%;
-  border: 1px solid #93b4cf;
+  border: 1px solid #81dabb;
   box-shadow:
-    inset 0 1px 0 #eef8ff,
-    inset 0 -6px 8px #3b5c77;
+    inset 0 1px 0 #e9fff5,
+    inset 0 -6px 8px #255763;
 }
 
 .wheel-center-star {
-  font-size: 34px;
+  font-size: 31px;
   line-height: 1;
-  color: #f6fbff;
-  -webkit-text-stroke: 0.6px #3a5f7f;
+  color: #f3fff9;
+  -webkit-text-stroke: 0.5px #2a676a;
   text-shadow:
-    0 0 10px #9fc4de,
-    0 2px 8px #072039;
+    0 0 12px #91edc6,
+    0 2px 8px #0a2230;
   transform: translateY(-2px);
   z-index: 2;
 }
 
 .wheel-pointer {
   position: absolute;
-  top: 30px;
+  top: 29px;
   left: 50%;
   transform: translateX(-50%);
-  width: 22px;
-  height: 18px;
-  background: linear-gradient(180deg, #f8fcff 0%, #d0e1f0 52%, #5f7f9d 100%);
+  width: 24px;
+  height: 20px;
+  background: linear-gradient(180deg, #dcffe9 0%, #95e0c1 48%, #30767a 100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
   box-shadow:
-    0 7px 16px #041323,
-    0 0 12px #578ab4;
-  border: 1px solid #eef7ff;
+    0 7px 16px #041220,
+    0 0 12px #49b390;
+  border: 1px solid #cbffe4;
   z-index: 7;
   animation: wheelPointerPulse 1.8s ease-in-out infinite;
 }
@@ -1633,35 +1725,35 @@ body::before {
 }
 
 .wheel-cta {
-  background: linear-gradient(180deg, #e5f5ff 0%, #9edcf8 52%, #5fa4d0 100%);
-  border: 1px solid #eaf7ff;
+  background: linear-gradient(180deg, #162f44 0%, #102338 52%, #0a1b2d 100%);
+  border: 1px solid #8de7c2;
   border-radius: 999px;
   padding: 13px 18px;
   font-size: 14px;
   letter-spacing: 0.3px;
   font-weight: 700;
-  color: #0f304c;
+  color: #e9fff3;
   cursor: pointer;
   width: 100%;
   box-shadow:
-    0 14px 24px #041425,
-    inset 0 1px 0 #f2fbff,
-    inset 0 -10px 16px #4f82a6,
-    0 0 20px #3d6e93;
+    0 14px 24px #041321,
+    inset 0 1px 0 #c7ffe6,
+    inset 0 -10px 16px #17364d,
+    0 0 20px #2f7f79;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .wheel-cta:hover {
-  border-color: #f4fcff;
+  border-color: #bcffdf;
   box-shadow:
-    0 16px 28px #031221,
-    inset 0 1px 0 #fbfeff,
-    inset 0 -10px 16px #588eb3,
-    0 0 24px #4b80a8;
+    0 16px 28px #03111e,
+    inset 0 1px 0 #e4fff2,
+    inset 0 -10px 16px #1d415d,
+    0 0 24px #3ba58e;
 }
 
 .wheel-cta:focus-visible {
-  outline: 2px solid #b7e8ff;
+  outline: 2px solid #9eeccc;
   outline-offset: 2px;
 }
 
@@ -1670,52 +1762,52 @@ body::before {
 }
 
 .wheel-cta:disabled {
-  background: linear-gradient(180deg, #7d95ab 0%, #667e95 100%);
-  border-color: #8ca4b9;
-  color: #d8e6f1;
+  background: linear-gradient(180deg, #5c7388 0%, #425a70 100%);
+  border-color: #6e8ca5;
+  color: #d3e6f1;
   cursor: not-allowed;
 }
 
 .wheel-timer {
   font-size: 14px;
-  color: #c5dced;
+  color: #bddfd2;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .wheel-timer strong {
-  color: #e4f5ff;
+  color: #e5fff4;
   font-weight: 700;
 }
 
 .wheel-timer.ready {
-  color: #d9effd;
+  color: #d6fae8;
 }
 
 .wheel-timer.ready strong {
-  color: #f2fbff;
+  color: #f0fff8;
 }
 
 .wheel-result {
   display: grid;
   gap: 4px;
   justify-items: center;
-  background: #17344f;
-  border: 1px solid #4d7392;
+  background: #112b3f;
+  border: 1px solid #5f998f;
   border-radius: 14px;
   padding: 10px 12px;
 }
 
 .wheel-result span {
   font-size: 12px;
-  color: #cce2f3;
+  color: #c7e7da;
 }
 
 .wheel-result strong {
   font-size: 22px;
   line-height: 1;
-  color: #eef8ff;
-  text-shadow: 0 0 12px #5a87ab;
+  color: #ecfff6;
+  text-shadow: 0 0 12px #58bf9f;
 }
 
 .wheel-error {
@@ -1725,6 +1817,25 @@ body::before {
 }
 
 @keyframes wheelPreviewSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wheelCosmosDrift {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.03) rotate(3deg);
+  }
+}
+
+@keyframes wheelRimSweep {
+  from {
+    transform: rotate(0deg);
+  }
   to {
     transform: rotate(360deg);
   }
@@ -1743,10 +1854,10 @@ body::before {
 @keyframes wheelLightsPulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 7px #355c7c);
+    filter: drop-shadow(0 0 7px #2f7564);
   }
   50% {
-    filter: drop-shadow(0 0 14px #4d7da5);
+    filter: drop-shadow(0 0 14px #4dc29e);
   }
 }
 
@@ -1795,17 +1906,17 @@ body::before {
 @keyframes wheelWinnerValue {
   0% {
     text-shadow:
-      0 0 12px #78b8e4,
+      0 0 12px #78d6b1,
       0 2px 10px #082036;
   }
   50% {
     text-shadow:
-      0 0 20px #9ad4fb,
+      0 0 20px #a8f2d3,
       0 2px 10px #082036;
   }
   100% {
     text-shadow:
-      0 0 12px #78b8e4,
+      0 0 12px #78d6b1,
       0 2px 10px #082036;
   }
 }
@@ -1822,6 +1933,7 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
   .daily-bonus-preview,
+  .wheel-wrapper::after,
   .wheel-orbit,
   .wheel-shell::before,
   .wheel-pointer,

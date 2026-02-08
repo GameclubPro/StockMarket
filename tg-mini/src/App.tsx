@@ -38,12 +38,14 @@ const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
 const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
 const DAILY_WHEEL_SEGMENTS = [
-  { label: '+10', value: 10, weight: 5 },
+  { label: '+10', value: 10, weight: 2 },
+  { label: '+10', value: 10, weight: 2 },
+  { label: '+20', value: 20, weight: 2 },
   { label: '+50', value: 50, weight: 1 },
   { label: '+15', value: 15, weight: 3 },
   { label: '+50', value: 50, weight: 1 },
-  { label: '+10', value: 10, weight: 5 },
-  { label: '+20', value: 20, weight: 2 },
+  { label: '+10', value: 10, weight: 3 },
+  { label: '+10', value: 10, weight: 3 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
