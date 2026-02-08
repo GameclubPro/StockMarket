@@ -1051,16 +1051,7 @@ export default function App() {
           </div>
         </div>
         <div className="identity">
-          <div className="user-name-wrap">
-            <div className="user-name">{userLabel}</div>
-            <div className="user-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="12" cy="8" r="3.1" />
-                <path d="M5.4 19.5c1.6-3 4-4.6 6.6-4.6s5 1.6 6.6 4.6" />
-              </svg>
-              <span>Клиент</span>
-            </div>
-          </div>
+          <div className="user-name">{userLabel}</div>
           <button className="sub" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <rect x="3.5" y="6.5" width="17" height="11" rx="2.6" />
@@ -1315,7 +1306,7 @@ export default function App() {
 
   return (
     <>
-      <div className="content" ref={contentRef}>
+      <div className={`content ${activeTab === 'home' ? 'home-content' : ''}`} ref={contentRef}>
         {welcomeBonus && (
           <div className="welcome-banner">
             <div className="welcome-text">
@@ -1383,52 +1374,31 @@ export default function App() {
               </div>
               {dailyBonusError && <div className="daily-bonus-error">{dailyBonusError}</div>}
             </section>
-            <section className="invite-card">
-              <div className="invite-art" aria-hidden="true">
-                <div className="invite-gift">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                    <path d="M5 9h14v10H5z" />
-                    <path d="M12 9v10" />
-                    <path d="M5 13h14" />
-                    <path d="M12 9c-2.1 0-3.8-.8-3.8-2.3S9.8 4 12 6.4C14.2 4 15.8 5 15.8 6.7S14.1 9 12 9z" />
-                  </svg>
-                </div>
-                <div className="invite-friends">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                    <path d="M12 6v12" />
-                    <path d="M6 12h12" />
-                  </svg>
-                </div>
+            <section className="invite-card invite-card-compact">
+              <div className="invite-compact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path d="M5 9h14v10H5z" />
+                  <path d="M12 9v10" />
+                  <path d="M5 13h14" />
+                  <path d="M12 9c-2.1 0-3.8-.8-3.8-2.3S9.8 4 12 6.4C14.2 4 15.8 5 15.8 6.7S14.1 9 12 9z" />
+                </svg>
               </div>
               <div className="invite-info">
-                <div className="invite-title-row">
-                  <span className="invite-title-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <circle cx="8.2" cy="8.4" r="2.4" />
-                      <circle cx="16.4" cy="8.4" r="2.1" />
-                      <path d="M4.7 16.8c.8-2.2 2.4-3.4 4.4-3.4s3.6 1.2 4.4 3.4" />
-                      <path d="M13.8 16.3c.7-1.7 2-2.7 3.6-2.7 1 0 1.9.4 2.7 1.1" />
-                    </svg>
-                  </span>
-                  <div className="invite-title">Реферальная система</div>
-                </div>
-                <div className="invite-sub">
-                  До {referralMaxRewardPerFriend} баллов за каждого приглашённого.
-                </div>
-                {referralLoading && <div className="invite-meta">Загрузка…</div>}
-                {!referralLoading && referralStats && (
-                  <>
-                    <div className="invite-meta">
-                      Приглашено: {referralStats.stats.invited} • Начислено:{' '}
-                      {referralStats.stats.earned} баллов
-                    </div>
-                    <div className="invite-code">Код: {referralStats.code}</div>
-                  </>
+                <div className="invite-title">Реферальная система</div>
+                {referralLoading && <div className="invite-sub">Загрузка…</div>}
+                {!referralLoading && referralError && (
+                  <div className="invite-sub invite-sub-error">Статистика временно недоступна</div>
                 )}
-                {!referralLoading && !referralStats && !referralError && (
-                  <div className="invite-meta">Ссылка станет доступна после входа в Mini App.</div>
+                {!referralLoading && !referralError && referralStats && (
+                  <div className="invite-sub">
+                    Приглашено {referralStats.stats.invited} • +{referralStats.stats.earned} баллов
+                  </div>
                 )}
-                {referralError && <div className="invite-error">{referralError}</div>}
+                {!referralLoading && !referralError && !referralStats && (
+                  <div className="invite-sub">
+                    До {referralMaxRewardPerFriend} баллов за приглашённого
+                  </div>
+                )}
               </div>
               <button
                 className="invite-button"
@@ -1440,34 +1410,6 @@ export default function App() {
                   <path d="M8 12h8" />
                   <path d="M12.5 7.8L16.7 12l-4.2 4.2" />
                 </svg>
-              </button>
-            </section>
-            <section className="home-shortcuts" aria-label="Быстрые действия">
-              <button
-                className="home-shortcut"
-                type="button"
-                onClick={() => setActiveTab('promo')}
-              >
-                <span className="home-shortcut-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.4-7 10-7 10z" />
-                  </svg>
-                </span>
-                <span className="home-shortcut-label">Запустить продвижение</span>
-              </button>
-              <button
-                className="home-shortcut"
-                type="button"
-                onClick={() => setActiveTab('tasks')}
-              >
-                <span className="home-shortcut-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect x="4.5" y="5" width="15" height="14" rx="2.2" />
-                    <path d="M8.5 9.2h7" />
-                    <path d="M8.5 13h5.2" />
-                  </svg>
-                </span>
-                <span className="home-shortcut-label">Перейти к заданиям</span>
               </button>
             </section>
           </>
