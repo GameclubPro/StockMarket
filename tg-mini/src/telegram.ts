@@ -80,7 +80,7 @@ const initViewportFullscreen = () => {
     const isFullscreen = Boolean(tg.isFullscreen);
     const viewportDelta =
       baseHeight > 0 ? Math.max(0, Math.round(window.innerHeight - baseHeight)) : 0;
-    const expectedTopControls = isFullscreen ? 46 : 34;
+    const expectedTopControls = isFullscreen ? (topFromInsets > 0 ? 46 : 56) : 34;
     const topFromDelta = Math.max(0, Math.min(88, viewportDelta));
 
     // Use content safe insets first, fallback to viewport delta, and keep a conservative floor
@@ -129,6 +129,13 @@ const initViewportFullscreen = () => {
     syncViewportInsets();
   };
 
+  const refreshInsetsAndSync = () => {
+    void requestInsets().finally(() => {
+      syncViewportInsets();
+      scheduleSync();
+    });
+  };
+
   const expandToFullscreen = () => {
     try {
       if (expandViewport.isAvailable?.()) expandViewport();
@@ -141,14 +148,14 @@ const initViewportFullscreen = () => {
         void requestFullscreen()
           .catch(() => undefined)
           .finally(() => {
-            scheduleSync();
+            refreshInsetsAndSync();
           });
       }
     } catch {
       // noop
     }
 
-    scheduleSync();
+    refreshInsetsAndSync();
   };
 
   try {
@@ -157,7 +164,7 @@ const initViewportFullscreen = () => {
       tg.onEvent('viewportChanged', syncViewportInsets);
       tg.onEvent('safeAreaChanged', syncViewportInsets);
       tg.onEvent('contentSafeAreaChanged', syncViewportInsets);
-      tg.onEvent('fullscreenChanged', syncViewportInsets);
+      tg.onEvent('fullscreenChanged', refreshInsetsAndSync);
     }
   } catch {
     // noop
