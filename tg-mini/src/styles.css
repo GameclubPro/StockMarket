@@ -1547,10 +1547,10 @@ body::before {
 .wheel-segment::before {
   content: '';
   position: absolute;
-  top: 8%;
+  top: 6.5%;
   left: 50%;
   width: 1.5px;
-  height: 48%;
+  height: 43.5%;
   transform: translateX(-50%);
   border-radius: 999px;
   background: linear-gradient(180deg, #d8efe3 0%, #90b5b1 44%, #355065 100%);
@@ -1566,12 +1566,12 @@ body::before {
 .wheel-segment::after {
   content: '';
   position: absolute;
-  top: 9%;
+  top: 7.5%;
   left: 50%;
-  width: 50%;
-  height: 50%;
+  width: 58%;
+  height: 42.5%;
   transform: translateX(-50%);
-  clip-path: polygon(50% 100%, 19% 0, 81% 0);
+  clip-path: polygon(50% 100%, 12% 0, 88% 0);
   background: linear-gradient(180deg, #a8d8c4 0%, #7ab6a0 24%, #4c7f7f 56%, #274a5f 100%);
   border: 1px solid #a9d2c2;
   box-shadow:
@@ -1596,7 +1596,7 @@ body::before {
 .wheel-value {
   position: relative;
   z-index: 2;
-  margin-top: 21px;
+  margin-top: 16px;
   font-size: clamp(23px, 5.2vw, 31px);
   font-weight: 800;
   line-height: 1;
