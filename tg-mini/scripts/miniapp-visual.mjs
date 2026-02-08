@@ -18,26 +18,27 @@ const DEFAULT_SAFE_BOTTOM_PX = 16;
 const DEFAULT_SAFE_TOP_PX = 0;
 const DEFAULT_MISMATCH_THRESHOLD_PCT = 0.25;
 const DEFAULT_TG_TOP_BAR_PX = 48;
+const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 34;
 const DEFAULT_TG_MAIN_BUTTON_PX = 0;
 const DEFAULT_TG_MAIN_BUTTON_GAP_PX = 12;
+const DEFAULT_TG_MODE = 'fullscreen';
+const DEFAULT_TG_WEBAPP_VERSION = '9.3';
+const SUPPORTED_TG_MODES = new Set(['fullscreen', 'fullsize', 'compact']);
 const FIXTURE_NOW_MS = Date.parse('2026-01-15T12:00:00.000Z');
 const APP_READY_SELECTOR = '.profile-card';
 
-const TELEGRAM_MOCK_QUERY = new URLSearchParams({
-  tgWebAppPlatform: 'android',
-  tgWebAppVersion: '8.0',
-  tgWebAppThemeParams: JSON.stringify({
-    bg_color: '#0c0c14',
-    text_color: '#e8e9f2',
-    hint_color: '#9fa2b6',
-    button_color: '#8ad2ff',
-    button_text_color: '#001018',
-    secondary_bg_color: '#10101b',
-    header_bg_color: '#10101b',
-  }),
-  tgWebAppData:
-    'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash',
-}).toString();
+const TELEGRAM_MOCK_THEME_PARAMS = JSON.stringify({
+  bg_color: '#0c0c14',
+  text_color: '#e8e9f2',
+  hint_color: '#9fa2b6',
+  button_color: '#8ad2ff',
+  button_text_color: '#001018',
+  secondary_bg_color: '#10101b',
+  header_bg_color: '#10101b',
+});
+
+const TELEGRAM_MOCK_INIT_DATA =
+  'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash';
 
 const SCREEN_STEPS = [
   {
@@ -104,6 +105,9 @@ const usage = `
   --waitMs <number>  Пауза после переходов (default: ${DEFAULT_WAIT_MS})
   --safeTopPx <n>    Верхняя safe-area зона риска в px (scan mode, default: динамически)
   --safeBottomPx <n> Нижняя safe-area зона риска в px (scan mode, default: ${DEFAULT_SAFE_BOTTOM_PX})
+  --tgMode <mode>    Режим Telegram viewport: fullscreen|fullsize|compact (default: ${DEFAULT_TG_MODE})
+  --tgWebAppVersion <v> Версия Telegram WebApp API (default: ${DEFAULT_TG_WEBAPP_VERSION})
+  --tgFullscreenControlsPx <n> Высота верхних fullscreen-контролов в px (default: ${DEFAULT_TG_FULLSCREEN_CONTROLS_PX})
   --tgTopBarPx <n>   Высота Telegram верхнего chrome в px (default: ${DEFAULT_TG_TOP_BAR_PX})
   --tgMainButtonPx <n> Высота Telegram Main Button в px (default: ${DEFAULT_TG_MAIN_BUTTON_PX})
   --tgMainButtonGapPx <n> Отступ Main Button снизу в px (default: ${DEFAULT_TG_MAIN_BUTTON_GAP_PX})
@@ -159,6 +163,18 @@ function toFloat(value, fallback) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function toStringValue(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim();
+  return normalized || fallback;
+}
+
+function toTelegramMode(value, fallback = DEFAULT_TG_MODE) {
+  const normalized = toStringValue(value, fallback).toLowerCase();
+  if (SUPPORTED_TG_MODES.has(normalized)) return normalized;
+  return fallback;
+}
+
 function resolvePath(value, fallback) {
   return path.resolve(process.cwd(), value ?? fallback);
 }
@@ -168,11 +184,21 @@ function parseConfig(mode, rawArgs) {
   const height = toInt(rawArgs.height, DEFAULT_HEIGHT);
   const waitMs = toInt(rawArgs.waitMs, DEFAULT_WAIT_MS);
   const port = toInt(rawArgs.port, DEFAULT_PORT);
+  const tgMode = toTelegramMode(rawArgs.tgMode, DEFAULT_TG_MODE);
+  const tgWebAppVersion = toStringValue(rawArgs.tgWebAppVersion, DEFAULT_TG_WEBAPP_VERSION);
   const telegramChrome = !(rawArgs.noTelegramChrome === true || rawArgs.noTelegramChrome === 'true');
   const tgTopBarPx = toNonNegativeInt(rawArgs.tgTopBarPx, DEFAULT_TG_TOP_BAR_PX);
+  const tgFullscreenControlsPx = toNonNegativeInt(
+    rawArgs.tgFullscreenControlsPx,
+    DEFAULT_TG_FULLSCREEN_CONTROLS_PX
+  );
   const tgMainButtonPx = toNonNegativeInt(rawArgs.tgMainButtonPx, DEFAULT_TG_MAIN_BUTTON_PX);
   const tgMainButtonGapPx = toNonNegativeInt(rawArgs.tgMainButtonGapPx, DEFAULT_TG_MAIN_BUTTON_GAP_PX);
-  const safeTopDefault = telegramChrome ? Math.max(DEFAULT_SAFE_TOP_PX, tgTopBarPx) : DEFAULT_SAFE_TOP_PX;
+  const topRiskInsetByMode =
+    tgMode === 'fullscreen' ? tgFullscreenControlsPx : tgTopBarPx;
+  const safeTopDefault = telegramChrome
+    ? Math.max(DEFAULT_SAFE_TOP_PX, topRiskInsetByMode)
+    : DEFAULT_SAFE_TOP_PX;
   const safeBottomDefault = Math.max(
     DEFAULT_SAFE_BOTTOM_PX,
     telegramChrome && tgMainButtonPx > 0 ? tgMainButtonPx + tgMainButtonGapPx : 0
@@ -203,7 +229,10 @@ function parseConfig(mode, rawArgs) {
     port,
     safeTopPx,
     safeBottomPx,
+    tgMode,
+    tgWebAppVersion,
     tgTopBarPx,
+    tgFullscreenControlsPx,
     tgMainButtonPx,
     tgMainButtonGapPx,
     telegramChrome,
@@ -218,6 +247,15 @@ function parseConfig(mode, rawArgs) {
     afterDir: resolvePath(rawArgs.afterDir, afterDirDefault),
     diffDir: resolvePath(rawArgs.diffDir, diffDirDefault),
   };
+}
+
+function buildTelegramMockQuery(config) {
+  return new URLSearchParams({
+    tgWebAppPlatform: 'android',
+    tgWebAppVersion: config.tgWebAppVersion,
+    tgWebAppThemeParams: TELEGRAM_MOCK_THEME_PARAMS,
+    tgWebAppData: TELEGRAM_MOCK_INIT_DATA,
+  }).toString();
 }
 
 async function sleep(ms) {
@@ -692,21 +730,228 @@ async function registerApiMocks(page) {
 
 async function installTelegramMocks(page, config) {
   await page.addInitScript((params) => {
+    const normalizeMode = (value) => {
+      const mode = typeof value === 'string' ? value.toLowerCase() : '';
+      if (mode === 'fullscreen' || mode === 'fullsize' || mode === 'compact') {
+        return mode;
+      }
+      return 'fullscreen';
+    };
+
+    const modeState = { value: normalizeMode(params?.tgMode) };
     const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const fullscreenControlsPx = Math.max(0, Number(params?.tgFullscreenControlsPx) || 0);
     const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
-    const bottomOffsetPx = mainButtonPx > 0 ? mainButtonPx + mainButtonGapPx : 0;
+    const webAppVersion = typeof params?.tgWebAppVersion === 'string' ? params.tgWebAppVersion : '9.3';
 
-    document.documentElement.style.setProperty('--tg-legacy-top-offset', '0px');
-    document.documentElement.style.setProperty('--tg-header-overlay-offset', `${topBarPx}px`);
-    document.documentElement.style.setProperty('--tg-legacy-bottom-offset', `${bottomOffsetPx}px`);
+    const eventListeners = new Map();
+    const storageFactory = () => {
+      const store = new Map();
+      return {
+        setItem: (key, value, callback) => {
+          const normalizedKey = String(key ?? '');
+          store.set(normalizedKey, String(value ?? ''));
+          if (typeof callback === 'function') callback(true);
+          return Promise.resolve(true);
+        },
+        getItem: (key, callback) => {
+          const normalizedKey = String(key ?? '');
+          const value = store.has(normalizedKey) ? store.get(normalizedKey) : null;
+          if (typeof callback === 'function') callback(value);
+          return Promise.resolve(value);
+        },
+        removeItem: (key, callback) => {
+          const normalizedKey = String(key ?? '');
+          store.delete(normalizedKey);
+          if (typeof callback === 'function') callback(true);
+          return Promise.resolve(true);
+        },
+        clear: (callback) => {
+          store.clear();
+          if (typeof callback === 'function') callback(true);
+          return Promise.resolve(true);
+        },
+      };
+    };
 
-    const webApp = {
-      isExpanded: true,
-      viewportHeight: Math.max(0, window.innerHeight - topBarPx - bottomOffsetPx),
-      viewportStableHeight: Math.max(0, window.innerHeight - topBarPx - bottomOffsetPx),
+    const cloudStorage = storageFactory();
+    const deviceStorage = storageFactory();
+    const secureStorage = storageFactory();
+
+    const emitEvent = (eventType, payload = {}) => {
+      const handlers = eventListeners.get(eventType);
+      if (!handlers || handlers.size === 0) return;
+      handlers.forEach((handler) => {
+        try {
+          handler(payload);
+        } catch {
+          // noop
+        }
+      });
+    };
+
+    const onEvent = (eventType, callback) => {
+      if (!eventType || typeof callback !== 'function') return;
+      if (!eventListeners.has(eventType)) {
+        eventListeners.set(eventType, new Set());
+      }
+      eventListeners.get(eventType).add(callback);
+    };
+
+    const offEvent = (eventType, callback) => {
+      if (!eventType || typeof callback !== 'function') return;
+      const handlers = eventListeners.get(eventType);
+      if (!handlers) return;
+      handlers.delete(callback);
+    };
+
+    const getTopInsetPx = () => (modeState.value === 'fullscreen' ? fullscreenControlsPx : topBarPx);
+    const getViewportTopOffsetPx = () => (modeState.value === 'fullscreen' ? 0 : topBarPx);
+
+    const mainButton = {
+      isVisible: mainButtonPx > 0,
+      isActive: true,
+      isProgressVisible: false,
+      text: 'Продолжить',
+      show: () => {
+        mainButton.isVisible = true;
+        updateInsets(true);
+      },
+      hide: () => {
+        mainButton.isVisible = false;
+        updateInsets(true);
+      },
+      setText: (value) => {
+        if (typeof value === 'string') mainButton.text = value;
+        return mainButton;
+      },
+      onClick: () => {},
+      offClick: () => {},
+      enable: () => {
+        mainButton.isActive = true;
+        return mainButton;
+      },
+      disable: () => {
+        mainButton.isActive = false;
+        return mainButton;
+      },
+      showProgress: () => {
+        mainButton.isProgressVisible = true;
+        return mainButton;
+      },
+      hideProgress: () => {
+        mainButton.isProgressVisible = false;
+        return mainButton;
+      },
+      setParams: () => mainButton,
+    };
+
+    const secondaryButton = {
+      isVisible: false,
+      isActive: true,
+      isProgressVisible: false,
+      text: 'Отмена',
+      position: 'left',
+      show: () => {
+        secondaryButton.isVisible = true;
+        return secondaryButton;
+      },
+      hide: () => {
+        secondaryButton.isVisible = false;
+        return secondaryButton;
+      },
+      setText: (value) => {
+        if (typeof value === 'string') secondaryButton.text = value;
+        return secondaryButton;
+      },
+      onClick: () => {},
+      offClick: () => {},
+      enable: () => {
+        secondaryButton.isActive = true;
+        return secondaryButton;
+      },
+      disable: () => {
+        secondaryButton.isActive = false;
+        return secondaryButton;
+      },
+      showProgress: () => {
+        secondaryButton.isProgressVisible = true;
+        return secondaryButton;
+      },
+      hideProgress: () => {
+        secondaryButton.isProgressVisible = false;
+        return secondaryButton;
+      },
+      setParams: () => secondaryButton,
+    };
+
+    let webApp = null;
+    const getBottomOffsetPx = () =>
+      mainButton.isVisible ? Math.max(0, mainButtonPx + mainButtonGapPx) : 0;
+
+    const updateInsets = (emitChanges = false) => {
+      if (!webApp) return;
+      const safeTopPx = getTopInsetPx();
+      const viewportTopOffsetPx = getViewportTopOffsetPx();
+      const bottomOffsetPx = getBottomOffsetPx();
+      const viewportHeight = Math.max(0, window.innerHeight - viewportTopOffsetPx - bottomOffsetPx);
+      const root = document.documentElement;
+
+      webApp.isExpanded = modeState.value !== 'compact';
+      webApp.isFullscreen = modeState.value === 'fullscreen';
+      webApp.viewportHeight = viewportHeight;
+      webApp.viewportStableHeight = viewportHeight;
+      webApp.safeAreaInset = { top: safeTopPx, right: 0, bottom: bottomOffsetPx, left: 0 };
+      webApp.contentSafeAreaInset = { top: safeTopPx, right: 0, bottom: bottomOffsetPx, left: 0 };
+
+      root.style.setProperty(
+        '--tg-header-overlay-offset',
+        `${modeState.value === 'fullscreen' ? 0 : topBarPx}px`
+      );
+      root.style.setProperty('--tg-legacy-top-offset', `${safeTopPx}px`);
+      root.style.setProperty('--tg-legacy-bottom-offset', `${bottomOffsetPx}px`);
+      root.style.setProperty('--tg-top-reserved', `${safeTopPx}px`);
+      root.style.setProperty('--tg-bottom-reserved', `${bottomOffsetPx}px`);
+      root.style.setProperty('--tg-viewport-height', `${viewportHeight}px`);
+      root.style.setProperty('--tg-viewport-stable-height', `${viewportHeight}px`);
+      root.style.setProperty('--tg-viewport-safe-area-inset-top', `${safeTopPx}px`);
+      root.style.setProperty('--tg-viewport-safe-area-inset-right', '0px');
+      root.style.setProperty('--tg-viewport-safe-area-inset-bottom', `${bottomOffsetPx}px`);
+      root.style.setProperty('--tg-viewport-safe-area-inset-left', '0px');
+      root.style.setProperty('--tg-viewport-content-safe-area-inset-top', `${safeTopPx}px`);
+      root.style.setProperty('--tg-viewport-content-safe-area-inset-right', '0px');
+      root.style.setProperty('--tg-viewport-content-safe-area-inset-bottom', `${bottomOffsetPx}px`);
+      root.style.setProperty('--tg-viewport-content-safe-area-inset-left', '0px');
+
+      if (emitChanges) {
+        emitEvent('viewportChanged', {
+          height: viewportHeight,
+          is_expanded: webApp.isExpanded,
+          is_state_stable: true,
+        });
+        emitEvent('fullscreenChanged', {
+          is_fullscreen: webApp.isFullscreen,
+        });
+        emitEvent('safeAreaChanged', { ...webApp.safeAreaInset });
+        emitEvent('contentSafeAreaChanged', { ...webApp.contentSafeAreaInset });
+      }
+    };
+
+    const setMode = (nextMode, emitChanges = true) => {
+      modeState.value = normalizeMode(nextMode);
+      updateInsets(emitChanges);
+    };
+
+    webApp = {
+      isExpanded: modeState.value !== 'compact',
+      isFullscreen: modeState.value === 'fullscreen',
+      viewportHeight: window.innerHeight,
+      viewportStableHeight: window.innerHeight,
+      safeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
+      contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
       platform: 'android',
-      version: '8.0',
+      version: webAppVersion,
       colorScheme: 'dark',
       themeParams: {
         bg_color: '#0c0c14',
@@ -728,29 +973,102 @@ async function installTelegramMocks(page, config) {
       initData:
         'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash',
       ready: () => {},
-      expand: () => {},
       close: () => {},
+      expand: () => {
+        if (modeState.value === 'compact') {
+          setMode('fullsize', true);
+        } else {
+          updateInsets(true);
+        }
+      },
+      requestFullscreen: () => {
+        setMode('fullscreen', true);
+        return Promise.resolve(true);
+      },
+      exitFullscreen: () => {
+        setMode('fullsize', true);
+        return Promise.resolve(true);
+      },
+      openLink: () => {},
       openTelegramLink: () => {},
+      switchInlineQuery: () => {},
+      showAlert: () => {},
+      showConfirm: (_text, callback) => {
+        if (typeof callback === 'function') callback(true);
+      },
+      showPopup: (_params, callback) => {
+        if (typeof callback === 'function') callback('ok');
+      },
+      showScanQrPopup: () => {},
+      closeScanQrPopup: () => {},
+      readTextFromClipboard: (_callback) => {},
+      hideKeyboard: () => {},
+      setHeaderColor: () => {},
+      setBackgroundColor: () => {},
+      setBottomBarColor: () => {},
+      requestWriteAccess: (callback) => {
+        if (typeof callback === 'function') callback(true);
+      },
+      requestContact: (callback) => {
+        if (typeof callback === 'function') callback(false);
+      },
       enableClosingConfirmation: () => {},
       disableClosingConfirmation: () => {},
-      MainButton: {
-        isVisible: mainButtonPx > 0,
-        isActive: true,
-        isProgressVisible: false,
-        text: 'Продолжить',
+      enableVerticalSwipes: () => {},
+      disableVerticalSwipes: () => {},
+      lockOrientation: () => {},
+      unlockOrientation: () => {},
+      onEvent,
+      offEvent,
+      MainButton: mainButton,
+      BottomButton: mainButton,
+      SecondaryButton: secondaryButton,
+      BackButton: {
+        isVisible: false,
         show: () => {},
         hide: () => {},
-        setText: () => {},
         onClick: () => {},
+        offClick: () => {},
+      },
+      SettingsButton: {
+        isVisible: false,
+        show: () => {},
+        hide: () => {},
+        onClick: () => {},
+        offClick: () => {},
+      },
+      HapticFeedback: {
+        impactOccurred: () => {},
+        notificationOccurred: () => {},
+        selectionChanged: () => {},
+      },
+      CloudStorage: cloudStorage,
+      DeviceStorage: deviceStorage,
+      SecureStorage: secureStorage,
+      BiometricManager: {
+        isInited: true,
+        isBiometricAvailable: false,
+        isAccessRequested: false,
+        isAccessGranted: false,
+        isBiometricTokenSaved: false,
+        init: (callback) => {
+          if (typeof callback === 'function') callback();
+        },
       },
     };
+
+    updateInsets(false);
+    window.addEventListener('resize', () => updateInsets(true), { passive: true });
     Object.defineProperty(window, 'Telegram', {
       configurable: true,
       writable: true,
       value: { WebApp: webApp },
     });
   }, {
+    tgMode: config.tgMode,
+    tgWebAppVersion: config.tgWebAppVersion,
     tgTopBarPx: config.tgTopBarPx,
+    tgFullscreenControlsPx: config.tgFullscreenControlsPx,
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
   });
@@ -759,7 +1077,15 @@ async function installTelegramMocks(page, config) {
 async function installTelegramChrome(page, config) {
   if (!config.telegramChrome) return;
 
-  const forcedTopOffset = Math.max(0, Number(config.tgTopBarPx) || 0);
+  const mode = config.tgMode;
+  const forcedTopOffset =
+    mode === 'fullscreen'
+      ? 0
+      : Math.max(0, Number(config.tgTopBarPx) || 0);
+  const forcedTopReserve =
+    mode === 'fullscreen'
+      ? Math.max(0, Number(config.tgFullscreenControlsPx) || 0)
+      : Math.max(0, Number(config.tgTopBarPx) || 0);
   const forcedBottomOffset =
     Math.max(0, Number(config.tgMainButtonPx) || 0) +
     Math.max(0, Number(config.tgMainButtonGapPx) || 0);
@@ -768,7 +1094,7 @@ async function installTelegramChrome(page, config) {
     content: `
       :root {
         --tg-header-overlay-offset: ${forcedTopOffset}px !important;
-        --tg-legacy-top-offset: 0px !important;
+        --tg-legacy-top-offset: ${forcedTopReserve}px !important;
         --tg-legacy-bottom-offset: ${forcedBottomOffset}px !important;
       }
 
@@ -786,7 +1112,7 @@ async function installTelegramChrome(page, config) {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 14px;
+        padding: 0 12px;
         background:
           linear-gradient(180deg, rgba(14, 20, 28, 0.96), rgba(10, 15, 22, 0.92));
         border-bottom: 1px solid rgba(210, 232, 250, 0.14);
@@ -794,6 +1120,13 @@ async function installTelegramChrome(page, config) {
         font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.2px;
+      }
+
+      .tg-visual-chrome-top-fullscreen {
+        background:
+          linear-gradient(180deg, rgba(8, 14, 21, 0.58), rgba(8, 14, 21, 0));
+        border-bottom: none;
+        color: rgba(233, 246, 255, 0.88);
       }
 
       .tg-visual-top-side {
@@ -838,14 +1171,16 @@ async function installTelegramChrome(page, config) {
   });
 
   await page.evaluate((params) => {
+    const mode = typeof params?.tgMode === 'string' ? params.tgMode : 'fullscreen';
     const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const fullscreenControlsPx = Math.max(0, Number(params?.tgFullscreenControlsPx) || 0);
     const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
 
     document.querySelectorAll('.tg-visual-chrome').forEach((node) => node.remove());
     document.querySelectorAll('.tg-visual-chrome-main-button-wrap').forEach((node) => node.remove());
 
-    if (topBarPx > 0) {
+    if ((mode === 'fullsize' || mode === 'compact') && topBarPx > 0) {
       const top = document.createElement('div');
       top.className = 'tg-visual-chrome tg-visual-chrome-top';
       top.style.height = `${topBarPx}px`;
@@ -853,6 +1188,21 @@ async function installTelegramChrome(page, config) {
         <div class="tg-visual-top-side">
           <span class="tg-visual-back">◀</span>
           <span>Telegram</span>
+        </div>
+        <div class="tg-visual-top-side">
+          <span>⋮</span>
+        </div>
+      `;
+      document.body.appendChild(top);
+    }
+
+    if (mode === 'fullscreen' && fullscreenControlsPx > 0) {
+      const top = document.createElement('div');
+      top.className = 'tg-visual-chrome tg-visual-chrome-top tg-visual-chrome-top-fullscreen';
+      top.style.height = `${fullscreenControlsPx}px`;
+      top.innerHTML = `
+        <div class="tg-visual-top-side">
+          <span class="tg-visual-back">◀</span>
         </div>
         <div class="tg-visual-top-side">
           <span>⋮</span>
@@ -873,7 +1223,9 @@ async function installTelegramChrome(page, config) {
       document.body.appendChild(wrap);
     }
   }, {
+    tgMode: config.tgMode,
     tgTopBarPx: config.tgTopBarPx,
+    tgFullscreenControlsPx: config.tgFullscreenControlsPx,
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
   });
@@ -1338,7 +1690,8 @@ async function createRuntime(config) {
     await registerApiMocks(page);
   }
 
-  await page.goto(`${baseUrl}/?${TELEGRAM_MOCK_QUERY}`, { waitUntil: 'domcontentloaded' });
+  const telegramMockQuery = buildTelegramMockQuery(config);
+  await page.goto(`${baseUrl}/?${telegramMockQuery}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector(APP_READY_SELECTOR, { timeout: 15_000 });
   await installTelegramChrome(page, config);
   await waitForFonts(page);
