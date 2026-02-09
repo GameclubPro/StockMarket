@@ -1657,9 +1657,12 @@ export default function App() {
                     className={`daily-bonus-preview-wrap ${dailyBonusAvailable ? 'ready' : ''}`}
                     aria-hidden="true"
                   >
+                    <span className="daily-bonus-preview-aura" />
                     <span className="daily-bonus-preview-shell" />
+                    <span className="daily-bonus-preview-lights" />
                     <span className="daily-bonus-preview-orbit" />
                     <span className="daily-bonus-preview-ratchet" />
+                    <span className="daily-bonus-preview-sheen" />
                     <div className="daily-bonus-preview">
                       <span className="daily-bonus-preview-facet" />
                       <span className="daily-bonus-preview-cap" />
