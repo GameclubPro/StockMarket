@@ -301,7 +301,7 @@ const updateReferralProgress = async (
 };
 
 const DAILY_BONUS_REASON = 'Ежедневный бонус';
-const DAILY_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_COOLDOWN_MS = 1000;
 const DAILY_BONUS_SEGMENTS = [
   { label: '+10', value: 10, weight: 5 },
   { label: '+50', value: 50, weight: 1 },
