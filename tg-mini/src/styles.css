@@ -1675,7 +1675,8 @@ body::before {
     inset 0 -18px 24px #0000007a,
     inset 10px 0 14px var(--wheel-segment-left),
     inset -10px 0 14px var(--wheel-segment-right),
-    0 0 16px color-mix(in srgb, var(--wheel-segment-glow) 90%, #ffffff 10%);
+    0 0 16px var(--wheel-segment-glow),
+    0 0 6px #ffffff40;
 }
 
 .wheel-segment.winner::after {
