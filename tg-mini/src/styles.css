@@ -832,18 +832,18 @@ body::before {
   height: 80%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 14%, #ffffff45 0%, #ffffff00 34%),
+    radial-gradient(circle at 50% 14%, #ffffff30 0%, #ffffff00 34%),
     radial-gradient(circle at 50% 88%, #091628cc 0%, #09162800 58%),
     conic-gradient(
       from -90deg,
-      #d8e6f4 0deg 45deg,
-      #94abc3 45deg 90deg,
-      #cad9e9 90deg 135deg,
-      #8299b1 135deg 180deg,
-      #d2dfed 180deg 225deg,
-      #8ea4bd 225deg 270deg,
-      #c4d4e4 270deg 315deg,
-      #8198b0 315deg 360deg
+      #a6bacf 0deg 45deg,
+      #6f86a0 45deg 90deg,
+      #9bb1c7 90deg 135deg,
+      #687f9a 135deg 180deg,
+      #a1b6cb 180deg 225deg,
+      #6b829d 225deg 270deg,
+      #95abc1 270deg 315deg,
+      #637a95 315deg 360deg
     );
   border: 4px solid #c2d3e5;
   box-shadow:
@@ -1453,18 +1453,18 @@ body::before {
   inset: 0.8%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 10%, #ffffff5e 0%, #ffffff00 34%),
+    radial-gradient(circle at 50% 10%, #ffffff30 0%, #ffffff00 34%),
     radial-gradient(circle at 50% 92%, #050f1bd6 0%, #050f1b00 60%),
     conic-gradient(
       from -90deg,
-      #d9e6f4 0deg 45deg,
-      #95abc4 45deg 90deg,
-      #c9d9e9 90deg 135deg,
-      #8197af 135deg 180deg,
-      #d3e0ed 180deg 225deg,
-      #8ea5bd 225deg 270deg,
-      #c4d4e4 270deg 315deg,
-      #8298b1 315deg 360deg
+      #a7bbd0 0deg 45deg,
+      #6f86a0 45deg 90deg,
+      #9db2c8 90deg 135deg,
+      #687f9a 135deg 180deg,
+      #a2b7cc 180deg 225deg,
+      #6c839e 225deg 270deg,
+      #96acc2 270deg 315deg,
+      #637a95 315deg 360deg
     );
   border: 1px solid #d0deee;
   box-shadow:
