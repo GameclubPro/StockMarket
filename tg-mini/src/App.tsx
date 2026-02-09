@@ -45,7 +45,7 @@ const DAILY_WHEEL_SEGMENTS = [
   { label: '+15', value: 15, weight: 3 },
   { label: '+50', value: 50, weight: 1 },
   { label: '+10', value: 10, weight: 3 },
-  { label: '+10', value: 10, weight: 3 },
+  { label: '+100', value: 100, weight: 1 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;

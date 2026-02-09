@@ -838,11 +838,11 @@ body::before {
       #2a5655 0deg 45deg,
       #272f53 45deg 90deg,
       #2f615d 90deg 135deg,
-      #282f57 135deg 180deg,
+      #7a2531 135deg 180deg,
       #305d59 180deg 225deg,
-      #272f53 225deg 270deg,
+      #7a2531 225deg 270deg,
       #2f615e 270deg 315deg,
-      #282f57 315deg 360deg
+      #8b6421 315deg 360deg
     );
   border: 4px solid #c3f3de;
   box-shadow:
@@ -1475,16 +1475,16 @@ body::before {
       #6ca8de 63deg 90deg,
       #87e8de 90deg 108deg,
       #56beaf 108deg 135deg,
-      #91cbff 135deg 153deg,
-      #5f98d1 153deg 180deg,
+      #ff95a2 135deg 153deg,
+      #cf4354 153deg 180deg,
       #9beccd 180deg 198deg,
       #69c9b0 198deg 225deg,
-      #8fd0ff 225deg 243deg,
-      #619fda 243deg 270deg,
+      #ff9ba8 225deg 243deg,
+      #cf4556 243deg 270deg,
       #97e4d3 270deg 288deg,
       #67c4b7 288deg 315deg,
-      #a3dbff 315deg 333deg,
-      #72aee0 333deg 360deg
+      #ffe8ad 315deg 333deg,
+      #d4a64f 333deg 360deg
     );
   border: 1px solid #b8ddd1;
   box-shadow:
