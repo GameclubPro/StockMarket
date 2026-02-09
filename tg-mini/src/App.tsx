@@ -51,15 +51,12 @@ const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_NOTCHES_PER_SEGMENT = 3;
 const DAILY_WHEEL_NOTCH_SLICE = DAILY_WHEEL_SLICE / DAILY_WHEEL_NOTCHES_PER_SEGMENT;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
-const DAILY_WHEEL_SPIN_TURNS = 9;
-const DAILY_WHEEL_SPIN_MS = 4200;
-const DAILY_WHEEL_LAUNCH_MS = 520;
-const DAILY_WHEEL_BRAKE_MS = 1900;
-const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_LAUNCH_MS - DAILY_WHEEL_BRAKE_MS;
-const DAILY_WHEEL_FINISH_BUFFER_MS = 220;
+const DAILY_WHEEL_SPIN_TURNS = 8;
+const DAILY_WHEEL_SPIN_MS = 3800;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
-const DAILY_WHEEL_LAUNCH_RATIO = DAILY_WHEEL_LAUNCH_MS / DAILY_WHEEL_SPIN_MS;
-const DAILY_WHEEL_BRAKE_RATIO = DAILY_WHEEL_BRAKE_MS / DAILY_WHEEL_SPIN_MS;
+const DAILY_WHEEL_LAUNCH_END = 0.16;
+const DAILY_WHEEL_BRAKE_START = 0.58;
+const DAILY_WHEEL_BRAKE_DECAY = 0.14;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
@@ -195,6 +192,38 @@ const getRotationFromTransform = (transformValue: string) => {
   }
 };
 
+const getWheelNaturalProgress = (rawProgress: number) => {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  const launchArea = DAILY_WHEEL_LAUNCH_END / 2;
+  const cruiseArea = Math.max(0, DAILY_WHEEL_BRAKE_START - DAILY_WHEEL_LAUNCH_END);
+  const brakeAreaTotal =
+    DAILY_WHEEL_BRAKE_DECAY *
+    (1 - Math.exp(-(1 - DAILY_WHEEL_BRAKE_START) / DAILY_WHEEL_BRAKE_DECAY));
+  const totalArea = launchArea + cruiseArea + brakeAreaTotal;
+
+  if (progress <= DAILY_WHEEL_LAUNCH_END) {
+    const launchAreaNow = (progress * progress) / (2 * DAILY_WHEEL_LAUNCH_END);
+    return launchAreaNow / totalArea;
+  }
+
+  if (progress <= DAILY_WHEEL_BRAKE_START) {
+    const cruiseAreaNow = progress - DAILY_WHEEL_LAUNCH_END;
+    return (launchArea + cruiseAreaNow) / totalArea;
+  }
+
+  const brakeElapsed = progress - DAILY_WHEEL_BRAKE_START;
+  const brakeAreaNow = DAILY_WHEEL_BRAKE_DECAY * (1 - Math.exp(-brakeElapsed / DAILY_WHEEL_BRAKE_DECAY));
+  return Math.min(1, (launchArea + cruiseArea + brakeAreaNow) / totalArea);
+};
+
+const getWheelSpinPhaseByProgress = (
+  progress: number
+): 'launch' | 'cruise' | 'brake' => {
+  if (progress < DAILY_WHEEL_LAUNCH_END) return 'launch';
+  if (progress < DAILY_WHEEL_BRAKE_START) return 'cruise';
+  return 'brake';
+};
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -279,9 +308,7 @@ export default function App() {
   const wheelPointerFrameRef = useRef<number | null>(null);
   const wheelPointerLastAngleRef = useRef<number | null>(null);
   const wheelPointerDistanceRef = useRef(0);
-  const spinTimeoutRef = useRef<number | null>(null);
-  const spinPhaseTimeoutRef = useRef<number | null>(null);
-  const spinBrakeTimeoutRef = useRef<number | null>(null);
+  const spinFrameRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
@@ -567,14 +594,8 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (spinTimeoutRef.current) {
-        window.clearTimeout(spinTimeoutRef.current);
-      }
-      if (spinPhaseTimeoutRef.current) {
-        window.clearTimeout(spinPhaseTimeoutRef.current);
-      }
-      if (spinBrakeTimeoutRef.current) {
-        window.clearTimeout(spinBrakeTimeoutRef.current);
+      if (spinFrameRef.current) {
+        window.cancelAnimationFrame(spinFrameRef.current);
       }
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1340,14 +1361,9 @@ export default function App() {
     setWheelWinningIndex(null);
     setWheelPointerKick(0);
 
-    if (spinTimeoutRef.current) {
-      window.clearTimeout(spinTimeoutRef.current);
-    }
-    if (spinPhaseTimeoutRef.current) {
-      window.clearTimeout(spinPhaseTimeoutRef.current);
-    }
-    if (spinBrakeTimeoutRef.current) {
-      window.clearTimeout(spinBrakeTimeoutRef.current);
+    if (spinFrameRef.current) {
+      window.cancelAnimationFrame(spinFrameRef.current);
+      spinFrameRef.current = null;
     }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1374,39 +1390,35 @@ export default function App() {
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const startRotation = wheelRotationRef.current;
       const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
-      const totalDistance = Math.max(0, nextRotation - startRotation);
-      const rawLaunchDistance = totalDistance * DAILY_WHEEL_LAUNCH_RATIO;
-      const minLaunchDistance = DAILY_WHEEL_SLICE * 1.5;
-      const maxLaunchDistance = Math.max(DAILY_WHEEL_SLICE, totalDistance - DAILY_WHEEL_SLICE * 4);
-      const launchDistance = Math.min(
-        maxLaunchDistance,
-        Math.max(minLaunchDistance, rawLaunchDistance)
-      );
-      const rawBrakeDistance = totalDistance * DAILY_WHEEL_BRAKE_RATIO;
-      const minBrakeDistance = DAILY_WHEEL_SLICE * 3.5;
-      const maxBrakeDistance = Math.max(
-        DAILY_WHEEL_SLICE * 2,
-        totalDistance - launchDistance - DAILY_WHEEL_SLICE
-      );
-      const brakeDistance = Math.min(maxBrakeDistance, Math.max(minBrakeDistance, rawBrakeDistance));
-      const launchRotation = startRotation + launchDistance;
-      const cruiseRotation = Math.max(launchRotation + DAILY_WHEEL_SLICE, nextRotation - brakeDistance);
+      const totalDistance = Math.max(DAILY_WHEEL_SLICE * 2, nextRotation - startRotation);
       setWheelWinningIndex(rewardIndex);
       setWheelSpinPhase('launch');
-      setWheelRotation(launchRotation);
-
-      spinPhaseTimeoutRef.current = window.setTimeout(() => {
-        setWheelSpinPhase('cruise');
-        setWheelRotation(cruiseRotation);
-
-        spinBrakeTimeoutRef.current = window.setTimeout(() => {
-          setWheelSpinPhase('brake');
-          setWheelRotation(nextRotation);
-        }, DAILY_WHEEL_CRUISE_MS);
-      }, DAILY_WHEEL_LAUNCH_MS);
 
       const result = { label: rewardLabel, value: rewardValue };
-      spinTimeoutRef.current = window.setTimeout(() => {
+      const startTs = performance.now();
+      let phase: 'launch' | 'cruise' | 'brake' = 'launch';
+
+      const animateSpin = (now: number) => {
+        const elapsed = now - startTs;
+        const timeProgress = Math.min(1, Math.max(0, elapsed / DAILY_WHEEL_SPIN_MS));
+        const motionProgress = getWheelNaturalProgress(timeProgress);
+        const rotation = startRotation + totalDistance * motionProgress;
+        const nextPhase = getWheelSpinPhaseByProgress(timeProgress);
+
+        if (nextPhase !== phase) {
+          phase = nextPhase;
+          setWheelSpinPhase(nextPhase);
+        }
+
+        setWheelRotation(rotation);
+
+        if (timeProgress < 1) {
+          spinFrameRef.current = window.requestAnimationFrame(animateSpin);
+          return;
+        }
+
+        spinFrameRef.current = null;
+        setWheelRotation(nextRotation);
         setWheelSpinning(false);
         setWheelSpinPhase('celebrate');
         setWheelCelebrating(true);
@@ -1415,13 +1427,13 @@ export default function App() {
           setWheelCelebrating(false);
           setWheelSpinPhase('idle');
         }, DAILY_WHEEL_CELEBRATE_MS);
-      }, DAILY_WHEEL_SPIN_MS + DAILY_WHEEL_FINISH_BUFFER_MS);
+      };
+
+      spinFrameRef.current = window.requestAnimationFrame(animateSpin);
     } catch (error: any) {
-      if (spinPhaseTimeoutRef.current) {
-        window.clearTimeout(spinPhaseTimeoutRef.current);
-      }
-      if (spinBrakeTimeoutRef.current) {
-        window.clearTimeout(spinBrakeTimeoutRef.current);
+      if (spinFrameRef.current) {
+        window.cancelAnimationFrame(spinFrameRef.current);
+        spinFrameRef.current = null;
       }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');

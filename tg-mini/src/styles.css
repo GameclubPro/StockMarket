@@ -1273,15 +1273,15 @@ body::before {
 }
 
 .wheel-rotor.phase-launch {
-  transition: transform 520ms cubic-bezier(0.37, 0.01, 0.72, 0.22);
+  transition: transform 0ms linear;
 }
 
 .wheel-rotor.phase-cruise {
-  transition: transform 1780ms linear;
+  transition: transform 0ms linear;
 }
 
 .wheel-rotor.phase-brake {
-  transition: transform 1900ms cubic-bezier(0.16, 0.83, 0.23, 1);
+  transition: transform 0ms linear;
 }
 
 .wheel-rotor.phase-celebrate {
