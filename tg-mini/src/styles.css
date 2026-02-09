@@ -769,12 +769,12 @@ body::before {
 
 .daily-bonus-preview-wrap {
   position: relative;
-  width: 78px;
-  height: 78px;
+  width: 80px;
+  height: 80px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  filter: drop-shadow(0 12px 16px rgba(4, 16, 28, 0.7));
+  filter: drop-shadow(0 10px 14px rgba(3, 13, 24, 0.76));
 }
 
 .daily-bonus-preview-wrap::before {
@@ -782,20 +782,35 @@ body::before {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(
-    from -90deg,
-    #8ff1d8 0deg 70deg,
-    #8dcfff 70deg 142deg,
-    #f28b98 142deg 214deg,
-    #ffd88b 214deg 286deg,
-    #8ff1d8 286deg 360deg
+  background:
+    radial-gradient(circle at 50% 18%, #2c4b49 0%, #1b303a 50%, #10202d 100%),
+    repeating-conic-gradient(
+      from -8deg,
+      #c7d6ce 0deg,
+      #c7d6ce 1.2deg,
+      #758980 1.2deg,
+      #758980 3.2deg,
+      #25383d 3.2deg,
+      #25383d 8deg
+    );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 13px),
+    #000 calc(100% - 13px),
+    #000 calc(100% - 7px),
+    transparent calc(100% - 7px)
   );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px));
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 13px),
+    #000 calc(100% - 13px),
+    #000 calc(100% - 7px),
+    transparent calc(100% - 7px)
+  );
   box-shadow:
-    0 0 16px rgba(95, 189, 170, 0.5),
-    inset 0 0 8px rgba(248, 255, 251, 0.38);
-  animation: wheelPreviewOrbit 8.5s linear infinite;
+    inset 0 0 0 1px #35545d,
+    inset 0 1px 0 rgba(240, 252, 247, 0.2),
+    0 0 12px rgba(82, 134, 132, 0.48);
 }
 
 .daily-bonus-preview-wrap::after {
@@ -804,75 +819,88 @@ body::before {
   top: 5px;
   left: 50%;
   transform: translateX(-50%);
-  width: 13px;
-  height: 14px;
-  background: linear-gradient(180deg, #e4fff2 0%, #9be6c6 48%, #2e7172 100%);
+  width: 12px;
+  height: 13px;
+  background: linear-gradient(180deg, #edf8f5 0%, #b2d2c6 44%, #4a7480 100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
-  border: 1px solid rgba(214, 247, 232, 0.92);
+  border: 1px solid rgba(218, 234, 226, 0.86);
   box-shadow:
-    0 0 12px rgba(108, 224, 179, 0.6),
-    0 4px 8px rgba(7, 24, 36, 0.74);
-  z-index: 4;
+    0 0 9px rgba(141, 201, 185, 0.64),
+    0 4px 8px rgba(6, 20, 30, 0.74);
+  z-index: 5;
 }
 
 .daily-bonus-preview {
-  width: 82%;
-  height: 82%;
+  width: 84%;
+  height: 84%;
   border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
   background:
-    radial-gradient(circle at 50% 14%, #3b666e 0%, #1d3448 50%, #0d1f33 100%),
-    conic-gradient(
-      from -90deg,
-      #2d6e67 0deg 45deg,
-      #35506f 45deg 90deg,
-      #2f6b66 90deg 135deg,
-      #8a3543 135deg 180deg,
-      #2b6460 180deg 225deg,
-      #8f3747 225deg 270deg,
-      #2f6b66 270deg 315deg,
-      #9b7431 315deg 360deg
-    );
-  border: 3px solid rgba(202, 243, 224, 0.84);
+    radial-gradient(circle at 50% 84%, #0d2131 0%, #091927 54%, #06121d 100%),
+    radial-gradient(circle at 50% 16%, #253c40 0%, #19303e 42%, #0d2031 100%);
+  border: 4px solid #5b7470;
   box-shadow:
-    0 10px 20px rgba(5, 18, 32, 0.8),
-    inset 0 1px 0 rgba(235, 255, 245, 0.72),
-    inset 0 -12px 16px rgba(12, 28, 43, 0.85),
-    0 0 14px rgba(70, 182, 167, 0.5);
+    inset 0 1px 0 #d2e2da,
+    inset 0 -10px 14px #102334;
   position: relative;
-  animation: wheelPreviewSpin 14s linear infinite;
+  animation: wheelPreviewSpin 18s linear infinite;
 }
 
 .daily-bonus-preview::before {
   content: '';
   position: absolute;
-  inset: 6.5%;
+  inset: 1.6%;
   border-radius: 50%;
-  border: 1px solid rgba(172, 212, 196, 0.84);
-  background: repeating-conic-gradient(
-    from -90deg,
-    rgba(238, 252, 246, 0.42) 0deg 0.9deg,
-    rgba(15, 33, 49, 0) 0.9deg 45deg
-  );
+  background:
+    radial-gradient(circle at 50% -10%, #eefaf5 0%, #eefaf500 30%),
+    radial-gradient(circle at 50% 112%, #081524 10%, #081524d8 46%, #08152400 74%),
+    conic-gradient(
+      from -14deg,
+      #f7fffb2b 0deg 34deg,
+      #0000 34deg 116deg,
+      #e5f6ee26 116deg 154deg,
+      #0000 154deg 360deg
+    ),
+    conic-gradient(
+      from -90deg,
+      #8fead2 0deg 18deg,
+      #62c6b3 18deg 45deg,
+      #9ad5ff 45deg 63deg,
+      #6ca8de 63deg 90deg,
+      #87e8de 90deg 108deg,
+      #56beaf 108deg 135deg,
+      #ff95a2 135deg 153deg,
+      #cf4354 153deg 180deg,
+      #9beccd 180deg 198deg,
+      #69c9b0 198deg 225deg,
+      #ff9ba8 225deg 243deg,
+      #cf4556 243deg 270deg,
+      #97e4d3 270deg 288deg,
+      #67c4b7 288deg 315deg,
+      #ffe8ad 315deg 333deg,
+      #d4a64f 333deg 360deg
+    );
+  border: 1px solid #b8ddd1;
   box-shadow:
-    inset 0 8px 10px rgba(63, 101, 108, 0.55),
-    inset 0 -8px 10px rgba(15, 30, 45, 0.8);
+    0 0 0 1px #35545d,
+    inset 0 4px 9px #f2fcf75a,
+    inset 0 -18px 24px #061628cc,
+    inset 8px 0 10px #8be6d042,
+    inset -8px 0 10px #86c8ff44;
   pointer-events: none;
 }
 
 .daily-bonus-preview::after {
   content: '';
   position: absolute;
-  inset: 50% auto auto 50%;
-  width: 26px;
-  height: 26px;
+  inset: 42%;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 30% 30%, #f0fff8 0%, #aedfc8 46%, #2f646f 100%);
-  border: 2px solid rgba(218, 249, 237, 0.92);
+  background: radial-gradient(circle at 30% 26%, #dff0ea 0%, #9ec2b9 44%, #335f70 100%);
+  border: 1px solid #a8cbc0;
   box-shadow:
-    inset 0 2px 4px rgba(235, 255, 247, 0.85),
-    inset 0 -6px 8px rgba(40, 83, 95, 0.86),
-    0 0 10px rgba(105, 210, 171, 0.58);
+    inset 0 1px 0 #f1fcf8,
+    inset 0 -7px 9px #1e4158;
 }
 
 .daily-bonus-info-popover {
