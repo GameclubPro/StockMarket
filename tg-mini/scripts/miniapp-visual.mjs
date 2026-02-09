@@ -551,9 +551,9 @@ function buildFixtures() {
       streak: 4,
     },
     dailyBonusSpin: {
-      reward: { index: 4, value: 100, label: '+100' },
-      balance: 780,
-      totalEarned: 1340,
+      reward: { index: 2, value: 15, label: '+15' },
+      balance: 695,
+      totalEarned: 1255,
       lastSpinAt: new Date().toISOString(),
       nextAvailableAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       cooldownMs: 24 * 60 * 60 * 1000,

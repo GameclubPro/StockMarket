@@ -304,13 +304,11 @@ const DAILY_BONUS_REASON = 'Ежедневный бонус';
 const DAILY_BONUS_COOLDOWN_MS = 1000;
 const DAILY_BONUS_SEGMENTS = [
   { label: '+10', value: 10, weight: 5 },
-  { label: '+10', value: 10, weight: 5 },
-  { label: '+20', value: 20, weight: 2 },
-  { label: '+50', value: 50, weight: 1 },
-  { label: '+100', value: 100, weight: 1 },
   { label: '+50', value: 50, weight: 1 },
   { label: '+15', value: 15, weight: 3 },
+  { label: '+50', value: 50, weight: 1 },
   { label: '+10', value: 10, weight: 5 },
+  { label: '+20', value: 20, weight: 2 },
 ];
 
 const pickDailyBonus = () => {
