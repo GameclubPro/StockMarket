@@ -2604,24 +2604,29 @@ export default function App() {
             aria-labelledby="wheel-reward-title"
             onClick={(event) => event.stopPropagation()}
           >
+            <div className="wheel-reward-frame-lines" aria-hidden="true" />
             <div className="wheel-reward-stage" aria-hidden="true">
+              <div className="wheel-reward-beam" />
               <div className="wheel-reward-halo" />
+              <div className="wheel-reward-halo-inner" />
               <div className="wheel-reward-starfield">
-                {Array.from({ length: 10 }).map((_, index) => (
+                {Array.from({ length: 12 }).map((_, index) => (
                   <span
                     key={`wheel-reward-star-${index}`}
                     style={
                       {
-                        '--reward-star-angle': `${index * 36}deg`,
-                        '--reward-star-delay': `${index * 54}ms`,
-                        '--reward-star-distance': `${48 + (index % 3) * 10}px`,
+                        '--reward-star-angle': `${index * 30}deg`,
+                        '--reward-star-delay': `${index * 60}ms`,
+                        '--reward-star-distance': `${56 + (index % 3) * 12}px`,
                       } as React.CSSProperties
                     }
                   />
                 ))}
               </div>
               <div className="wheel-reward-token">
+                <div className="wheel-reward-token-rim" />
                 <span>{wheelResult.label}</span>
+                <div className="wheel-reward-token-core" />
               </div>
             </div>
             <div className={`wheel-reward-kicker ${wheelResult.value >= 100 ? 'jackpot' : ''}`}>
@@ -2647,7 +2652,7 @@ export default function App() {
             </div>
             <div className="wheel-reward-meta">Баллы уже начислены на баланс</div>
             <button className="wheel-reward-claim" type="button" onClick={handleClaimWheelReward}>
-              Забрать награду
+              Забрать выигрыш
             </button>
           </div>
         </div>
