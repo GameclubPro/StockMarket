@@ -51,12 +51,14 @@ const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_NOTCHES_PER_SEGMENT = 3;
 const DAILY_WHEEL_NOTCH_SLICE = DAILY_WHEEL_SLICE / DAILY_WHEEL_NOTCHES_PER_SEGMENT;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
-const DAILY_WHEEL_SPIN_TURNS = 11;
-const DAILY_WHEEL_SPIN_MS = 7800;
-const DAILY_WHEEL_BRAKE_MS = 3400;
-const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
-const DAILY_WHEEL_FINISH_BUFFER_MS = 320;
+const DAILY_WHEEL_SPIN_TURNS = 9;
+const DAILY_WHEEL_SPIN_MS = 4200;
+const DAILY_WHEEL_LAUNCH_MS = 520;
+const DAILY_WHEEL_BRAKE_MS = 1900;
+const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_LAUNCH_MS - DAILY_WHEEL_BRAKE_MS;
+const DAILY_WHEEL_FINISH_BUFFER_MS = 220;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
+const DAILY_WHEEL_LAUNCH_RATIO = DAILY_WHEEL_LAUNCH_MS / DAILY_WHEEL_SPIN_MS;
 const DAILY_WHEEL_BRAKE_RATIO = DAILY_WHEEL_BRAKE_MS / DAILY_WHEEL_SPIN_MS;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
@@ -224,7 +226,7 @@ export default function App() {
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [wheelSpinPhase, setWheelSpinPhase] = useState<
-    'idle' | 'cruise' | 'brake' | 'celebrate'
+    'idle' | 'launch' | 'cruise' | 'brake' | 'celebrate'
   >('idle');
   const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
   const [wheelCelebrating, setWheelCelebrating] = useState(false);
@@ -279,6 +281,7 @@ export default function App() {
   const wheelPointerDistanceRef = useRef(0);
   const spinTimeoutRef = useRef<number | null>(null);
   const spinPhaseTimeoutRef = useRef<number | null>(null);
+  const spinBrakeTimeoutRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
@@ -569,6 +572,9 @@ export default function App() {
       }
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);
+      }
+      if (spinBrakeTimeoutRef.current) {
+        window.clearTimeout(spinBrakeTimeoutRef.current);
       }
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1329,7 +1335,7 @@ export default function App() {
     setDailyBonusError('');
     setWheelResult(null);
     setWheelSpinning(true);
-    setWheelSpinPhase('cruise');
+    setWheelSpinPhase('launch');
     setWheelCelebrating(false);
     setWheelWinningIndex(null);
     setWheelPointerKick(0);
@@ -1339,6 +1345,9 @@ export default function App() {
     }
     if (spinPhaseTimeoutRef.current) {
       window.clearTimeout(spinPhaseTimeoutRef.current);
+    }
+    if (spinBrakeTimeoutRef.current) {
+      window.clearTimeout(spinBrakeTimeoutRef.current);
     }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1366,19 +1375,35 @@ export default function App() {
       const startRotation = wheelRotationRef.current;
       const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
       const totalDistance = Math.max(0, nextRotation - startRotation);
+      const rawLaunchDistance = totalDistance * DAILY_WHEEL_LAUNCH_RATIO;
+      const minLaunchDistance = DAILY_WHEEL_SLICE * 1.5;
+      const maxLaunchDistance = Math.max(DAILY_WHEEL_SLICE, totalDistance - DAILY_WHEEL_SLICE * 4);
+      const launchDistance = Math.min(
+        maxLaunchDistance,
+        Math.max(minLaunchDistance, rawLaunchDistance)
+      );
       const rawBrakeDistance = totalDistance * DAILY_WHEEL_BRAKE_RATIO;
-      const minBrakeDistance = DAILY_WHEEL_SLICE * 5;
-      const maxBrakeDistance = Math.max(DAILY_WHEEL_SLICE * 2, totalDistance - DAILY_WHEEL_SLICE);
+      const minBrakeDistance = DAILY_WHEEL_SLICE * 3.5;
+      const maxBrakeDistance = Math.max(
+        DAILY_WHEEL_SLICE * 2,
+        totalDistance - launchDistance - DAILY_WHEEL_SLICE
+      );
       const brakeDistance = Math.min(maxBrakeDistance, Math.max(minBrakeDistance, rawBrakeDistance));
-      const cruiseRotation = nextRotation - brakeDistance;
+      const launchRotation = startRotation + launchDistance;
+      const cruiseRotation = Math.max(launchRotation + DAILY_WHEEL_SLICE, nextRotation - brakeDistance);
       setWheelWinningIndex(rewardIndex);
-      setWheelSpinPhase('cruise');
-      setWheelRotation(cruiseRotation);
+      setWheelSpinPhase('launch');
+      setWheelRotation(launchRotation);
 
       spinPhaseTimeoutRef.current = window.setTimeout(() => {
-        setWheelSpinPhase('brake');
-        setWheelRotation(nextRotation);
-      }, DAILY_WHEEL_CRUISE_MS);
+        setWheelSpinPhase('cruise');
+        setWheelRotation(cruiseRotation);
+
+        spinBrakeTimeoutRef.current = window.setTimeout(() => {
+          setWheelSpinPhase('brake');
+          setWheelRotation(nextRotation);
+        }, DAILY_WHEEL_CRUISE_MS);
+      }, DAILY_WHEEL_LAUNCH_MS);
 
       const result = { label: rewardLabel, value: rewardValue };
       spinTimeoutRef.current = window.setTimeout(() => {
@@ -1394,6 +1419,9 @@ export default function App() {
     } catch (error: any) {
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);
+      }
+      if (spinBrakeTimeoutRef.current) {
+        window.clearTimeout(spinBrakeTimeoutRef.current);
       }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');
