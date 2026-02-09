@@ -44,7 +44,7 @@ const DAILY_WHEEL_SEGMENTS = [
   { label: '+50', value: 50, weight: 1 },
   { label: '+100', value: 100, weight: 1 },
   { label: '+50', value: 50, weight: 1 },
-  { label: '+10', value: 10, weight: 5 },
+  { label: '+15', value: 15, weight: 3 },
   { label: '+10', value: 10, weight: 5 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
@@ -1663,7 +1663,15 @@ export default function App() {
                     {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
                       const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
                       const valueTone =
-                        segment.value >= 100 ? 100 : segment.value >= 50 ? 50 : segment.value >= 20 ? 20 : 10;
+                        segment.value >= 100
+                          ? 100
+                          : segment.value >= 50
+                            ? 50
+                            : segment.value >= 20
+                              ? 20
+                              : segment.value >= 15
+                                ? 15
+                                : 10;
                       return (
                         <div
                           key={`${segment.label}-${index}`}

@@ -842,7 +842,7 @@ body::before {
       #6e2328 135deg 180deg,
       #b68c37 180deg 225deg,
       #5f1d22 225deg 270deg,
-      #24302a 270deg 315deg,
+      #1f4d34 270deg 315deg,
       #1a221e 315deg 360deg
     );
   border: 4px solid #bcc8bf;
@@ -1570,8 +1570,8 @@ body::before {
 .wheel-segment::before {
   content: '';
   position: absolute;
-  inset: 7.2%;
-  clip-path: polygon(50% 50%, 31.2% 4.2%, 68.8% 4.2%);
+  inset: 1.2%;
+  clip-path: polygon(50% 50%, 13.8% 0.2%, 86.2% 0.2%);
   background:
     radial-gradient(circle at 50% 8%, #ffffff26 0%, #ffffff00 34%),
     linear-gradient(
@@ -1594,8 +1594,8 @@ body::before {
 .wheel-segment::after {
   content: '';
   position: absolute;
-  inset: 7.2%;
-  clip-path: polygon(50% 50%, 31.2% 4.2%, 68.8% 4.2%);
+  inset: 1.2%;
+  clip-path: polygon(50% 50%, 13.8% 0.2%, 86.2% 0.2%);
   background:
     linear-gradient(180deg, #ffffff46 0%, #ffffff12 24%, #ffffff00 54%),
     linear-gradient(120deg, #ffffff00 0%, #ffffff31 50%, #ffffff00 74%),
@@ -1623,6 +1623,16 @@ body::before {
   --wheel-segment-left: #7ea2dc66;
   --wheel-segment-right: #091c36c7;
   --wheel-segment-glow: #6f99d247;
+}
+
+.wheel-segment-15 {
+  --wheel-segment-top: #2f8052;
+  --wheel-segment-mid: #1c5636;
+  --wheel-segment-bottom: #0b2415;
+  --wheel-segment-stroke: #8bc7a7;
+  --wheel-segment-left: #7fd3a05e;
+  --wheel-segment-right: #0c2a17bf;
+  --wheel-segment-glow: #78ce9a4b;
 }
 
 .wheel-segment-50 {
@@ -1667,6 +1677,14 @@ body::before {
   text-shadow:
     0 0 14px #d2a95a,
     0 2px 8px #231607;
+}
+
+.wheel-segment-15 .wheel-value {
+  color: #ecfff3;
+  -webkit-text-stroke: 0.35px #1f4a31;
+  text-shadow:
+    0 0 13px #84cf9f,
+    0 2px 8px #0f2a1b;
 }
 
 .wheel-segment.winner::before {
