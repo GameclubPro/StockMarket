@@ -1446,7 +1446,7 @@ body::before {
 
 .wheel-facet-disk {
   position: absolute;
-  inset: 2.8%;
+  inset: 1.8%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 50% -8%, #dbf0e5 0%, #dbf0e500 30%),
@@ -1465,7 +1465,7 @@ body::before {
   border: 2px solid #a7beb4;
   box-shadow:
     0 0 0 2px #304f54,
-    inset 0 8px 14px #d6ece165,
+    inset 0 6px 12px #d6ece165,
     inset 0 -22px 34px #07172bc2,
     inset 12px 0 16px #9acbbf30,
     inset -12px 0 16px #8a97b835,
@@ -1485,8 +1485,8 @@ body::before {
     #12293a5c 44deg 45deg
   );
   opacity: 0.82;
-  -webkit-mask: radial-gradient(circle, transparent 0 6.5%, #000 6.8% 99%, transparent 99.4%);
-  mask: radial-gradient(circle, transparent 0 6.5%, #000 6.8% 99%, transparent 99.4%);
+  -webkit-mask: radial-gradient(circle, transparent 0 4.5%, #000 4.8% 99%, transparent 99.4%);
+  mask: radial-gradient(circle, transparent 0 4.5%, #000 4.8% 99%, transparent 99.4%);
   box-shadow:
     inset 0 0 10px #132c41;
 }
@@ -1494,7 +1494,7 @@ body::before {
 .wheel-facet-disk::after {
   content: '';
   position: absolute;
-  inset: 43%;
+  inset: 45%;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 26%, #d6ebe4 0%, #91b6ac 42%, #2d5967 100%);
   border: 1px solid #98bdb2;
@@ -1554,7 +1554,7 @@ body::before {
 .wheel-value {
   position: relative;
   z-index: 2;
-  margin-top: 20px;
+  margin-top: 22px;
   font-size: clamp(23px, 5.2vw, 31px);
   font-weight: 800;
   line-height: 1;
@@ -1562,7 +1562,7 @@ body::before {
   color: #eefbf4;
   -webkit-text-stroke: 0.35px #1f3045;
   text-shadow:
-    0 0 8px #a9d9c9,
+    0 0 10px #a9d9c9,
     0 2px 8px #0a1a2a;
   font-variant-numeric: tabular-nums;
 }
