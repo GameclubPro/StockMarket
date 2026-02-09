@@ -2588,12 +2588,16 @@ export default function App() {
             <div className="wheel-reward-token" aria-hidden="true">
               <span>{wheelResult.label}</span>
             </div>
+            <div className={`wheel-reward-kicker ${wheelResult.value >= 100 ? 'jackpot' : ''}`}>
+              {wheelResult.value >= 100 ? 'Джекпот' : 'Выигрыш'}
+            </div>
             <div className="wheel-reward-title" id="wheel-reward-title">
               Награда дня
             </div>
             <div className="wheel-reward-sub">
               +{wheelResult.value} {formatPointsLabel(wheelResult.value)}
             </div>
+            <div className="wheel-reward-meta">Баллы уже начислены на баланс</div>
             <button className="wheel-reward-claim" type="button" onClick={handleClaimWheelReward}>
               Баллы забрать
             </button>
