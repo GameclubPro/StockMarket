@@ -1895,7 +1895,10 @@ export default function App() {
                     }`}
                     aria-hidden="true"
                   >
-                    {wheelResult.label}
+                    <span className="wheel-reward-burst-badge">
+                      {wheelResult.value >= 100 ? 'Джекпот' : 'Награда'}
+                    </span>
+                    <strong>{wheelResult.label}</strong>
                   </div>
                 )}
               </div>
@@ -2601,21 +2604,25 @@ export default function App() {
             aria-labelledby="wheel-reward-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="wheel-reward-rays" aria-hidden="true">
-              {Array.from({ length: 12 }).map((_, index) => (
-                <span
-                  key={`wheel-reward-ray-${index}`}
-                  style={
-                    {
-                      '--wheel-ray-angle': `${index * 30}deg`,
-                      '--wheel-ray-delay': `${index * 24}ms`,
-                    } as React.CSSProperties
-                  }
-                />
-              ))}
-            </div>
-            <div className="wheel-reward-token" aria-hidden="true">
-              <span>{wheelResult.label}</span>
+            <div className="wheel-reward-stage" aria-hidden="true">
+              <div className="wheel-reward-halo" />
+              <div className="wheel-reward-starfield">
+                {Array.from({ length: 10 }).map((_, index) => (
+                  <span
+                    key={`wheel-reward-star-${index}`}
+                    style={
+                      {
+                        '--reward-star-angle': `${index * 36}deg`,
+                        '--reward-star-delay': `${index * 54}ms`,
+                        '--reward-star-distance': `${48 + (index % 3) * 10}px`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+              <div className="wheel-reward-token">
+                <span>{wheelResult.label}</span>
+              </div>
             </div>
             <div className={`wheel-reward-kicker ${wheelResult.value >= 100 ? 'jackpot' : ''}`}>
               {wheelResult.value >= 100 ? 'Джекпот' : 'Выигрыш'}
@@ -2626,9 +2633,21 @@ export default function App() {
             <div className="wheel-reward-sub">
               +{wheelResult.value} {formatPointsLabel(wheelResult.value)}
             </div>
+            <div className="wheel-reward-stats">
+              <div className="wheel-reward-stat">
+                <span>Сектор</span>
+                <strong>{wheelResult.label}</strong>
+              </div>
+              <div className="wheel-reward-stat">
+                <span>Начислено</span>
+                <strong>
+                  +{wheelResult.value} {formatPointsLabel(wheelResult.value)}
+                </strong>
+              </div>
+            </div>
             <div className="wheel-reward-meta">Баллы уже начислены на баланс</div>
             <button className="wheel-reward-claim" type="button" onClick={handleClaimWheelReward}>
-              Баллы забрать
+              Забрать награду
             </button>
           </div>
         </div>

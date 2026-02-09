@@ -87,6 +87,17 @@ const SCREEN_STEPS = [
       await sleep(waitMs);
     },
   },
+  {
+    id: 'wheel-modal',
+    open: async (page, waitMs) => {
+      await ensureHome(page, waitMs);
+      await page.locator('.daily-bonus-cta').first().click();
+      await page.waitForSelector('.wheel-card', { timeout: 10_000 });
+      await page.locator('.wheel-cta').first().click();
+      await page.waitForSelector('.wheel-reward-modal', { timeout: 10_000 });
+      await sleep(waitMs);
+    },
+  },
 ];
 
 const usage = `

@@ -2211,36 +2211,67 @@ body::before {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  min-width: 108px;
+  min-width: 122px;
   border-radius: 999px;
-  border: 1px solid rgba(211, 247, 233, 0.92);
-  padding: 10px 18px;
-  text-align: center;
-  font-size: clamp(23px, 6.7vw, 29px);
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  color: #f8fffb;
-  background: linear-gradient(130deg, rgba(145, 238, 194, 0.92) 0%, rgba(129, 202, 255, 0.9) 56%, rgba(255, 213, 124, 0.78) 100%);
+  border: 1px solid rgba(214, 247, 235, 0.92);
+  padding: 8px 16px 10px;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  color: #f8fffc;
+  background: linear-gradient(
+    132deg,
+    rgba(143, 240, 197, 0.94) 0%,
+    rgba(133, 207, 255, 0.9) 58%,
+    rgba(255, 213, 124, 0.78) 100%
+  );
   box-shadow:
-    0 16px 28px rgba(2, 12, 22, 0.72),
-    inset 0 1px 0 rgba(246, 255, 251, 0.94),
-    inset 0 -12px 18px rgba(32, 69, 92, 0.58),
+    0 16px 28px rgba(2, 12, 22, 0.74),
+    inset 0 1px 0 rgba(247, 255, 252, 0.94),
+    inset 0 -12px 18px rgba(36, 71, 94, 0.56),
     0 0 24px rgba(126, 212, 255, 0.56);
   pointer-events: none;
   z-index: 9;
   animation: wheelRewardChipRise 980ms cubic-bezier(0.16, 0.8, 0.22, 1) both;
 }
 
+.wheel-reward-burst-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 250, 241, 0.72);
+  background: rgba(14, 41, 50, 0.28);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.wheel-reward-burst-chip strong {
+  font-size: clamp(24px, 6.8vw, 30px);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.26px;
+}
+
 .wheel-reward-burst-chip.jackpot {
   border-color: rgba(255, 236, 184, 0.94);
-  color: #fff8de;
-  background: linear-gradient(150deg, rgba(252, 218, 136, 0.92) 0%, rgba(206, 157, 72, 0.88) 46%, rgba(104, 75, 32, 0.9) 100%);
+  background: linear-gradient(
+    150deg,
+    rgba(252, 218, 136, 0.93) 0%,
+    rgba(206, 157, 72, 0.88) 46%,
+    rgba(104, 75, 32, 0.9) 100%
+  );
   box-shadow:
     0 16px 30px rgba(8, 7, 3, 0.74),
-    inset 0 1px 0 rgba(255, 250, 229, 0.94),
+    inset 0 1px 0 rgba(255, 251, 232, 0.95),
     inset 0 -12px 18px rgba(56, 39, 14, 0.82),
     0 0 26px rgba(252, 217, 125, 0.7);
+}
+
+.wheel-reward-burst-chip.jackpot .wheel-reward-burst-badge {
+  border-color: rgba(255, 240, 201, 0.76);
+  background: rgba(71, 50, 17, 0.34);
 }
 
 .wheel-reward-modal-backdrop {
@@ -2253,30 +2284,31 @@ body::before {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(74% 56% at 50% 18%, rgba(143, 223, 255, 0.22) 0%, transparent 70%),
-    radial-gradient(70% 54% at 50% 84%, rgba(255, 214, 128, 0.2) 0%, transparent 74%),
-    rgba(3, 9, 17, 0.62);
-  backdrop-filter: blur(10px);
+    radial-gradient(74% 56% at 50% 18%, rgba(143, 223, 255, 0.24) 0%, transparent 70%),
+    radial-gradient(70% 54% at 50% 84%, rgba(255, 214, 128, 0.22) 0%, transparent 74%),
+    rgba(2, 8, 14, 0.68);
+  backdrop-filter: blur(11px);
   animation: wheelRewardBackdropIn 260ms ease-out both;
 }
 
 .wheel-reward-modal {
   position: relative;
-  width: min(100%, 356px);
+  width: min(100%, 360px);
   margin: 0 auto;
-  border-radius: 26px;
-  border: 1px solid rgba(170, 227, 255, 0.52);
+  border-radius: 28px;
+  border: 1px solid rgba(175, 229, 255, 0.54);
   background:
-    radial-gradient(160% 92% at 50% -26%, rgba(180, 245, 228, 0.3), transparent 58%),
-    linear-gradient(162deg, rgba(15, 30, 44, 0.97), rgba(6, 13, 23, 0.98));
+    radial-gradient(150% 92% at 50% -30%, rgba(173, 239, 255, 0.26), transparent 58%),
+    radial-gradient(120% 88% at 50% 126%, rgba(255, 212, 123, 0.18), transparent 72%),
+    linear-gradient(160deg, rgba(12, 26, 40, 0.97), rgba(6, 14, 24, 0.98));
   box-shadow:
-    0 28px 54px rgba(0, 0, 0, 0.56),
-    inset 0 1px 0 rgba(244, 253, 255, 0.48),
-    inset 0 -18px 24px rgba(6, 14, 25, 0.84);
-  padding: 16px 14px 14px;
+    0 30px 56px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(240, 252, 255, 0.48),
+    inset 0 -18px 26px rgba(6, 14, 25, 0.84);
+  padding: 18px 15px 15px;
   overflow: hidden;
   display: grid;
-  gap: 11px;
+  gap: 10px;
   justify-items: center;
   isolation: isolate;
   animation: wheelRewardModalIn 620ms cubic-bezier(0.2, 0.9, 0.26, 1) both;
@@ -2286,8 +2318,8 @@ body::before {
   content: '';
   position: absolute;
   inset: 1px;
-  border-radius: 25px;
-  border: 1px solid rgba(234, 249, 255, 0.24);
+  border-radius: 27px;
+  border: 1px solid rgba(233, 248, 255, 0.24);
   pointer-events: none;
   z-index: 1;
 }
@@ -2295,66 +2327,97 @@ body::before {
 .wheel-reward-modal::after {
   content: '';
   position: absolute;
-  inset: -56% -44% auto;
-  height: 76%;
-  background: radial-gradient(circle, rgba(150, 239, 219, 0.26) 0%, rgba(150, 239, 219, 0) 72%);
+  inset: -54% -36% auto;
+  height: 74%;
+  background: radial-gradient(circle, rgba(152, 239, 221, 0.24) 0%, rgba(152, 239, 221, 0) 72%);
   pointer-events: none;
   z-index: 0;
-  animation: wheelRewardSheen 3200ms ease-in-out infinite;
+  animation: wheelRewardSheen 3400ms ease-in-out infinite;
 }
 
 .wheel-reward-modal.jackpot {
-  border-color: rgba(255, 226, 160, 0.72);
+  border-color: rgba(255, 226, 160, 0.76);
   background:
-    radial-gradient(160% 92% at 50% -26%, rgba(255, 227, 150, 0.4), transparent 58%),
-    linear-gradient(162deg, rgba(34, 27, 15, 0.97), rgba(15, 10, 5, 0.99));
+    radial-gradient(150% 92% at 50% -30%, rgba(255, 227, 150, 0.42), transparent 58%),
+    radial-gradient(120% 88% at 50% 126%, rgba(255, 205, 112, 0.2), transparent 72%),
+    linear-gradient(160deg, rgba(34, 27, 15, 0.97), rgba(15, 10, 5, 0.99));
 }
 
 .wheel-reward-modal.jackpot::after {
-  background: radial-gradient(circle, rgba(255, 230, 156, 0.3) 0%, rgba(255, 230, 156, 0) 72%);
+  background: radial-gradient(circle, rgba(255, 230, 156, 0.34) 0%, rgba(255, 230, 156, 0) 72%);
 }
 
-.wheel-reward-rays {
-  position: absolute;
-  inset: 12px 18px auto;
-  height: 168px;
-  z-index: 0;
-  -webkit-mask: radial-gradient(circle at 50% 58%, #000 0 70%, transparent 86%);
-  mask: radial-gradient(circle at 50% 58%, #000 0 70%, transparent 86%);
-  pointer-events: none;
+.wheel-reward-stage {
+  position: relative;
+  width: 100%;
+  min-height: 146px;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
 }
 
-.wheel-reward-rays span {
+.wheel-reward-halo {
   position: absolute;
   left: 50%;
-  top: 72px;
-  width: 2px;
-  height: clamp(52px, 15vw, 72px);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(236, 252, 255, 0.9), rgba(236, 252, 255, 0));
-  transform:
-    translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
-    translateY(clamp(-36px, -10vw, -50px))
-    scaleY(0.12);
-  opacity: 0;
-  animation: wheelRewardRayBurst 900ms cubic-bezier(0.2, 0.86, 0.24, 1) forwards;
-  animation-delay: var(--wheel-ray-delay, 0ms);
+  top: 50%;
+  width: clamp(150px, 46vw, 174px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px dashed rgba(181, 241, 221, 0.62);
+  box-shadow:
+    0 0 22px rgba(118, 227, 189, 0.34),
+    inset 0 0 14px rgba(118, 227, 189, 0.22);
+  transform: translate(-50%, -50%);
+  animation: wheelRewardHaloSpin 9.5s linear infinite;
+  z-index: 0;
 }
 
-.wheel-reward-modal.jackpot .wheel-reward-rays span {
-  background: linear-gradient(180deg, rgba(255, 244, 201, 0.9), rgba(255, 244, 201, 0));
+.wheel-reward-modal.jackpot .wheel-reward-halo {
+  border-color: rgba(255, 238, 187, 0.7);
+  box-shadow:
+    0 0 24px rgba(252, 217, 125, 0.38),
+    inset 0 0 14px rgba(252, 217, 125, 0.26);
+}
+
+.wheel-reward-starfield {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.wheel-reward-starfield span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #effeff 0%, #8de6c4 58%, #2a6a66 100%);
+  box-shadow: 0 0 10px rgba(141, 230, 196, 0.6);
+  transform:
+    translate(-50%, -50%) rotate(var(--reward-star-angle, 0deg))
+    translateY(calc(var(--reward-star-distance, 58px) * -1))
+    scale(0.22);
+  opacity: 0.12;
+  animation: wheelRewardSparkle 1100ms ease-out forwards;
+  animation-delay: var(--reward-star-delay, 0ms);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-starfield span {
+  background: radial-gradient(circle at 30% 30%, #fff9e4 0%, #ffd98d 58%, #b27a2e 100%);
+  box-shadow: 0 0 12px rgba(255, 220, 132, 0.66);
 }
 
 .wheel-reward-token {
   position: relative;
   z-index: 2;
-  margin-top: 8px;
-  width: clamp(118px, 33vw, 136px);
+  width: clamp(118px, 34vw, 136px);
   aspect-ratio: 1;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(192, 244, 223, 0.88);
+  border: 1px solid rgba(193, 244, 223, 0.9);
   background:
     radial-gradient(circle at 30% 24%, #f4fff9 0%, #b6ebd2 42%, #2d5e67 100%);
   box-shadow:
@@ -2370,9 +2433,19 @@ body::before {
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  border: 1px dashed rgba(185, 242, 219, 0.68);
-  box-shadow: 0 0 18px rgba(118, 227, 189, 0.36);
-  animation: wheelRewardHaloSpin 11s linear infinite;
+  border: 1px solid rgba(185, 242, 219, 0.56);
+  box-shadow:
+    inset 0 0 14px rgba(118, 227, 189, 0.24),
+    0 0 18px rgba(118, 227, 189, 0.34);
+}
+
+.wheel-reward-token::after {
+  content: '';
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  border: 1px solid rgba(236, 255, 247, 0.46);
+  pointer-events: none;
 }
 
 .wheel-reward-token span {
@@ -2413,7 +2486,7 @@ body::before {
 .wheel-reward-kicker {
   position: relative;
   z-index: 2;
-  margin-top: -2px;
+  margin-top: -4px;
   padding: 5px 11px;
   border-radius: 999px;
   font-size: 10px;
@@ -2434,8 +2507,8 @@ body::before {
 .wheel-reward-title {
   position: relative;
   z-index: 2;
-  font-size: 17px;
-  letter-spacing: 0.35px;
+  font-size: 18px;
+  letter-spacing: 0.2px;
   font-weight: 800;
   color: #f3fffb;
 }
@@ -2443,17 +2516,59 @@ body::before {
 .wheel-reward-sub {
   position: relative;
   z-index: 2;
-  margin-top: -2px;
-  font-size: 14px;
+  margin-top: -3px;
+  font-size: 15px;
   font-weight: 600;
-  color: #d7efe6;
+  color: #dff2ea;
   text-align: center;
+}
+
+.wheel-reward-stats {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wheel-reward-stat {
+  border-radius: 13px;
+  border: 1px solid rgba(170, 227, 255, 0.28);
+  background: linear-gradient(160deg, rgba(18, 43, 61, 0.64), rgba(10, 26, 40, 0.78));
+  padding: 8px 9px;
+  display: grid;
+  gap: 3px;
+}
+
+.wheel-reward-stat span {
+  font-size: 10px;
+  color: rgba(189, 215, 227, 0.86);
+}
+
+.wheel-reward-stat strong {
+  font-size: 13px;
+  color: #f3fff9;
+  line-height: 1.1;
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-stat {
+  border-color: rgba(255, 224, 149, 0.34);
+  background: linear-gradient(160deg, rgba(67, 50, 22, 0.58), rgba(32, 24, 12, 0.74));
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-stat span {
+  color: rgba(245, 225, 177, 0.86);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-stat strong {
+  color: #fff5d8;
 }
 
 .wheel-reward-meta {
   position: relative;
   z-index: 2;
-  margin-top: -4px;
+  margin-top: -2px;
   font-size: 12px;
   color: rgba(193, 223, 214, 0.92);
   text-align: center;
@@ -2471,7 +2586,7 @@ body::before {
   position: relative;
   z-index: 2;
   width: 100%;
-  min-height: 50px;
+  min-height: 48px;
   border-radius: 16px;
   border: 1px solid rgba(220, 249, 255, 0.92);
   background: linear-gradient(
@@ -2592,30 +2707,27 @@ body::before {
   }
 }
 
-@keyframes wheelRewardRayBurst {
+@keyframes wheelRewardSparkle {
   0% {
-    opacity: 0;
+    opacity: 0.12;
     transform:
-      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
-      translateY(clamp(-18px, -5vw, -24px))
-      scaleY(0.18);
+      translate(-50%, -50%) rotate(var(--reward-star-angle, 0deg))
+      translateY(calc(var(--reward-star-distance, 58px) * -0.58))
+      scale(0.2);
   }
-  30% {
+  48% {
     opacity: 1;
-  }
-  68% {
-    opacity: 0.75;
     transform:
-      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
-      translateY(clamp(-48px, -12vw, -62px))
-      scaleY(1);
+      translate(-50%, -50%) rotate(var(--reward-star-angle, 0deg))
+      translateY(calc(var(--reward-star-distance, 58px) * -1))
+      scale(1);
   }
   100% {
-    opacity: 0;
+    opacity: 0.22;
     transform:
-      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
-      translateY(clamp(-62px, -15vw, -80px))
-      scaleY(0.4);
+      translate(-50%, -50%) rotate(var(--reward-star-angle, 0deg))
+      translateY(calc(var(--reward-star-distance, 58px) * -1.12))
+      scale(0.36);
   }
 }
 
@@ -2836,9 +2948,10 @@ body::before {
   .wheel-reward-modal-backdrop,
   .wheel-reward-modal,
   .wheel-reward-modal::after,
+  .wheel-reward-halo,
   .wheel-reward-token,
   .wheel-reward-token::before,
-  .wheel-reward-rays span {
+  .wheel-reward-starfield span {
     animation: none;
   }
 }
@@ -4372,6 +4485,29 @@ button {
   }
 
   .wheel-cta {
+    min-height: 46px;
+    font-size: 14px;
+  }
+
+  .wheel-reward-modal {
+    padding: 16px 12px 13px;
+    gap: 9px;
+  }
+
+  .wheel-reward-stage {
+    min-height: 132px;
+  }
+
+  .wheel-reward-token {
+    width: clamp(108px, 32vw, 124px);
+  }
+
+  .wheel-reward-stats {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .wheel-reward-claim {
     min-height: 46px;
     font-size: 14px;
   }
