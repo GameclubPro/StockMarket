@@ -48,12 +48,14 @@ const DAILY_WHEEL_SEGMENTS = [
   { label: '+10', value: 10, weight: 3 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
+const DAILY_WHEEL_NOTCHES_PER_SEGMENT = 3;
+const DAILY_WHEEL_NOTCH_SLICE = DAILY_WHEEL_SLICE / DAILY_WHEEL_NOTCHES_PER_SEGMENT;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
-const DAILY_WHEEL_SPIN_TURNS = 7;
-const DAILY_WHEEL_SPIN_MS = 5200;
-const DAILY_WHEEL_BRAKE_MS = 1480;
+const DAILY_WHEEL_SPIN_TURNS = 11;
+const DAILY_WHEEL_SPIN_MS = 7800;
+const DAILY_WHEEL_BRAKE_MS = 3000;
 const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
-const DAILY_WHEEL_FINISH_BUFFER_MS = 120;
+const DAILY_WHEEL_FINISH_BUFFER_MS = 180;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
 const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.4;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
@@ -520,8 +522,8 @@ export default function App() {
 
         if (delta > 0) {
           wheelPointerDistanceRef.current += delta;
-          while (wheelPointerDistanceRef.current >= DAILY_WHEEL_SLICE) {
-            wheelPointerDistanceRef.current -= DAILY_WHEEL_SLICE;
+          while (wheelPointerDistanceRef.current >= DAILY_WHEEL_NOTCH_SLICE) {
+            wheelPointerDistanceRef.current -= DAILY_WHEEL_NOTCH_SLICE;
             setWheelPointerKick((prev) => prev + 1);
           }
         }

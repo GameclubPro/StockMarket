@@ -1273,11 +1273,11 @@ body::before {
 }
 
 .wheel-rotor.phase-cruise {
-  transition: transform 3720ms linear;
+  transition: transform 4800ms linear;
 }
 
 .wheel-rotor.phase-brake {
-  transition: transform 1480ms cubic-bezier(0.03, 0.93, 0.12, 1);
+  transition: transform 3000ms cubic-bezier(0.08, 0.9, 0.2, 1);
 }
 
 .wheel-rotor.phase-celebrate {
@@ -1384,16 +1384,30 @@ body::before {
   border-radius: 50%;
   z-index: 1;
   background:
+    radial-gradient(circle at 50% 28%, #294444 0%, #1b303a 62%, #122531 100%),
     repeating-conic-gradient(
       from -90deg,
-      #dce8e2 0deg,
-      #dce8e2 4.4deg,
-      #556f6a 4.4deg,
-      #556f6a 8.2deg,
-      #1b2d36 8.2deg,
-      #1b2d36 45deg
+      #d8e5df 0deg,
+      #d8e5df 0.9deg,
+      #0000 0.9deg,
+      #0000 5deg,
+      #d8e5df 5deg,
+      #d8e5df 5.9deg,
+      #0000 5.9deg,
+      #0000 10deg,
+      #d8e5df 10deg,
+      #d8e5df 10.9deg,
+      #0000 10.9deg,
+      #0000 15deg
     ),
-    radial-gradient(circle at 50% 24%, #2a4343 0%, #1b303a 62%, #122531 100%);
+    repeating-conic-gradient(
+      from -90deg,
+      #5f7670 0deg,
+      #5f7670 1.2deg,
+      #22353e 1.2deg,
+      #22353e 15deg
+    ),
+    radial-gradient(circle at 50% 24%, #293f40 0%, #1b2f39 62%, #132633 100%);
   -webkit-mask: radial-gradient(
     farthest-side,
     transparent calc(100% - 15px),
@@ -1410,7 +1424,8 @@ body::before {
   );
   box-shadow:
     inset 0 0 0 1px #2a4647,
-    inset 0 1px 0 #d9e6df28;
+    inset 0 1px 0 #d9e6df28,
+    inset 0 -1px 0 #1a2e37;
 }
 
 .wheel {
@@ -1629,7 +1644,7 @@ body::before {
 
 .wheel-pointer-assembly {
   position: absolute;
-  top: 1px;
+  top: -7px;
   left: 50%;
   transform: translateX(-50%);
   width: 56px;
@@ -1670,11 +1685,11 @@ body::before {
 }
 
 .wheel-pointer-assembly.kick-a {
-  animation: wheelPointerKickA 124ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: wheelPointerKickA 92ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .wheel-pointer-assembly.kick-b {
-  animation: wheelPointerKickB 124ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: wheelPointerKickB 92ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .wheel-pointer-assembly.celebrate {
@@ -1824,10 +1839,10 @@ body::before {
     transform: translateX(-50%) rotate(0deg);
   }
   38% {
-    transform: translateX(-50%) rotate(8deg);
+    transform: translateX(-50%) rotate(6deg);
   }
   62% {
-    transform: translateX(-50%) rotate(2.2deg);
+    transform: translateX(-50%) rotate(1.6deg);
   }
 }
 
@@ -1837,10 +1852,10 @@ body::before {
     transform: translateX(-50%) rotate(0deg);
   }
   36% {
-    transform: translateX(-50%) rotate(8deg);
+    transform: translateX(-50%) rotate(6deg);
   }
   60% {
-    transform: translateX(-50%) rotate(2.2deg);
+    transform: translateX(-50%) rotate(1.6deg);
   }
 }
 
