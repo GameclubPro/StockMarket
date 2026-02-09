@@ -2673,6 +2673,22 @@ body::before {
   text-shadow: 0 8px 20px rgba(5, 20, 32, 0.58);
 }
 
+.wheel-reward-amount {
+  position: relative;
+  z-index: 2;
+  margin-top: -3px;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0.24px;
+  font-weight: 800;
+  color: #f3fffa;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 22px rgba(133, 233, 194, 0.62),
+    0 8px 22px rgba(2, 12, 21, 0.6);
+}
+
 .wheel-reward-sub {
   position: relative;
   z-index: 2;
@@ -2776,6 +2792,13 @@ body::before {
   color: #f9e9bd;
 }
 
+.wheel-reward-modal.jackpot .wheel-reward-amount {
+  color: #fff5d9;
+  text-shadow:
+    0 0 24px rgba(255, 223, 138, 0.72),
+    0 8px 20px rgba(45, 31, 8, 0.64);
+}
+
 .wheel-reward-modal.jackpot .wheel-reward-meta {
   color: rgba(244, 226, 180, 0.94);
 }
@@ -2840,6 +2863,12 @@ body::before {
   opacity: 0.58;
   animation: wheelRewardClaimSweep 2.8s ease-in-out infinite;
   pointer-events: none;
+}
+
+.wheel-reward-modal .wheel-reward-title,
+.wheel-reward-modal .wheel-reward-sub,
+.wheel-reward-modal .wheel-reward-stats {
+  display: none;
 }
 
 .wheel-reward-claim:active {
