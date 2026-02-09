@@ -210,7 +210,7 @@ export default function App() {
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [wheelSpinPhase, setWheelSpinPhase] = useState<
-    'idle' | 'cruise' | 'brake' | 'settle' | 'celebrate'
+    'idle' | 'cruise' | 'brake' | 'celebrate'
   >('idle');
   const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
   const [wheelCelebrating, setWheelCelebrating] = useState(false);
@@ -265,7 +265,6 @@ export default function App() {
   const wheelPointerDistanceRef = useRef(0);
   const spinTimeoutRef = useRef<number | null>(null);
   const spinPhaseTimeoutRef = useRef<number | null>(null);
-  const wheelSettleTimeoutRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
@@ -556,9 +555,6 @@ export default function App() {
       }
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);
-      }
-      if (wheelSettleTimeoutRef.current) {
-        window.clearTimeout(wheelSettleTimeoutRef.current);
       }
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1330,9 +1326,6 @@ export default function App() {
     if (spinPhaseTimeoutRef.current) {
       window.clearTimeout(spinPhaseTimeoutRef.current);
     }
-    if (wheelSettleTimeoutRef.current) {
-      window.clearTimeout(wheelSettleTimeoutRef.current);
-    }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
     }
@@ -1384,9 +1377,6 @@ export default function App() {
     } catch (error: any) {
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);
-      }
-      if (wheelSettleTimeoutRef.current) {
-        window.clearTimeout(wheelSettleTimeoutRef.current);
       }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');
@@ -1682,13 +1672,15 @@ export default function App() {
                     <span className="wheel-center-star">★</span>
                   </div>
                 </div>
-                <div className="wheel-pointer-base" aria-hidden="true" />
                 <div
-                  className={`wheel-pointer ${wheelSpinning ? `kick-${wheelPointerKick % 2 === 0 ? 'a' : 'b'}` : ''} ${
-                    wheelCelebrating ? 'celebrate' : ''
-                  }`}
+                  className={`wheel-pointer-assembly ${
+                    wheelSpinning ? `kick-${wheelPointerKick % 2 === 0 ? 'a' : 'b'}` : ''
+                  } ${wheelCelebrating ? 'celebrate' : ''}`}
                   aria-hidden="true"
-                />
+                >
+                  <div className="wheel-pointer-base" />
+                  <div className="wheel-pointer" />
+                </div>
               </div>
               <button
                 className="wheel-cta"

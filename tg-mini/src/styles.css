@@ -1273,15 +1273,11 @@ body::before {
 }
 
 .wheel-rotor.phase-cruise {
-  transition: transform 3500ms cubic-bezier(0.16, 0.86, 0.26, 1);
+  transition: transform 3720ms linear;
 }
 
 .wheel-rotor.phase-brake {
   transition: transform 1480ms cubic-bezier(0.03, 0.93, 0.12, 1);
-}
-
-.wheel-rotor.phase-settle {
-  transition: transform 0ms linear;
 }
 
 .wheel-rotor.phase-celebrate {
@@ -1293,9 +1289,12 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 24%, #29433f 0%, #1a3037 56%, #121f2a 100%),
-    radial-gradient(circle at 50% 86%, #1b3630 0%, #132a35 58%, #0f2231 100%);
-  box-shadow: inset 0 0 14px #132b37;
+    radial-gradient(circle at 50% 18%, #253f3d 0%, #172d36 48%, #0d1f2c 100%),
+    linear-gradient(180deg, #152a36 0%, #0f202f 58%, #0b1a28 100%);
+  box-shadow:
+    inset 0 0 0 1px #244847,
+    inset 0 8px 16px #203640,
+    inset 0 -16px 24px #091622;
   pointer-events: none;
   z-index: 0;
 }
@@ -1306,13 +1305,13 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background: repeating-conic-gradient(
-    from -7deg,
-    #b6d8c8 0deg,
-    #b6d8c8 1.6deg,
-    #6f8e82 1.6deg,
-    #6f8e82 3.4deg,
-    #324c4f 3.4deg,
-    #324c4f 8deg
+    from -8deg,
+    #c7d6ce 0deg,
+    #c7d6ce 1.2deg,
+    #758980 1.2deg,
+    #758980 3.2deg,
+    #25383d 3.2deg,
+    #25383d 8deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
@@ -1329,7 +1328,8 @@ body::before {
     transparent calc(100% - 15px)
   );
   box-shadow:
-    inset 0 0 10px #203c3f;
+    inset 0 0 0 1px #2e4e4d,
+    inset 0 2px 3px #d6e4dd20;
 }
 
 .wheel-shell::after {
@@ -1337,106 +1337,92 @@ body::before {
   position: absolute;
   inset: 9px;
   border-radius: 50%;
-  border: 2px solid #6f9788;
+  border: 2px solid #5e7a73;
   box-shadow:
-    inset 0 0 0 2px #233e4a,
-    inset 0 1px 1px #aac7bc;
+    inset 0 0 0 2px #203742,
+    inset 0 1px 1px #b9cbc230;
   pointer-events: none;
 }
 
 .wheel-orbit {
   position: absolute;
-  inset: 6.3%;
+  inset: 5.8%;
   border-radius: 50%;
-  border: 1px solid #4d6662;
+  border: 1px solid #425c5a;
   background: repeating-conic-gradient(
     from -90deg,
-    #bdcdc4 0deg,
-    #bdcdc4 2deg,
-    #6e837b 2deg,
-    #6e837b 4.6deg,
-    #223941 4.6deg,
-    #223941 45deg
+    #bbcbc3 0deg,
+    #bbcbc3 1.4deg,
+    #687d76 1.4deg,
+    #687d76 3.6deg,
+    #1e313a 3.6deg,
+    #1e313a 45deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 9px),
-    #000 calc(100% - 9px),
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
     #000 calc(100% - 2px),
     transparent calc(100% - 2px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 9px),
-    #000 calc(100% - 9px),
+    transparent calc(100% - 8px),
+    #000 calc(100% - 8px),
     #000 calc(100% - 2px),
     transparent calc(100% - 2px)
   );
-  box-shadow: inset 0 0 0 1px #273f46;
+  box-shadow:
+    inset 0 0 0 1px #223d44,
+    inset 0 1px 0 #c6d5ce22;
   z-index: 0;
 }
 
 .wheel-ratchet {
   position: absolute;
-  inset: 5%;
+  inset: 4.4%;
   border-radius: 50%;
   z-index: 1;
   background: repeating-conic-gradient(
     from -90deg,
-    #e2ece5 0deg,
-    #e2ece5 1.5deg,
-    #748b81 1.5deg,
-    #748b81 4.2deg,
-    #1d3038 4.2deg,
-    #1d3038 45deg
+    #d8e4de 0deg,
+    #d8e4de 2.2deg,
+    #70867e 2.2deg,
+    #70867e 4.5deg,
+    #1f3139 4.5deg,
+    #1f3139 45deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 17px),
-    #000 calc(100% - 17px),
-    #000 calc(100% - 6px),
-    transparent calc(100% - 6px)
+    transparent calc(100% - 16px),
+    #000 calc(100% - 16px),
+    #000 calc(100% - 5px),
+    transparent calc(100% - 5px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 17px),
-    #000 calc(100% - 17px),
-    #000 calc(100% - 6px),
-    transparent calc(100% - 6px)
+    transparent calc(100% - 16px),
+    #000 calc(100% - 16px),
+    #000 calc(100% - 5px),
+    transparent calc(100% - 5px)
   );
   box-shadow:
-    inset 0 0 0 1px #2a4349,
-    inset 0 1px 0 #c6d6d0;
-}
-
-.wheel-pointer-base {
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 64px;
-  height: 46px;
-  clip-path: polygon(50% 100%, 14% 10%, 86% 10%);
-  background: linear-gradient(180deg, #c9ded6 0%, #90b7a8 46%, #406364 100%);
-  border: 2px solid #a0c2b5;
-  box-shadow:
-    0 8px 14px #071723,
-    0 0 6px #345658;
-  z-index: 6;
+    inset 0 0 0 1px #2a4647,
+    inset 0 1px 0 #d9e6df28;
 }
 
 .wheel {
-  width: 85%;
-  height: 85%;
+  width: 88%;
+  height: 88%;
   border-radius: 50%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 78%, #102434 0%, #0a1a28 60%, #071321 100%),
-    radial-gradient(circle at 50% 18%, #273f44 0%, #1a2f3a 44%, #11222f 100%);
-  border: 8px solid #5a726b;
+    radial-gradient(circle at 50% 84%, #0d2131 0%, #091927 54%, #06121d 100%),
+    radial-gradient(circle at 50% 16%, #253c40 0%, #19303e 42%, #0d2031 100%);
+  border: 5px solid #5b7470;
   box-shadow:
-    inset 0 2px 0 #c7ddd4,
-    inset 0 -14px 20px #122736;
+    inset 0 2px 0 #d2e2da,
+    inset 0 -14px 18px #102334;
   position: relative;
   z-index: 2;
   display: grid;
@@ -1446,30 +1432,29 @@ body::before {
 
 .wheel-facet-disk {
   position: absolute;
-  inset: 1.8%;
+  inset: 0.8%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% -8%, #dbf0e5 0%, #dbf0e500 30%),
-    radial-gradient(circle at 50% 112%, #081522 10%, #081522d6 44%, #08152200 72%),
+    radial-gradient(circle at 50% -8%, #d7ebe0 0%, #d7ebe000 28%),
+    radial-gradient(circle at 50% 110%, #071422 12%, #071422d9 42%, #07142200 70%),
     conic-gradient(
       from -90deg,
-      #8ab8a8 0deg 45deg,
-      #8794b1 45deg 90deg,
-      #7faea1 90deg 135deg,
-      #8390ac 135deg 180deg,
-      #88b6a7 180deg 225deg,
-      #8693af 225deg 270deg,
-      #80afa1 270deg 315deg,
-      #8290ab 315deg 360deg
+      #8cb7ac 0deg 45deg,
+      #8993ae 45deg 90deg,
+      #82aca1 90deg 135deg,
+      #8590aa 135deg 180deg,
+      #89b5a8 180deg 225deg,
+      #8592ae 225deg 270deg,
+      #83afa2 270deg 315deg,
+      #8591ac 315deg 360deg
     );
-  border: 2px solid #a7beb4;
+  border: 1px solid #a4bbb2;
   box-shadow:
-    0 0 0 2px #304f54,
-    inset 0 6px 12px #d6ece165,
-    inset 0 -22px 34px #07172bc2,
-    inset 12px 0 16px #9acbbf30,
-    inset -12px 0 16px #8a97b835,
-    0 10px 16px #041321;
+    0 0 0 1px #2d4c52,
+    inset 0 5px 10px #d3e8de55,
+    inset 0 -20px 28px #071729bf,
+    inset 12px 0 14px #99cabd2a,
+    inset -12px 0 14px #8b98b52e;
   z-index: 3;
 }
 
@@ -1484,9 +1469,9 @@ body::before {
     #0000 0.9deg 44deg,
     #12293a5c 44deg 45deg
   );
-  opacity: 0.82;
-  -webkit-mask: radial-gradient(circle, transparent 0 4.5%, #000 4.8% 99%, transparent 99.4%);
-  mask: radial-gradient(circle, transparent 0 4.5%, #000 4.8% 99%, transparent 99.4%);
+  opacity: 0.8;
+  -webkit-mask: radial-gradient(circle, transparent 0 11%, #000 11.4% 99%, transparent 99.4%);
+  mask: radial-gradient(circle, transparent 0 11%, #000 11.4% 99%, transparent 99.4%);
   box-shadow:
     inset 0 0 10px #132c41;
 }
@@ -1506,12 +1491,12 @@ body::before {
 .wheel::before {
   content: '';
   position: absolute;
-  inset: 2.6%;
+  inset: 1.2%;
   border-radius: 50%;
-  border: 1px solid #75988b;
+  border: 1px solid #698981;
   background: radial-gradient(circle at 50% 10%, #36515a 0%, #213a4b 30%, #122737 62%, #0a1b2b 100%);
   box-shadow:
-    inset 0 2px 0 #d4e8de,
+    inset 0 1px 0 #d2e4db,
     inset 0 -2px 0 #244957;
   pointer-events: none;
   z-index: 2;
@@ -1600,14 +1585,14 @@ body::before {
 
 .wheel-center {
   position: absolute;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: radial-gradient(circle at 32% 30%, #d7e9e2 0%, #92b4a9 52%, #355562 100%);
-  border: 2px solid #9ec2b5;
+  background: radial-gradient(circle at 32% 30%, #d6e8e1 0%, #8fb2a7 54%, #335663 100%);
+  border: 1px solid #a0c2b4;
   box-shadow:
-    inset 0 2px 4px #e5f3ec,
-    inset 0 -5px 8px #2f4f5c;
+    inset 0 2px 3px #e7f3ee,
+    inset 0 -5px 7px #2f4f5c;
   z-index: 5;
   display: grid;
   place-items: center;
@@ -1616,7 +1601,7 @@ body::before {
 .wheel-center::before {
   content: '';
   position: absolute;
-  inset: 4px;
+  inset: 3px;
   border-radius: 50%;
   border: 1px solid #b4d2c7;
   background: radial-gradient(circle at 32% 26%, #e2f0eb 0%, #99bab1 58%, #355666 100%);
@@ -1640,31 +1625,57 @@ body::before {
   z-index: 2;
 }
 
-.wheel-pointer {
+.wheel-pointer-assembly {
   position: absolute;
-  top: 13px;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 18px;
-  height: 20px;
-  transform-origin: 50% 0%;
-  background: linear-gradient(180deg, #ccddd8 0%, #93b3ab 48%, #41656a 100%);
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
-  box-shadow: 0 5px 10px #041220;
-  border: 1px solid #acc8bf;
+  width: 74px;
+  height: 42px;
+  transform-origin: 50% 9px;
   z-index: 7;
-  animation: wheelPointerIdle 2.4s ease-in-out infinite;
 }
 
-.wheel-pointer.kick-a {
+.wheel-pointer-base {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52px;
+  height: 14px;
+  border-radius: 9px 9px 12px 12px;
+  border: 1px solid #9eb9ae;
+  background: linear-gradient(180deg, #d0dfd8 0%, #8aa89e 58%, #35545f 100%);
+  box-shadow:
+    0 5px 9px #05121d,
+    inset 0 1px 0 #eef8f4,
+    inset 0 -7px 10px #2c4854;
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translateX(-50%);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  border: 1px solid #aec8bf;
+  background: linear-gradient(180deg, #d3e3dc 0%, #9ab7ad 50%, #43656c 100%);
+  box-shadow:
+    0 5px 8px #04111d,
+    inset 0 1px 0 #f2f9f6;
+}
+
+.wheel-pointer-assembly.kick-a {
   animation: wheelPointerKickA 124ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.wheel-pointer.kick-b {
+.wheel-pointer-assembly.kick-b {
   animation: wheelPointerKickB 124ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.wheel-pointer.celebrate {
+.wheel-pointer-assembly.celebrate {
   animation: wheelPointerCelebrate 360ms ease-out 4;
 }
 
@@ -1805,26 +1816,16 @@ body::before {
   }
 }
 
-@keyframes wheelPointerIdle {
-  0%,
-  100% {
-    transform: translateX(-50%) rotate(0deg) scale(1);
-  }
-  50% {
-    transform: translateX(-50%) rotate(0.9deg) scale(1.02);
-  }
-}
-
 @keyframes wheelPointerKickA {
   0%,
   100% {
     transform: translateX(-50%) rotate(0deg);
   }
   38% {
-    transform: translateX(-50%) rotate(11deg);
+    transform: translateX(-50%) rotate(8deg);
   }
   62% {
-    transform: translateX(-50%) rotate(3deg);
+    transform: translateX(-50%) rotate(2.2deg);
   }
 }
 
@@ -1834,10 +1835,10 @@ body::before {
     transform: translateX(-50%) rotate(0deg);
   }
   36% {
-    transform: translateX(-50%) rotate(11deg);
+    transform: translateX(-50%) rotate(8deg);
   }
   60% {
-    transform: translateX(-50%) rotate(3deg);
+    transform: translateX(-50%) rotate(2.2deg);
   }
 }
 
@@ -1896,6 +1897,7 @@ body::before {
   .wheel-wrapper::after,
   .wheel-orbit,
   .wheel-shell::before,
+  .wheel-pointer-assembly,
   .wheel-pointer,
   .wheel-center,
   .wheel-segment::before,
