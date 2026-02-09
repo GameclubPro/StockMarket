@@ -1653,8 +1653,17 @@ export default function App() {
                   </div>
                 </div>
                 <div className="daily-bonus-top-side">
-                  <div className="daily-bonus-preview-wrap" aria-hidden="true">
-                    <div className="daily-bonus-preview" />
+                  <div
+                    className={`daily-bonus-preview-wrap ${dailyBonusAvailable ? 'ready' : ''}`}
+                    aria-hidden="true"
+                  >
+                    <span className="daily-bonus-preview-shell" />
+                    <span className="daily-bonus-preview-orbit" />
+                    <span className="daily-bonus-preview-ratchet" />
+                    <div className="daily-bonus-preview">
+                      <span className="daily-bonus-preview-facet" />
+                      <span className="daily-bonus-preview-cap" />
+                    </div>
                   </div>
                 </div>
               </div>
