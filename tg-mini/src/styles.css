@@ -1452,26 +1452,34 @@ body::before {
   inset: 0.8%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% -8%, #d7ebe0 0%, #d7ebe000 28%),
-    radial-gradient(circle at 50% 110%, #071422 12%, #071422d9 42%, #07142200 70%),
+    radial-gradient(circle at 50% -10%, #e6f5ef 0%, #e6f5ef00 30%),
+    radial-gradient(circle at 50% 112%, #071424 10%, #071424dc 46%, #07142400 74%),
+    conic-gradient(
+      from -12deg,
+      #e6f4ee24 0deg 34deg,
+      #0000 34deg 116deg,
+      #d9ece322 116deg 154deg,
+      #0000 154deg 360deg
+    ),
     conic-gradient(
       from -90deg,
-      #8cb7ac 0deg 45deg,
-      #8993ae 45deg 90deg,
-      #82aca1 90deg 135deg,
-      #8590aa 135deg 180deg,
-      #89b5a8 180deg 225deg,
-      #8592ae 225deg 270deg,
-      #83afa2 270deg 315deg,
-      #8591ac 315deg 360deg
+      #99ccbc 0deg 45deg,
+      #939fbe 45deg 90deg,
+      #89bcad 90deg 135deg,
+      #8f9bc0 135deg 180deg,
+      #96c8b9 180deg 225deg,
+      #8e9dc1 225deg 270deg,
+      #8bc0b0 270deg 315deg,
+      #8e9bc0 315deg 360deg
     );
-  border: 1px solid #a4bbb2;
+  border: 1px solid #b0c9bf;
   box-shadow:
-    0 0 0 1px #2d4c52,
-    inset 0 5px 10px #d3e8de55,
-    inset 0 -20px 28px #071729bf,
-    inset 12px 0 14px #99cabd2a,
-    inset -12px 0 14px #8b98b52e;
+    0 0 0 1px #2f4f56,
+    inset 0 6px 12px #e7f4ee66,
+    inset 0 -24px 34px #061527c9,
+    inset 14px 0 18px #9ccfc13b,
+    inset -14px 0 18px #8f9fbe40,
+    0 6px 14px #04101e;
   z-index: 3;
 }
 
@@ -1483,31 +1491,34 @@ body::before {
   background:
     repeating-conic-gradient(
       from -90deg,
-      #dff0e780 0deg 0.85deg,
-      #0000 0.85deg 15deg
+      #0000 0deg 43.7deg,
+      #eef9f39e 43.7deg 44.05deg,
+      #1f34458f 44.05deg 45deg
     ),
-    repeating-conic-gradient(
-      from -90deg,
-      #0000 0deg 44.1deg,
-      #2137498c 44.1deg 45deg
+    conic-gradient(
+      from -76deg,
+      #ffffff30 0deg 18deg,
+      #0000 18deg 132deg,
+      #d6ece424 132deg 164deg,
+      #0000 164deg 360deg
     );
-  opacity: 0.94;
-  -webkit-mask: radial-gradient(circle, transparent 0 70%, #000 70.3% 92%, transparent 92.4%);
-  mask: radial-gradient(circle, transparent 0 70%, #000 70.3% 92%, transparent 92.4%);
+  opacity: 0.9;
+  -webkit-mask: radial-gradient(circle, transparent 0 12%, #000 12.4% 99%, transparent 99.4%);
+  mask: radial-gradient(circle, transparent 0 12%, #000 12.4% 99%, transparent 99.4%);
   box-shadow:
-    inset 0 0 10px #132c41;
+    inset 0 0 12px #0f263a;
 }
 
 .wheel-facet-disk::after {
   content: '';
   position: absolute;
-  inset: 45%;
+  inset: 42%;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 26%, #d6ebe4 0%, #91b6ac 42%, #2d5967 100%);
-  border: 1px solid #98bdb2;
+  background: radial-gradient(circle at 30% 26%, #dff0ea 0%, #9ec2b9 44%, #335f70 100%);
+  border: 1px solid #a8cbc0;
   box-shadow:
-    inset 0 1px 0 #edfbf5,
-    inset 0 -10px 12px #1b3d52;
+    inset 0 1px 0 #f1fcf8,
+    inset 0 -10px 13px #1e4158;
 }
 
 .wheel::before {
@@ -1525,7 +1536,31 @@ body::before {
 }
 
 .wheel::after {
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from -90deg,
+      #e8f6f0 0deg 0.58deg,
+      #8faea5 0.58deg 1.12deg,
+      #1e3942 1.12deg 5deg,
+      #e4f2ec 5deg 5.58deg,
+      #8baaa2 5.58deg 6.12deg,
+      #203a44 6.12deg 10deg,
+      #dceee5 10deg 10.58deg,
+      #88a79f 10.58deg 11.12deg,
+      #1d3742 11.12deg 15deg
+    ),
+    radial-gradient(circle at 50% 28%, #ffffff1a 0%, #0000 46%);
+  -webkit-mask: radial-gradient(circle, transparent 0 71%, #000 71.3% 90%, transparent 90.4%);
+  mask: radial-gradient(circle, transparent 0 71%, #000 71.3% 90%, transparent 90.4%);
+  box-shadow:
+    inset 0 1px 0 #eef8f3a3,
+    inset 0 -1px 0 #102836;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .wheel-rotor.spinning .wheel {
@@ -1649,7 +1684,7 @@ body::before {
 
 .wheel-pointer-assembly {
   position: absolute;
-  top: -1px;
+  top: 2px;
   left: 50%;
   transform: translateX(-50%);
   width: 56px;
