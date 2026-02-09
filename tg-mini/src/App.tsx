@@ -80,7 +80,6 @@ const DAILY_WHEEL_VALUE_CHANCES = Array.from(
     chance: (weight / DAILY_WHEEL_TOTAL_WEIGHT) * 100,
   }))
   .sort((a, b) => b.value - a.value);
-const DAILY_WHEEL_REWARDS_LEGEND = DAILY_WHEEL_SEGMENTS.map((segment) => segment.value).join(' / ');
 const REFERRAL_STEPS = [
   { label: 'Вход', orders: 0, reward: 10 },
   { label: '5 заказов', orders: 5, reward: 30 },
@@ -1800,7 +1799,25 @@ export default function App() {
                 </div>
                 <div className="wheel-reward-row">
                   <span className="wheel-reward-dot" aria-hidden="true" />
-                  <span>Награды: {DAILY_WHEEL_REWARDS_LEGEND}</span>
+                  <span className="wheel-reward-label">Награды</span>
+                  <div className="wheel-reward-list">
+                    {DAILY_WHEEL_VALUE_CHANCES.map((entry) => (
+                      <span
+                        key={`wheel-reward-chip-${entry.value}`}
+                        className={`wheel-reward-chip ${
+                          entry.value >= 100
+                            ? 'jackpot'
+                            : entry.value >= 50
+                              ? 'high'
+                              : entry.value >= 20
+                                ? 'mid'
+                                : 'base'
+                        }`}
+                      >
+                        {entry.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
               {dailyBonusInfoOpen && (
