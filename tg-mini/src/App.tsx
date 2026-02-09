@@ -49,12 +49,14 @@ const DAILY_WHEEL_SEGMENTS = [
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
-const DAILY_WHEEL_SPIN_TURNS = 6;
-const DAILY_WHEEL_SPIN_MS = 4200;
-const DAILY_WHEEL_BRAKE_MS = 1320;
+const DAILY_WHEEL_SPIN_TURNS = 7;
+const DAILY_WHEEL_SPIN_MS = 5200;
+const DAILY_WHEEL_BRAKE_MS = 1700;
+const DAILY_WHEEL_SETTLE_MS = 220;
+const DAILY_WHEEL_SETTLE_OFFSET = 1.6;
 const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
-const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.15;
+const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.4;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
@@ -169,6 +171,16 @@ const getWheelTargetRotation = (currentRotation: number, index: number) => {
   return currentRotation + delta;
 };
 
+const getRotationFromTransform = (transformValue: string) => {
+  if (!transformValue || transformValue === 'none') return 0;
+  try {
+    const matrix = new DOMMatrixReadOnly(transformValue);
+    return (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
+  } catch {
+    return 0;
+  }
+};
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -199,12 +211,13 @@ export default function App() {
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
   const [wheelSpinning, setWheelSpinning] = useState(false);
-  const [wheelSpinPhase, setWheelSpinPhase] = useState<'idle' | 'cruise' | 'brake' | 'celebrate'>(
-    'idle'
-  );
+  const [wheelSpinPhase, setWheelSpinPhase] = useState<
+    'idle' | 'cruise' | 'brake' | 'settle' | 'celebrate'
+  >('idle');
   const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
   const [wheelCelebrating, setWheelCelebrating] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
+  const [wheelPointerKick, setWheelPointerKick] = useState(0);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
@@ -248,8 +261,13 @@ export default function App() {
   const pointsTodayKeyRef = useRef('');
   const animatingOutRef = useRef<Set<string>>(new Set());
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
+  const wheelRotorRef = useRef<HTMLDivElement | null>(null);
+  const wheelPointerFrameRef = useRef<number | null>(null);
+  const wheelPointerLastAngleRef = useRef<number | null>(null);
+  const wheelPointerDistanceRef = useRef(0);
   const spinTimeoutRef = useRef<number | null>(null);
   const spinPhaseTimeoutRef = useRef<number | null>(null);
+  const wheelSettleTimeoutRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
@@ -476,6 +494,58 @@ export default function App() {
   }, [wheelRotation]);
 
   useEffect(() => {
+    if (!wheelSpinning) {
+      if (wheelPointerFrameRef.current) {
+        window.cancelAnimationFrame(wheelPointerFrameRef.current);
+        wheelPointerFrameRef.current = null;
+      }
+      wheelPointerLastAngleRef.current = null;
+      wheelPointerDistanceRef.current = 0;
+      return;
+    }
+
+    const rotorNode = wheelRotorRef.current;
+    if (!rotorNode) return;
+
+    wheelPointerLastAngleRef.current = null;
+    wheelPointerDistanceRef.current = 0;
+
+    const trackWheelNotches = () => {
+      const transformValue = window.getComputedStyle(rotorNode).transform;
+      const currentAngle = getRotationFromTransform(transformValue);
+      const previousAngle = wheelPointerLastAngleRef.current;
+
+      if (previousAngle !== null) {
+        let delta = currentAngle - previousAngle;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+
+        if (delta > 0) {
+          wheelPointerDistanceRef.current += delta;
+          while (wheelPointerDistanceRef.current >= DAILY_WHEEL_SLICE) {
+            wheelPointerDistanceRef.current -= DAILY_WHEEL_SLICE;
+            setWheelPointerKick((prev) => prev + 1);
+          }
+        }
+      }
+
+      wheelPointerLastAngleRef.current = currentAngle;
+      wheelPointerFrameRef.current = window.requestAnimationFrame(trackWheelNotches);
+    };
+
+    wheelPointerFrameRef.current = window.requestAnimationFrame(trackWheelNotches);
+
+    return () => {
+      if (wheelPointerFrameRef.current) {
+        window.cancelAnimationFrame(wheelPointerFrameRef.current);
+        wheelPointerFrameRef.current = null;
+      }
+      wheelPointerLastAngleRef.current = null;
+      wheelPointerDistanceRef.current = 0;
+    };
+  }, [wheelSpinning]);
+
+  useEffect(() => {
     if (!dailyBonusStatus.nextAvailableAt) return;
     const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
@@ -489,8 +559,14 @@ export default function App() {
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);
       }
+      if (wheelSettleTimeoutRef.current) {
+        window.clearTimeout(wheelSettleTimeoutRef.current);
+      }
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
+      }
+      if (wheelPointerFrameRef.current) {
+        window.cancelAnimationFrame(wheelPointerFrameRef.current);
       }
       if (inviteCopyTimeoutRef.current) {
         window.clearTimeout(inviteCopyTimeoutRef.current);
@@ -1248,12 +1324,16 @@ export default function App() {
     setWheelSpinPhase('cruise');
     setWheelCelebrating(false);
     setWheelWinningIndex(null);
+    setWheelPointerKick(0);
 
     if (spinTimeoutRef.current) {
       window.clearTimeout(spinTimeoutRef.current);
     }
     if (spinPhaseTimeoutRef.current) {
       window.clearTimeout(spinPhaseTimeoutRef.current);
+    }
+    if (wheelSettleTimeoutRef.current) {
+      window.clearTimeout(wheelSettleTimeoutRef.current);
     }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1292,8 +1372,14 @@ export default function App() {
         setWheelRotation(nextRotation);
       }, DAILY_WHEEL_CRUISE_MS);
 
+      wheelSettleTimeoutRef.current = window.setTimeout(() => {
+        setWheelSpinPhase('settle');
+        setWheelRotation(nextRotation + DAILY_WHEEL_SETTLE_OFFSET);
+      }, DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_SETTLE_MS);
+
       const result = { label: rewardLabel, value: rewardValue };
       spinTimeoutRef.current = window.setTimeout(() => {
+        setWheelRotation(nextRotation);
         setWheelSpinning(false);
         setWheelSpinPhase('celebrate');
         setWheelCelebrating(true);
@@ -1304,6 +1390,12 @@ export default function App() {
         }, DAILY_WHEEL_CELEBRATE_MS);
       }, DAILY_WHEEL_SPIN_MS);
     } catch (error: any) {
+      if (spinPhaseTimeoutRef.current) {
+        window.clearTimeout(spinPhaseTimeoutRef.current);
+      }
+      if (wheelSettleTimeoutRef.current) {
+        window.clearTimeout(wheelSettleTimeoutRef.current);
+      }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');
       setWheelCelebrating(false);
@@ -1566,6 +1658,7 @@ export default function App() {
               )}
               <div className="wheel-wrapper">
                 <div
+                  ref={wheelRotorRef}
                   className={`wheel-rotor phase-${wheelSpinPhase} ${wheelSpinning ? 'spinning' : ''} ${
                     wheelCelebrating ? 'celebrate' : ''
                   }`}
@@ -1598,7 +1691,7 @@ export default function App() {
                 </div>
                 <div className="wheel-pointer-base" aria-hidden="true" />
                 <div
-                  className={`wheel-pointer ${wheelSpinning ? 'ticking' : ''} ${
+                  className={`wheel-pointer ${wheelSpinning ? `kick-${wheelPointerKick % 2 === 0 ? 'a' : 'b'}` : ''} ${
                     wheelCelebrating ? 'celebrate' : ''
                   }`}
                   aria-hidden="true"
