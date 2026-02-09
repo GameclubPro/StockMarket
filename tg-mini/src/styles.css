@@ -1469,22 +1469,30 @@ body::before {
     ),
     conic-gradient(
       from -90deg,
-      #b7ead8 0deg 45deg,
-      #b7c3ea 45deg 90deg,
-      #a9e0cd 90deg 135deg,
-      #adb9e6 135deg 180deg,
-      #b5e8d7 180deg 225deg,
-      #acbbe8 225deg 270deg,
-      #a9dfcc 270deg 315deg,
-      #adbbe8 315deg 360deg
+      #8fead2 0deg 18deg,
+      #62c6b3 18deg 45deg,
+      #9ad5ff 45deg 63deg,
+      #6ca8de 63deg 90deg,
+      #87e8de 90deg 108deg,
+      #56beaf 108deg 135deg,
+      #91cbff 135deg 153deg,
+      #5f98d1 153deg 180deg,
+      #9beccd 180deg 198deg,
+      #69c9b0 198deg 225deg,
+      #8fd0ff 225deg 243deg,
+      #619fda 243deg 270deg,
+      #97e4d3 270deg 288deg,
+      #67c4b7 288deg 315deg,
+      #a3dbff 315deg 333deg,
+      #72aee0 333deg 360deg
     );
-  border: 1px solid #bdd8cc;
+  border: 1px solid #b8ddd1;
   box-shadow:
     0 0 0 1px #35545d,
     inset 0 7px 14px #f2fcf76e,
     inset 0 -26px 36px #061628d0,
-    inset 14px 0 18px #b1ecda44,
-    inset -14px 0 18px #a7b6e145,
+    inset 14px 0 18px #8be6d04d,
+    inset -14px 0 18px #86c8ff4a,
     0 8px 16px #03101d;
   z-index: 3;
 }
