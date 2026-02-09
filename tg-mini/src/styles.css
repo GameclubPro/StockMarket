@@ -1826,32 +1826,335 @@ body::before {
   color: #f0fff8;
 }
 
-.wheel-result {
-  display: grid;
-  gap: 4px;
-  justify-items: center;
-  background: #112b3f;
-  border: 1px solid #5f998f;
-  border-radius: 14px;
-  padding: 10px 12px;
-}
-
-.wheel-result span {
-  font-size: 12px;
-  color: #c7e7da;
-}
-
-.wheel-result strong {
-  font-size: 22px;
+.wheel-reward-burst-chip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 104px;
+  border-radius: 999px;
+  border: 1px solid #9ee7c5;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: clamp(22px, 6.5vw, 28px);
   line-height: 1;
-  color: #ecfff6;
-  text-shadow: 0 0 12px #58bf9f;
+  font-weight: 800;
+  letter-spacing: 0.25px;
+  color: #f1fff8;
+  background: linear-gradient(180deg, #305f65 0%, #1d3649 44%, #0f2034 100%);
+  box-shadow:
+    0 12px 24px #020d19ad,
+    inset 0 1px 0 #f2fff8,
+    inset 0 -12px 18px #081a2d,
+    0 0 20px #5ac3a2;
+  pointer-events: none;
+  z-index: 9;
+  animation: wheelRewardChipRise 980ms cubic-bezier(0.16, 0.8, 0.22, 1) both;
+}
+
+.wheel-reward-burst-chip.jackpot {
+  border-color: #ffe8a9;
+  color: #fff7d8;
+  background: linear-gradient(180deg, #7e6731 0%, #574321 45%, #2d2314 100%);
+  box-shadow:
+    0 14px 28px #030f1ab5,
+    inset 0 1px 0 #fff8de,
+    inset 0 -12px 18px #1d160e,
+    0 0 22px #f8d477;
+}
+
+.wheel-reward-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  padding:
+    calc(var(--tg-safe-top, env(safe-area-inset-top, 0px)) + 12px) 12px
+    calc(var(--tg-safe-bottom, env(safe-area-inset-bottom, 0px)) + 12px);
+  display: grid;
+  align-items: end;
+  background:
+    radial-gradient(68% 46% at 50% 72%, rgba(112, 207, 255, 0.22) 0%, transparent 100%),
+    rgba(4, 10, 18, 0.56);
+  backdrop-filter: blur(8px);
+  animation: wheelRewardBackdropIn 240ms ease-out both;
+}
+
+.wheel-reward-modal {
+  position: relative;
+  width: min(100%, 430px);
+  margin: 0 auto;
+  border-radius: 22px;
+  border: 1px solid rgba(169, 223, 255, 0.46);
+  background:
+    radial-gradient(120% 88% at 50% -12%, rgba(164, 239, 215, 0.24), transparent 58%),
+    linear-gradient(166deg, rgba(15, 28, 42, 0.98), rgba(7, 14, 25, 0.99));
+  box-shadow:
+    0 26px 46px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(240, 252, 255, 0.34),
+    inset 0 -16px 24px rgba(7, 16, 28, 0.85);
+  padding: 18px 16px 16px;
+  overflow: hidden;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  animation: wheelRewardModalIn 560ms cubic-bezier(0.2, 0.9, 0.26, 1) both;
+}
+
+.wheel-reward-modal::before {
+  content: '';
+  position: absolute;
+  inset: -34% 15% auto;
+  height: 68%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 239, 206, 0.32) 0%, rgba(139, 239, 206, 0) 78%);
+  pointer-events: none;
+}
+
+.wheel-reward-modal.jackpot {
+  border-color: rgba(255, 220, 134, 0.68);
+  background:
+    radial-gradient(120% 88% at 50% -12%, rgba(255, 221, 144, 0.34), transparent 58%),
+    linear-gradient(166deg, rgba(29, 24, 16, 0.98), rgba(13, 10, 6, 0.99));
+}
+
+.wheel-reward-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wheel-reward-rays span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: clamp(44px, 12vw, 62px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(236, 252, 255, 0.94), rgba(236, 252, 255, 0));
+  transform:
+    translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
+    translateY(clamp(-30px, -9vw, -44px))
+    scaleY(0.12);
+  opacity: 0;
+  animation: wheelRewardRayBurst 760ms cubic-bezier(0.2, 0.86, 0.24, 1) forwards;
+  animation-delay: var(--wheel-ray-delay, 0ms);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-rays span {
+  background: linear-gradient(180deg, rgba(255, 244, 201, 0.94), rgba(255, 244, 201, 0));
+}
+
+.wheel-reward-token {
+  position: relative;
+  z-index: 2;
+  width: clamp(106px, 29vw, 124px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(175, 236, 209, 0.82);
+  background:
+    radial-gradient(circle at 30% 26%, #ecfff7 0%, #9ae8c6 40%, #2a5960 100%);
+  box-shadow:
+    0 20px 30px rgba(2, 12, 22, 0.54),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -16px 18px rgba(14, 35, 49, 0.85),
+    0 0 26px rgba(123, 226, 190, 0.42);
+  animation: wheelRewardTokenPop 560ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
+}
+
+.wheel-reward-token span {
+  font-size: clamp(28px, 8vw, 36px);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #f6fffb;
+  text-shadow:
+    0 0 16px rgba(121, 227, 189, 0.86),
+    0 4px 10px rgba(6, 24, 34, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-token {
+  border-color: rgba(255, 235, 178, 0.86);
+  background:
+    radial-gradient(circle at 30% 26%, #fff8df 0%, #ffd989 42%, #7c5f2a 100%);
+  box-shadow:
+    0 20px 30px rgba(16, 11, 2, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -16px 18px rgba(60, 44, 16, 0.82),
+    0 0 28px rgba(251, 214, 115, 0.5);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-token span {
+  color: #fff8df;
+  text-shadow:
+    0 0 16px rgba(255, 226, 144, 0.82),
+    0 4px 10px rgba(45, 31, 8, 0.66);
+}
+
+.wheel-reward-title {
+  position: relative;
+  z-index: 2;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  font-weight: 700;
+  color: #f2fffa;
+}
+
+.wheel-reward-sub {
+  position: relative;
+  z-index: 2;
+  font-size: 13px;
+  color: #cae8df;
+  text-align: center;
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-sub {
+  color: #f4e5b8;
+}
+
+.wheel-reward-claim {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(167, 238, 211, 0.82);
+  background: linear-gradient(180deg, #1e5f5e 0%, #13374a 50%, #0d2236 100%);
+  color: #edfff7;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(236, 255, 247, 0.74),
+    inset 0 -10px 16px rgba(8, 21, 33, 0.82),
+    0 12px 20px rgba(2, 10, 18, 0.5),
+    0 0 20px rgba(125, 228, 192, 0.24);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.wheel-reward-claim:active {
+  transform: translateY(1px) scale(0.997);
+}
+
+.wheel-reward-claim:hover {
+  border-color: rgba(202, 246, 227, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 255, 250, 0.82),
+    inset 0 -10px 16px rgba(8, 21, 33, 0.82),
+    0 14px 24px rgba(2, 10, 18, 0.56),
+    0 0 24px rgba(125, 228, 192, 0.34);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-claim {
+  border-color: rgba(255, 233, 178, 0.9);
+  background: linear-gradient(180deg, #7f672f 0%, #5d4a23 52%, #382d16 100%);
+  color: #fff8df;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 225, 0.76),
+    inset 0 -10px 16px rgba(41, 31, 15, 0.82),
+    0 12px 20px rgba(11, 9, 4, 0.54),
+    0 0 22px rgba(250, 216, 118, 0.32);
+}
+
+.wheel-reward-modal.jackpot .wheel-reward-claim:hover {
+  border-color: rgba(255, 240, 204, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 252, 234, 0.84),
+    inset 0 -10px 16px rgba(41, 31, 15, 0.82),
+    0 14px 24px rgba(11, 9, 4, 0.58),
+    0 0 26px rgba(250, 216, 118, 0.42);
 }
 
 .wheel-error {
   font-size: 13px;
   color: #ffb8b8;
   text-align: center;
+}
+
+@keyframes wheelRewardChipRise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -36%) scale(0.36);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -52%) scale(1.06);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -86%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -116%) scale(0.92);
+  }
+}
+
+@keyframes wheelRewardBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wheelRewardModalIn {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wheelRewardTokenPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.46);
+  }
+  44% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  72% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes wheelRewardRayBurst {
+  0% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
+      translateY(clamp(-18px, -5vw, -24px))
+      scaleY(0.18);
+  }
+  30% {
+    opacity: 1;
+  }
+  68% {
+    opacity: 0.75;
+    transform:
+      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
+      translateY(clamp(-48px, -12vw, -62px))
+      scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate(-50%, -50%) rotate(var(--wheel-ray-angle, 0deg))
+      translateY(clamp(-62px, -15vw, -80px))
+      scaleY(0.4);
+  }
 }
 
 @keyframes wheelPreviewSpin {
@@ -1973,7 +2276,12 @@ body::before {
   .wheel-segment::before,
   .wheel-segment.winner::after,
   .wheel-segment.winner .wheel-value,
-  .wheel-value {
+  .wheel-value,
+  .wheel-reward-burst-chip,
+  .wheel-reward-modal-backdrop,
+  .wheel-reward-modal,
+  .wheel-reward-token,
+  .wheel-reward-rays span {
     animation: none;
   }
 }

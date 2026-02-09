@@ -269,6 +269,8 @@ export default function App() {
   >('idle');
   const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
   const [wheelCelebrating, setWheelCelebrating] = useState(false);
+  const [wheelRewardBurst, setWheelRewardBurst] = useState(false);
+  const [wheelRewardModalOpen, setWheelRewardModalOpen] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
@@ -318,6 +320,8 @@ export default function App() {
   const spinPhaseCruiseTimeoutRef = useRef<number | null>(null);
   const spinPhaseBrakeTimeoutRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
+  const wheelRewardBurstTimeoutRef = useRef<number | null>(null);
+  const wheelRewardRevealTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
   const applicationsByCampaign = useMemo(() => {
@@ -569,6 +573,12 @@ export default function App() {
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
       }
+      if (wheelRewardBurstTimeoutRef.current) {
+        window.clearTimeout(wheelRewardBurstTimeoutRef.current);
+      }
+      if (wheelRewardRevealTimeoutRef.current) {
+        window.clearTimeout(wheelRewardRevealTimeoutRef.current);
+      }
       if (inviteCopyTimeoutRef.current) {
         window.clearTimeout(inviteCopyTimeoutRef.current);
       }
@@ -587,6 +597,21 @@ export default function App() {
       setWelcomeBonus(null);
     }, 5000);
   }, [welcomeBonus]);
+
+  useEffect(() => {
+    if (activeTab === 'wheel') return;
+    if (wheelRewardBurstTimeoutRef.current) {
+      window.clearTimeout(wheelRewardBurstTimeoutRef.current);
+      wheelRewardBurstTimeoutRef.current = null;
+    }
+    if (wheelRewardRevealTimeoutRef.current) {
+      window.clearTimeout(wheelRewardRevealTimeoutRef.current);
+      wheelRewardRevealTimeoutRef.current = null;
+    }
+    setWheelRewardBurst(false);
+    setWheelRewardModalOpen(false);
+    setWheelResult(null);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!Number.isFinite(taskCount)) return;
@@ -1315,11 +1340,19 @@ export default function App() {
     triggerCompletionAnimation(campaignId, String(scoreValue));
   };
 
+  const handleClaimWheelReward = () => {
+    setWheelRewardModalOpen(false);
+    setWheelRewardBurst(false);
+    setWheelResult(null);
+  };
+
   const handleSpinDailyBonus = async () => {
     if (wheelSpinning || dailyBonusLoading) return;
     if (!dailyBonusAvailable) return;
 
     setDailyBonusError('');
+    setWheelRewardModalOpen(false);
+    setWheelRewardBurst(false);
     setWheelResult(null);
     setWheelSpinning(true);
     setWheelSpinPhase('launch');
@@ -1339,6 +1372,15 @@ export default function App() {
     }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
+      wheelCelebrateTimeoutRef.current = null;
+    }
+    if (wheelRewardBurstTimeoutRef.current) {
+      window.clearTimeout(wheelRewardBurstTimeoutRef.current);
+      wheelRewardBurstTimeoutRef.current = null;
+    }
+    if (wheelRewardRevealTimeoutRef.current) {
+      window.clearTimeout(wheelRewardRevealTimeoutRef.current);
+      wheelRewardRevealTimeoutRef.current = null;
     }
 
     try {
@@ -1381,10 +1423,26 @@ export default function App() {
         setWheelSpinning(false);
         setWheelSpinPhase('celebrate');
         setWheelCelebrating(true);
+        setWheelRewardBurst(true);
         setWheelResult(result);
+        if (wheelRewardBurstTimeoutRef.current) {
+          window.clearTimeout(wheelRewardBurstTimeoutRef.current);
+        }
+        wheelRewardBurstTimeoutRef.current = window.setTimeout(() => {
+          setWheelRewardBurst(false);
+          wheelRewardBurstTimeoutRef.current = null;
+        }, 980);
+        if (wheelRewardRevealTimeoutRef.current) {
+          window.clearTimeout(wheelRewardRevealTimeoutRef.current);
+        }
+        wheelRewardRevealTimeoutRef.current = window.setTimeout(() => {
+          setWheelRewardModalOpen(true);
+          wheelRewardRevealTimeoutRef.current = null;
+        }, 340);
         wheelCelebrateTimeoutRef.current = window.setTimeout(() => {
           setWheelCelebrating(false);
           setWheelSpinPhase('idle');
+          wheelCelebrateTimeoutRef.current = null;
         }, DAILY_WHEEL_CELEBRATE_MS);
       };
 
@@ -1489,9 +1547,19 @@ export default function App() {
         window.clearTimeout(spinPhaseBrakeTimeoutRef.current);
         spinPhaseBrakeTimeoutRef.current = null;
       }
+      if (wheelRewardBurstTimeoutRef.current) {
+        window.clearTimeout(wheelRewardBurstTimeoutRef.current);
+        wheelRewardBurstTimeoutRef.current = null;
+      }
+      if (wheelRewardRevealTimeoutRef.current) {
+        window.clearTimeout(wheelRewardRevealTimeoutRef.current);
+        wheelRewardRevealTimeoutRef.current = null;
+      }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');
       setWheelCelebrating(false);
+      setWheelRewardBurst(false);
+      setWheelRewardModalOpen(false);
       setDailyBonusError(error?.message ?? 'Не удалось получить бонус.');
     }
   };
@@ -1791,24 +1859,28 @@ export default function App() {
                   <div className="wheel-pointer-base" />
                   <div className="wheel-pointer" />
                 </div>
+                {wheelResult && wheelRewardBurst && (
+                  <div
+                    className={`wheel-reward-burst-chip ${
+                      wheelResult.value >= 100 ? 'jackpot' : ''
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {wheelResult.label}
+                  </div>
+                )}
               </div>
               <button
                 className="wheel-cta"
                 type="button"
                 onClick={handleSpinDailyBonus}
-                disabled={wheelSpinning || dailyBonusLoading || !dailyBonusAvailable}
+                disabled={wheelSpinning || dailyBonusLoading || !dailyBonusAvailable || wheelRewardModalOpen}
               >
                 {wheelSpinning ? 'Крутим...' : 'Крутить'}
               </button>
               <div className={`wheel-timer ${dailyBonusAvailable ? 'ready' : ''}`}>
                 <span>{wheelTimerPrefix}</span> <strong>{wheelTimerValue}</strong>
               </div>
-              {wheelResult && (
-                <div className="wheel-result">
-                  <span>Ваш бонус</span>
-                  <strong>{wheelResult.label}</strong>
-                </div>
-              )}
               {dailyBonusError && <div className="wheel-error">{dailyBonusError}</div>}
             </section>
           </>
@@ -2490,6 +2562,44 @@ export default function App() {
           </>
         )}
       </div>
+
+      {activeTab === 'wheel' && wheelRewardModalOpen && wheelResult && (
+        <div className="wheel-reward-modal-backdrop" onClick={handleClaimWheelReward}>
+          <div
+            className={`wheel-reward-modal ${wheelResult.value >= 100 ? 'jackpot' : ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wheel-reward-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="wheel-reward-rays" aria-hidden="true">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <span
+                  key={`wheel-reward-ray-${index}`}
+                  style={
+                    {
+                      '--wheel-ray-angle': `${index * 30}deg`,
+                      '--wheel-ray-delay': `${index * 24}ms`,
+                    } as React.CSSProperties
+                  }
+                />
+              ))}
+            </div>
+            <div className="wheel-reward-token" aria-hidden="true">
+              <span>{wheelResult.label}</span>
+            </div>
+            <div className="wheel-reward-title" id="wheel-reward-title">
+              Награда дня
+            </div>
+            <div className="wheel-reward-sub">
+              +{wheelResult.value} {formatPointsLabel(wheelResult.value)}
+            </div>
+            <button className="wheel-reward-claim" type="button" onClick={handleClaimWheelReward}>
+              Баллы забрать
+            </button>
+          </div>
+        </div>
+      )}
 
       {activeTab !== 'wheel' && activeTab !== 'referrals' && (
         <div className="bottom-nav">
