@@ -551,7 +551,7 @@ function buildFixtures() {
       streak: 4,
     },
     dailyBonusSpin: {
-      reward: { index: 2, value: 15, label: '+15' },
+      reward: { index: 4, value: 15, label: '+15' },
       balance: 695,
       totalEarned: 1255,
       lastSpinAt: new Date().toISOString(),

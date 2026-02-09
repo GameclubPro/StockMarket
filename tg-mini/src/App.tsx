@@ -172,6 +172,17 @@ const getWheelTargetRotation = (currentRotation: number, index: number) => {
   return currentRotation + delta;
 };
 
+const resolveWheelRewardIndex = (rawIndex: number, rewardValue: number) => {
+  const clamped = Math.max(
+    0,
+    Math.min(DAILY_WHEEL_SEGMENTS.length - 1, Math.round(Number.isFinite(rawIndex) ? rawIndex : 0))
+  );
+  if (rewardValue <= 0) return clamped;
+  if (DAILY_WHEEL_SEGMENTS[clamped]?.value === rewardValue) return clamped;
+  const valueMatchedIndex = DAILY_WHEEL_SEGMENTS.findIndex((segment) => segment.value === rewardValue);
+  return valueMatchedIndex >= 0 ? valueMatchedIndex : clamped;
+};
+
 const getRotationFromTransform = (transformValue: string) => {
   if (!transformValue || transformValue === 'none') return 0;
   try {
@@ -1347,13 +1358,10 @@ export default function App() {
           typeof data.streak === 'number' ? data.streak : dailyBonusStatus.streak ?? 0,
       });
 
-      const rewardIndexRaw = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
-      const rewardIndex = Math.max(
-        0,
-        Math.min(DAILY_WHEEL_SEGMENTS.length - 1, Math.round(rewardIndexRaw))
-      );
       const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
       const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
+      const rewardIndexRaw = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
+      const rewardIndex = resolveWheelRewardIndex(rewardIndexRaw, rewardValue);
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const startRotation = wheelRotationRef.current;
       const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
