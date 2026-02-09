@@ -42,10 +42,10 @@ const DAILY_WHEEL_SEGMENTS = [
   { label: '+10', value: 10, weight: 2 },
   { label: '+20', value: 20, weight: 2 },
   { label: '+50', value: 50, weight: 1 },
-  { label: '+100', value: 100, weight: 0.1 },
+  { label: '+15', value: 15, weight: 3 },
   { label: '+50', value: 50, weight: 1 },
   { label: '+10', value: 10, weight: 3 },
-  { label: '+15', value: 15, weight: 3 },
+  { label: '+10', value: 10, weight: 3 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
@@ -232,13 +232,6 @@ const getWheelStopOffset = () => {
   const inset = DAILY_WHEEL_SLICE * DAILY_WHEEL_STOP_INSET_RATIO;
   const maxOffset = Math.max(halfSlice * 0.28, halfSlice - inset);
   return (getRandomUnit() * 2 - 1) * maxOffset;
-};
-
-const getWheelSegmentToneClass = (value: number) => {
-  if (value >= 100) return 'tier-gold';
-  if (value >= 50) return 'tier-danger';
-  if (value >= 20) return 'tier-azure';
-  return 'tier-mint';
 };
 
 export default function App() {
@@ -1773,7 +1766,7 @@ export default function App() {
                       return (
                         <div
                           key={`${segment.label}-${index}`}
-                          className={`wheel-segment ${getWheelSegmentToneClass(segment.value)} ${
+                          className={`wheel-segment ${
                             wheelWinningIndex === index && wheelCelebrating ? 'winner' : ''
                           }`}
                           style={{ transform: `rotate(${angle}deg)` }}
