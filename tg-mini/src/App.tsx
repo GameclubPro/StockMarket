@@ -38,14 +38,14 @@ const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
 const DAILY_BONUS_FALLBACK_MS = 1000;
 const DAILY_WHEEL_SEGMENTS = [
-  { label: '+10', value: 10, weight: 2 },
-  { label: '+10', value: 10, weight: 2 },
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+10', value: 10, weight: 5 },
   { label: '+20', value: 20, weight: 2 },
   { label: '+50', value: 50, weight: 1 },
-  { label: '+15', value: 15, weight: 3 },
+  { label: '+100', value: 100, weight: 1 },
   { label: '+50', value: 50, weight: 1 },
-  { label: '+10', value: 10, weight: 3 },
-  { label: '+10', value: 10, weight: 3 },
+  { label: '+10', value: 10, weight: 5 },
+  { label: '+10', value: 10, weight: 5 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
 const DAILY_WHEEL_NOTCHES_PER_SEGMENT = 3;
@@ -1662,10 +1662,12 @@ export default function App() {
                     <div className="wheel-facet-disk" aria-hidden="true" />
                     {DAILY_WHEEL_SEGMENTS.map((segment, index) => {
                       const angle = index * DAILY_WHEEL_SLICE + DAILY_WHEEL_SLICE / 2;
+                      const valueTone =
+                        segment.value >= 100 ? 100 : segment.value >= 50 ? 50 : segment.value >= 20 ? 20 : 10;
                       return (
                         <div
                           key={`${segment.label}-${index}`}
-                          className={`wheel-segment ${
+                          className={`wheel-segment wheel-segment-${valueTone} ${
                             wheelWinningIndex === index && wheelCelebrating ? 'winner' : ''
                           }`}
                           style={{ transform: `rotate(${angle}deg)` }}
