@@ -36,7 +36,7 @@ const MIN_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
 const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
-const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_FALLBACK_MS = 1000;
 const DAILY_WHEEL_SEGMENTS = [
   { label: '+10', value: 10, weight: 2 },
   { label: '+10', value: 10, weight: 2 },
@@ -1488,7 +1488,7 @@ export default function App() {
                   </div>
                   <div className="daily-bonus-title">Ежедневный бонус</div>
                   <div className="daily-bonus-sub">
-                    Крути колесо раз в <strong>24 часа</strong>
+                    Крути колесо раз в <strong>1 секунду</strong>
                   </div>
                 </div>
                 <div className="daily-bonus-top-side">
@@ -1622,7 +1622,7 @@ export default function App() {
                     </svg>
                   </span>
                   <span>
-                    <strong>1 прокрутка</strong> раз в <strong>24 часа</strong>
+                    <strong>1 прокрутка</strong> раз в <strong>1 секунду</strong>
                   </span>
                 </div>
                 <div className="wheel-reward-row">
