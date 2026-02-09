@@ -53,8 +53,14 @@ const DAILY_WHEEL_SPIN_TURNS = 8;
 const DAILY_WHEEL_SPIN_MS = 3800;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
 const DAILY_WHEEL_LAUNCH_END = 0.16;
-const DAILY_WHEEL_BRAKE_START = 0.58;
-const DAILY_WHEEL_BRAKE_DECAY = 0.14;
+const DAILY_WHEEL_BRAKE_START = 0.54;
+const DAILY_WHEEL_BRAKE_DECAY = 0.18;
+const DAILY_WHEEL_STOP_INSET_RATIO = 0.24;
+const DAILY_WHEEL_SETTLE_MS = 340;
+const DAILY_WHEEL_SETTLE_OVERSHOOT_MIN = 1.2;
+const DAILY_WHEEL_SETTLE_OVERSHOOT_MAX = 2.1;
+const DAILY_WHEEL_SETTLE_REBOUND_MIN = 0.35;
+const DAILY_WHEEL_SETTLE_REBOUND_MAX = 0.85;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
@@ -161,9 +167,10 @@ const writePointsToday = (key: string, value: number) => {
   }
 };
 
-const getWheelTargetRotation = (currentRotation: number, index: number) => {
+const getWheelTargetRotation = (currentRotation: number, index: number, sectorOffset = 0) => {
   const normalizedCurrent = ((currentRotation % 360) + 360) % 360;
-  const targetAngle = ((DAILY_WHEEL_BASE_ROTATION - index * DAILY_WHEEL_SLICE) % 360 + 360) % 360;
+  const targetAngle =
+    ((DAILY_WHEEL_BASE_ROTATION - index * DAILY_WHEEL_SLICE + sectorOffset) % 360 + 360) % 360;
   const delta =
     DAILY_WHEEL_SPIN_TURNS * 360 + ((targetAngle - normalizedCurrent + 360) % 360);
   return currentRotation + delta;
@@ -202,6 +209,29 @@ const getWheelNaturalProgress = (rawProgress: number) => {
   const brakeElapsed = progress - DAILY_WHEEL_BRAKE_START;
   const brakeAreaNow = DAILY_WHEEL_BRAKE_DECAY * (1 - Math.exp(-brakeElapsed / DAILY_WHEEL_BRAKE_DECAY));
   return Math.min(1, (launchArea + cruiseArea + brakeAreaNow) / totalArea);
+};
+
+const getRandomUnit = () => {
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const values = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(values);
+    return values[0] / 0xffffffff;
+  }
+  return Math.random();
+};
+
+const lerp = (from: number, to: number, progress: number) => from + (to - from) * progress;
+
+const easeOutCubic = (value: number) => 1 - (1 - value) ** 3;
+
+const easeInOutCubic = (value: number) =>
+  value < 0.5 ? 4 * value * value * value : 1 - ((-2 * value + 2) ** 3) / 2;
+
+const getWheelStopOffset = () => {
+  const halfSlice = DAILY_WHEEL_SLICE / 2;
+  const inset = DAILY_WHEEL_SLICE * DAILY_WHEEL_STOP_INSET_RATIO;
+  const maxOffset = Math.max(halfSlice * 0.28, halfSlice - inset);
+  return (getRandomUnit() * 2 - 1) * maxOffset;
 };
 
 export default function App() {
@@ -1331,7 +1361,8 @@ export default function App() {
       const rewardIndex = resolveWheelRewardIndex(rewardIndexRaw, rewardValue);
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const startRotation = wheelRotationRef.current;
-      const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
+      const stopOffset = getWheelStopOffset();
+      const nextRotation = getWheelTargetRotation(startRotation, rewardIndex, stopOffset);
       const totalDistance = Math.max(DAILY_WHEEL_SLICE * 2, nextRotation - startRotation);
       setWheelWinningIndex(rewardIndex);
       setWheelSpinPhase('launch');
@@ -1375,6 +1406,56 @@ export default function App() {
         spinPhaseBrakeTimeoutRef.current = null;
       }, Math.round(DAILY_WHEEL_SPIN_MS * DAILY_WHEEL_BRAKE_START));
 
+      const runSettle = () => {
+        const settleFrom = wheelRotationRef.current;
+        const overshoot = lerp(
+          DAILY_WHEEL_SETTLE_OVERSHOOT_MIN,
+          DAILY_WHEEL_SETTLE_OVERSHOOT_MAX,
+          getRandomUnit()
+        );
+        const rebound = lerp(
+          DAILY_WHEEL_SETTLE_REBOUND_MIN,
+          DAILY_WHEEL_SETTLE_REBOUND_MAX,
+          getRandomUnit()
+        );
+        const overshootRotation = nextRotation + overshoot;
+        const reboundRotation = nextRotation - rebound;
+        const settleStartedAt = performance.now();
+
+        const settleTick = (frameNow: number) => {
+          const rawProgress = Math.min(
+            1,
+            Math.max(0, (frameNow - settleStartedAt) / DAILY_WHEEL_SETTLE_MS)
+          );
+
+          let rotation = nextRotation;
+          if (rawProgress < 0.52) {
+            const segmentProgress = easeOutCubic(rawProgress / 0.52);
+            rotation = lerp(settleFrom, overshootRotation, segmentProgress);
+          } else if (rawProgress < 0.82) {
+            const segmentProgress = easeInOutCubic((rawProgress - 0.52) / 0.3);
+            rotation = lerp(overshootRotation, reboundRotation, segmentProgress);
+          } else {
+            const segmentProgress = easeOutCubic((rawProgress - 0.82) / 0.18);
+            rotation = lerp(reboundRotation, nextRotation, segmentProgress);
+          }
+
+          wheelRotationRef.current = rotation;
+          rotorNode.style.transform = `rotate(${rotation}deg)`;
+
+          if (rawProgress < 1) {
+            spinFrameRef.current = window.requestAnimationFrame(settleTick);
+            return;
+          }
+
+          spinFrameRef.current = null;
+          setWheelRotation(nextRotation);
+          finishSpin();
+        };
+
+        spinFrameRef.current = window.requestAnimationFrame(settleTick);
+      };
+
       const spinStartedAt = performance.now();
       const spinTick = (frameNow: number) => {
         const elapsed = frameNow - spinStartedAt;
@@ -1391,8 +1472,7 @@ export default function App() {
         }
 
         spinFrameRef.current = null;
-        setWheelRotation(nextRotation);
-        finishSpin();
+        runSettle();
       };
 
       spinFrameRef.current = window.requestAnimationFrame(spinTick);
