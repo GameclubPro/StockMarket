@@ -1558,64 +1558,138 @@ body::before {
   justify-content: center;
   pointer-events: none;
   z-index: 4;
+  --wheel-segment-top: #2a332f;
+  --wheel-segment-mid: #111715;
+  --wheel-segment-bottom: #050806;
+  --wheel-segment-stroke: #68736d;
+  --wheel-segment-left: #51605999;
+  --wheel-segment-right: #060a08c4;
+  --wheel-segment-glow: #90a89b33;
 }
 
 .wheel-segment::before {
-  display: none;
-}
-
-.wheel-segment:nth-child(even)::before {
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 7.2%;
+  clip-path: polygon(50% 50%, 31.2% 4.2%, 68.8% 4.2%);
+  background:
+    radial-gradient(circle at 50% 8%, #ffffff26 0%, #ffffff00 34%),
+    linear-gradient(
+      180deg,
+      var(--wheel-segment-top) 0%,
+      var(--wheel-segment-mid) 56%,
+      var(--wheel-segment-bottom) 100%
+    );
+  border: 1px solid var(--wheel-segment-stroke);
+  box-shadow:
+    inset 0 1px 0 #ffffff30,
+    inset 0 -20px 26px #00000073,
+    inset 10px 0 14px var(--wheel-segment-left),
+    inset -10px 0 14px var(--wheel-segment-right),
+    0 0 12px var(--wheel-segment-glow);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .wheel-segment::after {
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 7.2%;
+  clip-path: polygon(50% 50%, 31.2% 4.2%, 68.8% 4.2%);
+  background:
+    linear-gradient(180deg, #ffffff46 0%, #ffffff12 24%, #ffffff00 54%),
+    linear-gradient(120deg, #ffffff00 0%, #ffffff31 50%, #ffffff00 74%),
+    linear-gradient(242deg, #00000000 0%, #0000003b 58%, #00000000 84%);
+  opacity: 0.88;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.wheel-segment:nth-child(even)::after {
-  display: none;
+.wheel-segment-10 {
+  --wheel-segment-top: #2a332f;
+  --wheel-segment-mid: #101513;
+  --wheel-segment-bottom: #050806;
+  --wheel-segment-stroke: #68736d;
+  --wheel-segment-left: #51605999;
+  --wheel-segment-right: #060a08c4;
+  --wheel-segment-glow: #90a89b33;
+}
+
+.wheel-segment-20 {
+  --wheel-segment-top: #315386;
+  --wheel-segment-mid: #15325e;
+  --wheel-segment-bottom: #07182f;
+  --wheel-segment-stroke: #799bc9;
+  --wheel-segment-left: #7ea2dc66;
+  --wheel-segment-right: #091c36c7;
+  --wheel-segment-glow: #6f99d247;
+}
+
+.wheel-segment-50 {
+  --wheel-segment-top: #7a2b32;
+  --wheel-segment-mid: #49151b;
+  --wheel-segment-bottom: #1c080d;
+  --wheel-segment-stroke: #cb8b92;
+  --wheel-segment-left: #d16a7254;
+  --wheel-segment-right: #26080dbd;
+  --wheel-segment-glow: #d4657147;
+}
+
+.wheel-segment-100 {
+  --wheel-segment-top: #d1a74b;
+  --wheel-segment-mid: #8a6625;
+  --wheel-segment-bottom: #34240b;
+  --wheel-segment-stroke: #f2d08c;
+  --wheel-segment-left: #ffe2a464;
+  --wheel-segment-right: #422d0ac5;
+  --wheel-segment-glow: #e5bc6861;
 }
 
 .wheel-value {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   margin-top: 22px;
   font-size: clamp(23px, 5.2vw, 31px);
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.25px;
-  color: #f2f7ff;
-  -webkit-text-stroke: 0.35px #22364d;
+  color: #f2f6f2;
+  -webkit-text-stroke: 0.35px #1a2720;
   text-shadow:
-    0 0 10px #8faacc,
-    0 2px 8px #081727;
+    0 0 12px #a5bbb0,
+    0 2px 8px #0a1510;
   font-variant-numeric: tabular-nums;
+}
+
+.wheel-segment-100 .wheel-value {
+  color: #fff5de;
+  -webkit-text-stroke: 0.35px #6a4f19;
+  text-shadow:
+    0 0 14px #d2a95a,
+    0 2px 8px #231607;
 }
 
 .wheel-segment.winner::before {
   box-shadow:
-    0 0 7px #dbe8f8,
-    0 0 12px #89a8cb;
+    inset 0 1px 0 #ffffff48,
+    inset 0 -18px 24px #0000007a,
+    inset 10px 0 14px var(--wheel-segment-left),
+    inset -10px 0 14px var(--wheel-segment-right),
+    0 0 16px color-mix(in srgb, var(--wheel-segment-glow) 90%, #ffffff 10%);
 }
 
 .wheel-segment.winner::after {
-  background: linear-gradient(180deg, #eaf3ff 0%, #c7d8ea 24%, #95adca 54%, #456586 100%);
-  border: 1px solid #d2e2f2;
-  box-shadow:
-    inset 0 1px 0 #f5f8ff,
-    inset 0 -14px 16px #365879,
-    inset 10px 0 12px #94abc7,
-    inset -10px 0 12px #6e88a8,
-    0 0 14px #7193b8;
+  opacity: 1;
+  filter: brightness(1.25) saturate(1.16);
   animation: wheelWinnerFacet 800ms ease-out 2;
 }
 
 .wheel-segment.winner .wheel-value {
   color: #ffffff;
-  -webkit-text-stroke: 0.35px #21364e;
+  -webkit-text-stroke: 0.35px #17231d;
   text-shadow:
-    0 0 16px #9bb7d6,
-    0 2px 10px #0a1d30;
+    0 0 16px #b6c9bf,
+    0 2px 10px #09140f;
   animation: wheelWinnerValue 820ms ease-out 2;
 }
 
