@@ -52,10 +52,7 @@ const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
 const DAILY_WHEEL_SPIN_TURNS = 7;
 const DAILY_WHEEL_SPIN_MS = 5200;
 const DAILY_WHEEL_BRAKE_MS = 1480;
-const DAILY_WHEEL_SETTLE_MS = 220;
-const DAILY_WHEEL_SETTLE_OFFSET = 0.9;
-const DAILY_WHEEL_CRUISE_MS =
-  DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS - DAILY_WHEEL_SETTLE_MS;
+const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
 const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.4;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
@@ -1363,21 +1360,15 @@ export default function App() {
       const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const nextRotation = getWheelTargetRotation(wheelRotationRef.current, rewardIndex);
-      const cruiseRotation =
-        nextRotation - DAILY_WHEEL_CRUISE_OFFSET - DAILY_WHEEL_SETTLE_OFFSET;
+      const cruiseRotation = nextRotation - DAILY_WHEEL_CRUISE_OFFSET;
       setWheelWinningIndex(rewardIndex);
       setWheelSpinPhase('cruise');
       setWheelRotation(cruiseRotation);
 
       spinPhaseTimeoutRef.current = window.setTimeout(() => {
         setWheelSpinPhase('brake');
-        setWheelRotation(nextRotation + DAILY_WHEEL_SETTLE_OFFSET);
-      }, DAILY_WHEEL_CRUISE_MS);
-
-      wheelSettleTimeoutRef.current = window.setTimeout(() => {
-        setWheelSpinPhase('settle');
         setWheelRotation(nextRotation);
-      }, DAILY_WHEEL_CRUISE_MS + DAILY_WHEEL_BRAKE_MS);
+      }, DAILY_WHEEL_CRUISE_MS);
 
       const result = { label: rewardLabel, value: rewardValue };
       spinTimeoutRef.current = window.setTimeout(() => {
