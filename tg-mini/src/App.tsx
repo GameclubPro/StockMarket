@@ -53,6 +53,7 @@ const DAILY_WHEEL_SPIN_TURNS = 7;
 const DAILY_WHEEL_SPIN_MS = 5200;
 const DAILY_WHEEL_BRAKE_MS = 1480;
 const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
+const DAILY_WHEEL_FINISH_BUFFER_MS = 120;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
 const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.4;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
@@ -1373,7 +1374,7 @@ export default function App() {
           setWheelCelebrating(false);
           setWheelSpinPhase('idle');
         }, DAILY_WHEEL_CELEBRATE_MS);
-      }, DAILY_WHEEL_SPIN_MS);
+      }, DAILY_WHEEL_SPIN_MS + DAILY_WHEEL_FINISH_BUFFER_MS);
     } catch (error: any) {
       if (spinPhaseTimeoutRef.current) {
         window.clearTimeout(spinPhaseTimeoutRef.current);

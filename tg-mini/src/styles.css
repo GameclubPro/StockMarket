@@ -1383,28 +1383,30 @@ body::before {
   inset: 4.4%;
   border-radius: 50%;
   z-index: 1;
-  background: repeating-conic-gradient(
-    from -90deg,
-    #d8e4de 0deg,
-    #d8e4de 2.2deg,
-    #70867e 2.2deg,
-    #70867e 4.5deg,
-    #1f3139 4.5deg,
-    #1f3139 45deg
-  );
+  background:
+    repeating-conic-gradient(
+      from -90deg,
+      #dce8e2 0deg,
+      #dce8e2 4.4deg,
+      #556f6a 4.4deg,
+      #556f6a 8.2deg,
+      #1b2d36 8.2deg,
+      #1b2d36 45deg
+    ),
+    radial-gradient(circle at 50% 24%, #2a4343 0%, #1b303a 62%, #122531 100%);
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 16px),
-    #000 calc(100% - 16px),
-    #000 calc(100% - 5px),
-    transparent calc(100% - 5px)
+    transparent calc(100% - 15px),
+    #000 calc(100% - 15px),
+    #000 calc(100% - 6px),
+    transparent calc(100% - 6px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 16px),
-    #000 calc(100% - 16px),
-    #000 calc(100% - 5px),
-    transparent calc(100% - 5px)
+    transparent calc(100% - 15px),
+    #000 calc(100% - 15px),
+    #000 calc(100% - 6px),
+    transparent calc(100% - 6px)
   );
   box-shadow:
     inset 0 0 0 1px #2a4647,
@@ -1627,12 +1629,12 @@ body::before {
 
 .wheel-pointer-assembly {
   position: absolute;
-  top: 0;
+  top: 1px;
   left: 50%;
   transform: translateX(-50%);
-  width: 74px;
-  height: 42px;
-  transform-origin: 50% 9px;
+  width: 56px;
+  height: 36px;
+  transform-origin: 50% 8px;
   z-index: 7;
 }
 
@@ -1641,23 +1643,23 @@ body::before {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 52px;
-  height: 14px;
-  border-radius: 9px 9px 12px 12px;
+  width: 38px;
+  height: 11px;
+  border-radius: 8px 8px 9px 9px;
   border: 1px solid #9eb9ae;
   background: linear-gradient(180deg, #d0dfd8 0%, #8aa89e 58%, #35545f 100%);
   box-shadow:
-    0 5px 9px #05121d,
+    0 4px 8px #05121d,
     inset 0 1px 0 #eef8f4,
-    inset 0 -7px 10px #2c4854;
+    inset 0 -6px 8px #2c4854;
 }
 
 .wheel-pointer {
   position: absolute;
-  top: 8px;
+  top: 6px;
   left: 50%;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   transform: translateX(-50%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
   border: 1px solid #aec8bf;
