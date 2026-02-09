@@ -784,11 +784,11 @@ body::before {
   border-radius: 50%;
   background: repeating-conic-gradient(
     from -6deg,
-    #d8ffe9 0deg,
-    #d8ffe9 2deg,
-    #7ecea8 2deg,
-    #7ecea8 4deg,
-    #1f5f5f 4deg,
+    #dceaf8 0deg,
+    #dceaf8 1.8deg,
+    #94afca 1.8deg,
+    #94afca 3.6deg,
+    #26425e 3.6deg,
     #1f5f5f 8.2deg
   );
   -webkit-mask: radial-gradient(
@@ -806,8 +806,8 @@ body::before {
     transparent calc(100% - 8px)
   );
   box-shadow:
-    0 0 12px #26635f,
-    inset 0 0 10px #143437;
+    0 0 12px #243d57,
+    inset 0 0 10px #132b40;
 }
 
 .daily-bonus-preview-wrap::after {
@@ -818,12 +818,12 @@ body::before {
   transform: translateX(-50%);
   width: 11px;
   height: 12px;
-  background: linear-gradient(180deg, #d7ffe8 0%, #82d3ac 45%, #2f6968 100%);
+  background: linear-gradient(180deg, #deebf8 0%, #9ab3cd 44%, #355471 100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
-  border: 1px solid #bbefda;
+  border: 1px solid #c4d8ec;
   box-shadow:
-    0 0 10px #63be9f,
-    0 4px 8px #071821;
+    0 0 10px #446788,
+    0 4px 8px #071421;
   z-index: 3;
 }
 
@@ -832,24 +832,25 @@ body::before {
   height: 80%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 18%, #304b4f 0%, #182f40 52%, #0e1f31 100%),
+    radial-gradient(circle at 50% 14%, #ffffff45 0%, #ffffff00 34%),
+    radial-gradient(circle at 50% 88%, #091628cc 0%, #09162800 58%),
     conic-gradient(
       from -90deg,
-      #2a5655 0deg 45deg,
-      #272f53 45deg 90deg,
-      #2f615d 90deg 135deg,
-      #282f57 135deg 180deg,
-      #305d59 180deg 225deg,
-      #272f53 225deg 270deg,
-      #2f615e 270deg 315deg,
-      #282f57 315deg 360deg
+      #d8e6f4 0deg 45deg,
+      #94abc3 45deg 90deg,
+      #cad9e9 90deg 135deg,
+      #8299b1 135deg 180deg,
+      #d2dfed 180deg 225deg,
+      #8ea4bd 225deg 270deg,
+      #c4d4e4 270deg 315deg,
+      #8198b0 315deg 360deg
     );
-  border: 4px solid #c3f3de;
+  border: 4px solid #c2d3e5;
   box-shadow:
     0 8px 16px #05121e,
-    inset 0 1px 0 #e3fff2,
-    inset 0 -10px 14px #162a3b,
-    0 0 12px #2e6867;
+    inset 0 1px 0 #e9f4ff,
+    inset 0 -10px 14px #152638,
+    0 0 12px #294760;
   position: relative;
   animation: wheelPreviewSpin 18s linear infinite;
 }
@@ -859,10 +860,10 @@ body::before {
   position: absolute;
   inset: 8%;
   border-radius: 50%;
-  border: 1px solid #86b49f;
+  border: 1px solid #8ea6c0;
   box-shadow:
-    inset 0 6px 8px #406267,
-    inset 0 -8px 10px #15283a;
+    inset 0 6px 8px #45617a,
+    inset 0 -8px 10px #122235;
   pointer-events: none;
 }
 
@@ -874,12 +875,12 @@ body::before {
   height: 24px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 30% 30%, #d7ffe9, #97d8ba 55%, #2a5e63 100%);
-  border: 2px solid #c7f2df;
+  background: radial-gradient(circle at 30% 30%, #e3effb, #9db5cf 55%, #34556f 100%);
+  border: 2px solid #c7d9ec;
   box-shadow:
-    inset 0 2px 4px #e8fff3,
-    inset 0 -6px 8px #274f5a,
-    0 0 8px #56b292;
+    inset 0 2px 4px #f0f7ff,
+    inset 0 -6px 8px #274560,
+    0 0 8px #3f6585;
 }
 
 .daily-bonus-info-popover {
