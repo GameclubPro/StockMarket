@@ -57,7 +57,7 @@ const DAILY_WHEEL_BRAKE_MS = 3400;
 const DAILY_WHEEL_CRUISE_MS = DAILY_WHEEL_SPIN_MS - DAILY_WHEEL_BRAKE_MS;
 const DAILY_WHEEL_FINISH_BUFFER_MS = 320;
 const DAILY_WHEEL_CELEBRATE_MS = 1400;
-const DAILY_WHEEL_CRUISE_OFFSET = DAILY_WHEEL_SLICE * 1.4;
+const DAILY_WHEEL_BRAKE_RATIO = DAILY_WHEEL_BRAKE_MS / DAILY_WHEEL_SPIN_MS;
 const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
   (sum, segment) => sum + segment.weight,
   0
@@ -1355,8 +1355,14 @@ export default function App() {
       const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
       const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
       if (rewardValue > 0) bumpPointsToday(rewardValue);
-      const nextRotation = getWheelTargetRotation(wheelRotationRef.current, rewardIndex);
-      const cruiseRotation = nextRotation - DAILY_WHEEL_CRUISE_OFFSET;
+      const startRotation = wheelRotationRef.current;
+      const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
+      const totalDistance = Math.max(0, nextRotation - startRotation);
+      const rawBrakeDistance = totalDistance * DAILY_WHEEL_BRAKE_RATIO;
+      const minBrakeDistance = DAILY_WHEEL_SLICE * 5;
+      const maxBrakeDistance = Math.max(DAILY_WHEEL_SLICE * 2, totalDistance - DAILY_WHEEL_SLICE);
+      const brakeDistance = Math.min(maxBrakeDistance, Math.max(minBrakeDistance, rawBrakeDistance));
+      const cruiseRotation = nextRotation - brakeDistance;
       setWheelWinningIndex(rewardIndex);
       setWheelSpinPhase('cruise');
       setWheelRotation(cruiseRotation);
