@@ -789,7 +789,7 @@ body::before {
     #94afca 1.8deg,
     #94afca 3.6deg,
     #26425e 3.6deg,
-    #1f5f5f 8.2deg
+    #193650 8.2deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
@@ -1290,12 +1290,12 @@ body::before {
   inset: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 18%, #253f3d 0%, #172d36 48%, #0d1f2c 100%),
-    linear-gradient(180deg, #152a36 0%, #0f202f 58%, #0b1a28 100%);
+    radial-gradient(circle at 50% 14%, #344a62 0%, #1f3347 50%, #121f32 100%),
+    linear-gradient(180deg, #22374d 0%, #16293d 58%, #101f31 100%);
   box-shadow:
-    inset 0 0 0 1px #244847,
-    inset 0 8px 16px #203640,
-    inset 0 -16px 24px #091622;
+    inset 0 0 0 1px #324b63,
+    inset 0 8px 16px #243a53,
+    inset 0 -16px 24px #0a1624;
   pointer-events: none;
   z-index: 0;
 }
@@ -1307,12 +1307,12 @@ body::before {
   border-radius: 50%;
   background: repeating-conic-gradient(
     from -8deg,
-    #c7d6ce 0deg,
-    #c7d6ce 1.2deg,
-    #758980 1.2deg,
-    #758980 3.2deg,
-    #25383d 3.2deg,
-    #25383d 8deg
+    #edf5ff 0deg,
+    #edf5ff 1.1deg,
+    #a2bad1 1.1deg,
+    #a2bad1 2.8deg,
+    #314b65 2.8deg,
+    #314b65 8deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
@@ -1329,8 +1329,8 @@ body::before {
     transparent calc(100% - 15px)
   );
   box-shadow:
-    inset 0 0 0 1px #2e4e4d,
-    inset 0 2px 3px #d6e4dd20;
+    inset 0 0 0 1px #395770,
+    inset 0 2px 3px #f2f8ff1c;
 }
 
 .wheel-shell::after {
@@ -1338,10 +1338,10 @@ body::before {
   position: absolute;
   inset: 9px;
   border-radius: 50%;
-  border: 2px solid #5e7a73;
+  border: 2px solid #7e99b2;
   box-shadow:
-    inset 0 0 0 2px #203742,
-    inset 0 1px 1px #b9cbc230;
+    inset 0 0 0 2px #28425b,
+    inset 0 1px 1px #e7f1ff24;
   pointer-events: none;
 }
 
@@ -1349,15 +1349,15 @@ body::before {
   position: absolute;
   inset: 5.8%;
   border-radius: 50%;
-  border: 1px solid #425c5a;
+  border: 1px solid #5f7b95;
   background: repeating-conic-gradient(
     from -90deg,
-    #bbcbc3 0deg,
-    #bbcbc3 1.4deg,
-    #687d76 1.4deg,
-    #687d76 3.6deg,
-    #1e313a 3.6deg,
-    #1e313a 45deg
+    #e7f1fb 0deg,
+    #e7f1fb 1.2deg,
+    #8ea7bf 1.2deg,
+    #8ea7bf 3.4deg,
+    #273f58 3.4deg,
+    #273f58 45deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
@@ -1374,8 +1374,8 @@ body::before {
     transparent calc(100% - 2px)
   );
   box-shadow:
-    inset 0 0 0 1px #223d44,
-    inset 0 1px 0 #c6d5ce22;
+    inset 0 0 0 1px #2c465f,
+    inset 0 1px 0 #f2f8ff20;
   z-index: 0;
 }
 
@@ -1385,30 +1385,30 @@ body::before {
   border-radius: 50%;
   z-index: 1;
   background:
-    radial-gradient(circle at 50% 28%, #294444 0%, #1b303a 62%, #122531 100%),
+    radial-gradient(circle at 50% 28%, #2f475f 0%, #20354a 62%, #16293d 100%),
     repeating-conic-gradient(
       from -90deg,
-      #d8e5df 0deg,
-      #d8e5df 0.9deg,
-      #0000 0.9deg,
-      #0000 5deg,
-      #d8e5df 5deg,
-      #d8e5df 5.9deg,
-      #0000 5.9deg,
-      #0000 10deg,
-      #d8e5df 10deg,
-      #d8e5df 10.9deg,
-      #0000 10.9deg,
+      #f3f8ff 0deg,
+      #f3f8ff 0.8deg,
+      #0000 0.8deg,
+      #0000 5.2deg,
+      #f3f8ff 5.2deg,
+      #f3f8ff 6deg,
+      #0000 6deg,
+      #0000 10.4deg,
+      #f3f8ff 10.4deg,
+      #f3f8ff 11.2deg,
+      #0000 11.2deg,
       #0000 15deg
     ),
     repeating-conic-gradient(
       from -90deg,
-      #5f7670 0deg,
-      #5f7670 1.2deg,
-      #22353e 1.2deg,
-      #22353e 15deg
+      #7490aa 0deg,
+      #7490aa 1deg,
+      #253d56 1deg,
+      #253d56 15deg
     ),
-    radial-gradient(circle at 50% 24%, #293f40 0%, #1b2f39 62%, #132633 100%);
+    radial-gradient(circle at 50% 24%, #314a61 0%, #20374b 62%, #16293d 100%);
   -webkit-mask: radial-gradient(
     farthest-side,
     transparent calc(100% - 15px),
@@ -1424,9 +1424,9 @@ body::before {
     transparent calc(100% - 6px)
   );
   box-shadow:
-    inset 0 0 0 1px #2a4647,
-    inset 0 1px 0 #d9e6df28,
-    inset 0 -1px 0 #1a2e37;
+    inset 0 0 0 1px #36536d,
+    inset 0 1px 0 #f0f7ff29,
+    inset 0 -1px 0 #15283b;
 }
 
 .wheel {
@@ -1435,12 +1435,12 @@ body::before {
   border-radius: 50%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 84%, #0d2131 0%, #091927 54%, #06121d 100%),
-    radial-gradient(circle at 50% 16%, #253c40 0%, #19303e 42%, #0d2031 100%);
-  border: 5px solid #5b7470;
+    radial-gradient(circle at 50% 84%, #0d1e31 0%, #091625 54%, #060f1a 100%),
+    radial-gradient(circle at 50% 16%, #2a4158 0%, #1d3045 42%, #122438 100%);
+  border: 5px solid #7f99b5;
   box-shadow:
-    inset 0 2px 0 #d2e2da,
-    inset 0 -14px 18px #102334;
+    inset 0 2px 0 #e3eefb,
+    inset 0 -14px 18px #0f2337;
   position: relative;
   z-index: 2;
   display: grid;
@@ -1453,33 +1453,26 @@ body::before {
   inset: 0.8%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% -10%, #eefaf5 0%, #eefaf500 30%),
-    radial-gradient(circle at 50% 112%, #081524 10%, #081524d8 46%, #08152400 74%),
-    conic-gradient(
-      from -14deg,
-      #f7fffb2b 0deg 34deg,
-      #0000 34deg 116deg,
-      #e5f6ee26 116deg 154deg,
-      #0000 154deg 360deg
-    ),
+    radial-gradient(circle at 50% 10%, #ffffff5e 0%, #ffffff00 34%),
+    radial-gradient(circle at 50% 92%, #050f1bd6 0%, #050f1b00 60%),
     conic-gradient(
       from -90deg,
-      #b7ead8 0deg 45deg,
-      #b7c3ea 45deg 90deg,
-      #a9e0cd 90deg 135deg,
-      #adb9e6 135deg 180deg,
-      #b5e8d7 180deg 225deg,
-      #acbbe8 225deg 270deg,
-      #a9dfcc 270deg 315deg,
-      #adbbe8 315deg 360deg
+      #d9e6f4 0deg 45deg,
+      #95abc4 45deg 90deg,
+      #c9d9e9 90deg 135deg,
+      #8197af 135deg 180deg,
+      #d3e0ed 180deg 225deg,
+      #8ea5bd 225deg 270deg,
+      #c4d4e4 270deg 315deg,
+      #8298b1 315deg 360deg
     );
-  border: 1px solid #bdd8cc;
+  border: 1px solid #d0deee;
   box-shadow:
-    0 0 0 1px #35545d,
-    inset 0 7px 14px #f2fcf76e,
-    inset 0 -26px 36px #061628d0,
-    inset 14px 0 18px #b1ecda44,
-    inset -14px 0 18px #a7b6e145,
+    0 0 0 1px #3a5471,
+    inset 0 7px 14px #f3f8ff63,
+    inset 0 -26px 36px #071527cf,
+    inset 13px 0 16px #a8bad04a,
+    inset -13px 0 16px #7f95ae52,
     0 8px 16px #03101d;
   z-index: 3;
 }
@@ -1492,23 +1485,15 @@ body::before {
   background:
     repeating-conic-gradient(
       from -90deg,
-      #0000 0deg 43.5deg,
-      #f4fffbaf 43.5deg 44.05deg,
-      #2b41558e 44.05deg 44.35deg,
-      #0000 44.35deg 45deg
-    ),
-    conic-gradient(
-      from -76deg,
-      #ffffff3f 0deg 18deg,
-      #0000 18deg 132deg,
-      #e6f9ef2b 132deg 164deg,
-      #0000 164deg 360deg
+      #0000 0deg 44.35deg,
+      #e5eefb96 44.35deg 44.7deg,
+      #2e466183 44.7deg 45deg
     );
-  opacity: 0.95;
+  opacity: 0.92;
   -webkit-mask: radial-gradient(circle, transparent 0 12%, #000 12.4% 99%, transparent 99.4%);
   mask: radial-gradient(circle, transparent 0 12%, #000 12.4% 99%, transparent 99.4%);
   box-shadow:
-    inset 0 0 12px #10283c;
+    inset 0 0 12px #12263c;
 }
 
 .wheel-facet-disk::after {
@@ -1516,11 +1501,11 @@ body::before {
   position: absolute;
   inset: 42%;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 26%, #dff0ea 0%, #9ec2b9 44%, #335f70 100%);
-  border: 1px solid #a8cbc0;
+  background: radial-gradient(circle at 30% 26%, #e4eef9 0%, #9eb5cd 44%, #355675 100%);
+  border: 1px solid #c5d7ea;
   box-shadow:
-    inset 0 1px 0 #f1fcf8,
-    inset 0 -10px 13px #1e4158;
+    inset 0 1px 0 #f0f6ff,
+    inset 0 -10px 13px #28455f;
 }
 
 .wheel::before {
@@ -1528,11 +1513,11 @@ body::before {
   position: absolute;
   inset: 1.2%;
   border-radius: 50%;
-  border: 1px solid #698981;
-  background: radial-gradient(circle at 50% 10%, #36515a 0%, #213a4b 30%, #122737 62%, #0a1b2b 100%);
+  border: 1px solid #839db8;
+  background: radial-gradient(circle at 50% 10%, #3b5670 0%, #253d55 30%, #152b40 62%, #0d2032 100%);
   box-shadow:
-    inset 0 1px 0 #d2e4db,
-    inset 0 -2px 0 #244957;
+    inset 0 1px 0 #dce9f8,
+    inset 0 -2px 0 #2c4965;
   pointer-events: none;
   z-index: 2;
 }
@@ -1545,25 +1530,17 @@ body::before {
   background:
     repeating-conic-gradient(
       from -90deg,
-      #f2fdfa 0deg 0.72deg,
-      #b7d5ca 0.72deg 1.64deg,
-      #304a57 1.64deg 4.45deg,
-      #0000 4.45deg 5deg,
-      #f2fdfa 5deg 5.72deg,
-      #b7d5ca 5.72deg 6.64deg,
-      #304a57 6.64deg 9.45deg,
-      #0000 9.45deg 10deg,
-      #f2fdfa 10deg 10.72deg,
-      #b7d5ca 10.72deg 11.64deg,
-      #304a57 11.64deg 14.45deg,
-      #0000 14.45deg 15deg
+      #eef5ff 0deg 0.6deg,
+      #9cb5ce 0.6deg 1.35deg,
+      #2b435d 1.35deg 4.7deg,
+      #0000 4.7deg 6deg
     ),
-    radial-gradient(circle at 50% 28%, #ffffff26 0%, #0000 46%);
+    radial-gradient(circle at 50% 28%, #ffffff24 0%, #0000 46%);
   -webkit-mask: radial-gradient(circle, transparent 0 74%, #000 74.2% 93%, transparent 93.2%);
   mask: radial-gradient(circle, transparent 0 74%, #000 74.2% 93%, transparent 93.2%);
   box-shadow:
-    inset 0 1px 0 #f7fffdcc,
-    inset 0 -1px 0 #102836;
+    inset 0 1px 0 #f5f9ffb8,
+    inset 0 -1px 0 #142941;
   pointer-events: none;
   z-index: 5;
 }
@@ -1606,37 +1583,37 @@ body::before {
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.25px;
-  color: #eefbf4;
-  -webkit-text-stroke: 0.35px #1f3045;
+  color: #f2f7ff;
+  -webkit-text-stroke: 0.35px #22364d;
   text-shadow:
-    0 0 10px #a9d9c9,
-    0 2px 8px #0a1a2a;
+    0 0 10px #8faacc,
+    0 2px 8px #081727;
   font-variant-numeric: tabular-nums;
 }
 
 .wheel-segment.winner::before {
   box-shadow:
-    0 0 7px #d6ffee,
-    0 0 12px #8fd9b8;
+    0 0 7px #dbe8f8,
+    0 0 12px #89a8cb;
 }
 
 .wheel-segment.winner::after {
-  background: linear-gradient(180deg, #edfdf5 0%, #d2eddc 24%, #9fc9ba 54%, #4a7380 100%);
-  border: 1px solid #dcefe7;
+  background: linear-gradient(180deg, #eaf3ff 0%, #c7d8ea 24%, #95adca 54%, #456586 100%);
+  border: 1px solid #d2e2f2;
   box-shadow:
-    inset 0 1px 0 #f7fdf9,
-    inset 0 -14px 16px #3a5f6f,
-    inset 10px 0 12px #96c5b5,
-    inset -10px 0 12px #70999f,
-    0 0 14px #84c9b0;
+    inset 0 1px 0 #f5f8ff,
+    inset 0 -14px 16px #365879,
+    inset 10px 0 12px #94abc7,
+    inset -10px 0 12px #6e88a8,
+    0 0 14px #7193b8;
   animation: wheelWinnerFacet 800ms ease-out 2;
 }
 
 .wheel-segment.winner .wheel-value {
   color: #ffffff;
-  -webkit-text-stroke: 0.35px #203247;
+  -webkit-text-stroke: 0.35px #21364e;
   text-shadow:
-    0 0 16px #a9ddc9,
+    0 0 16px #9bb7d6,
     0 2px 10px #0a1d30;
   animation: wheelWinnerValue 820ms ease-out 2;
 }
@@ -1650,11 +1627,11 @@ body::before {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: radial-gradient(circle at 32% 30%, #d6e8e1 0%, #8fb2a7 54%, #335663 100%);
-  border: 1px solid #a0c2b4;
+  background: radial-gradient(circle at 32% 30%, #e2edf9 0%, #99b1ca 54%, #375877 100%);
+  border: 1px solid #bfd1e4;
   box-shadow:
-    inset 0 2px 3px #e7f3ee,
-    inset 0 -5px 7px #2f4f5c;
+    inset 0 2px 3px #edf5ff,
+    inset 0 -5px 7px #2e4d68;
   z-index: 5;
   display: grid;
   place-items: center;
@@ -1665,11 +1642,11 @@ body::before {
   position: absolute;
   inset: 3px;
   border-radius: 50%;
-  border: 1px solid #b4d2c7;
-  background: radial-gradient(circle at 32% 26%, #e2f0eb 0%, #99bab1 58%, #355666 100%);
+  border: 1px solid #c8daeb;
+  background: radial-gradient(circle at 32% 26%, #e8f1fb 0%, #a2bbd2 58%, #375978 100%);
   box-shadow:
-    inset 0 1px 0 #ecf6f1,
-    inset 0 -6px 8px #2d4f5c;
+    inset 0 1px 0 #f2f8ff,
+    inset 0 -6px 8px #2b4b67;
 }
 
 .wheel-center::after {
@@ -1679,10 +1656,10 @@ body::before {
 .wheel-center-star {
   font-size: 11px;
   line-height: 1;
-  color: #f0f7f3;
-  -webkit-text-stroke: 0.35px #355364;
+  color: #f4f8ff;
+  -webkit-text-stroke: 0.35px #324a66;
   text-shadow:
-    0 1px 4px #0f2534;
+    0 1px 4px #0d2135;
   transform: translateY(-1px);
   z-index: 2;
 }
@@ -1706,12 +1683,12 @@ body::before {
   width: 38px;
   height: 11px;
   border-radius: 8px 8px 9px 9px;
-  border: 1px solid #9eb9ae;
-  background: linear-gradient(180deg, #d0dfd8 0%, #8aa89e 58%, #35545f 100%);
+  border: 1px solid #c2d5e8;
+  background: linear-gradient(180deg, #e2edf8 0%, #9ab3cb 58%, #355676 100%);
   box-shadow:
     0 4px 8px #05121d,
-    inset 0 1px 0 #eef8f4,
-    inset 0 -6px 8px #2c4854;
+    inset 0 1px 0 #f2f8ff,
+    inset 0 -6px 8px #294766;
 }
 
 .wheel-pointer {
@@ -1722,11 +1699,11 @@ body::before {
   height: 20px;
   transform: translateX(-50%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
-  border: 1px solid #aec8bf;
-  background: linear-gradient(180deg, #d3e3dc 0%, #9ab7ad 50%, #43656c 100%);
+  border: 1px solid #c7daec;
+  background: linear-gradient(180deg, #e3eef9 0%, #9eb7cf 50%, #416282 100%);
   box-shadow:
     0 5px 8px #04111d,
-    inset 0 1px 0 #f2f9f6;
+    inset 0 1px 0 #f5f9ff;
 }
 
 .wheel-pointer-assembly.kick-a {
@@ -1742,35 +1719,35 @@ body::before {
 }
 
 .wheel-cta {
-  background: linear-gradient(180deg, #0e2032 0%, #0b1a2c 52%, #091625 100%);
-  border: 1px solid #7fd1ae;
+  background: linear-gradient(180deg, #10243a 0%, #0b1c2f 52%, #091727 100%);
+  border: 1px solid #7cb4de;
   border-radius: 999px;
   padding: 13px 18px;
   font-size: 14px;
   letter-spacing: 0.3px;
   font-weight: 700;
-  color: #eaf7f1;
+  color: #eaf4ff;
   cursor: pointer;
   width: 100%;
   box-shadow:
     0 12px 20px #041220,
-    inset 0 1px 0 #d3efe3,
-    inset 0 -10px 16px #10283e,
-    0 0 16px #2f736d;
+    inset 0 1px 0 #deebf8,
+    inset 0 -10px 16px #102b45,
+    0 0 16px #2c5576;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .wheel-cta:hover {
-  border-color: #a8e0ca;
+  border-color: #a2c9ea;
   box-shadow:
     0 14px 24px #03101c,
-    inset 0 1px 0 #ebf8f3,
-    inset 0 -10px 16px #14314b,
-    0 0 20px #3a8d82;
+    inset 0 1px 0 #eef5ff,
+    inset 0 -10px 16px #153453,
+    0 0 20px #44739d;
 }
 
 .wheel-cta:focus-visible {
-  outline: 2px solid #9eeccc;
+  outline: 2px solid #9ec6e8;
   outline-offset: 2px;
 }
 
@@ -1779,52 +1756,52 @@ body::before {
 }
 
 .wheel-cta:disabled {
-  background: linear-gradient(180deg, #5c7388 0%, #425a70 100%);
-  border-color: #6e8ca5;
-  color: #d3e6f1;
+  background: linear-gradient(180deg, #5b7086 0%, #41576d 100%);
+  border-color: #728ba6;
+  color: #d7e7f6;
   cursor: not-allowed;
 }
 
 .wheel-timer {
   font-size: 14px;
-  color: #a9c4bb;
+  color: #a7bfd6;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .wheel-timer strong {
-  color: #e2f6ec;
+  color: #e8f2ff;
   font-weight: 700;
 }
 
 .wheel-timer.ready {
-  color: #c8e9dc;
+  color: #cbdbec;
 }
 
 .wheel-timer.ready strong {
-  color: #f0fff8;
+  color: #f3f8ff;
 }
 
 .wheel-result {
   display: grid;
   gap: 4px;
   justify-items: center;
-  background: #112b3f;
-  border: 1px solid #5f998f;
+  background: #112740;
+  border: 1px solid #6f92b4;
   border-radius: 14px;
   padding: 10px 12px;
 }
 
 .wheel-result span {
   font-size: 12px;
-  color: #c7e7da;
+  color: #cfe0f1;
 }
 
 .wheel-result strong {
   font-size: 22px;
   line-height: 1;
-  color: #ecfff6;
-  text-shadow: 0 0 12px #58bf9f;
+  color: #f1f8ff;
+  text-shadow: 0 0 12px #6f99c5;
 }
 
 .wheel-error {
