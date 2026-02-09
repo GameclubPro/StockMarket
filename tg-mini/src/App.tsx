@@ -48,8 +48,6 @@ const DAILY_WHEEL_SEGMENTS = [
   { label: '+10', value: 10, weight: 3 },
 ];
 const DAILY_WHEEL_SLICE = 360 / DAILY_WHEEL_SEGMENTS.length;
-const DAILY_WHEEL_NOTCHES_PER_SEGMENT = 3;
-const DAILY_WHEEL_NOTCH_SLICE = DAILY_WHEEL_SLICE / DAILY_WHEEL_NOTCHES_PER_SEGMENT;
 const DAILY_WHEEL_BASE_ROTATION = -DAILY_WHEEL_SLICE / 2;
 const DAILY_WHEEL_SPIN_TURNS = 8;
 const DAILY_WHEEL_SPIN_MS = 3800;
@@ -182,16 +180,6 @@ const resolveWheelRewardIndex = (rawIndex: number, rewardValue: number) => {
   return valueMatchedIndex >= 0 ? valueMatchedIndex : clamped;
 };
 
-const getRotationFromTransform = (transformValue: string) => {
-  if (!transformValue || transformValue === 'none') return 0;
-  try {
-    const matrix = new DOMMatrixReadOnly(transformValue);
-    return (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
-  } catch {
-    return 0;
-  }
-};
-
 const getWheelNaturalProgress = (rawProgress: number) => {
   const progress = Math.min(1, Math.max(0, rawProgress));
   const launchArea = DAILY_WHEEL_LAUNCH_END / 2;
@@ -214,14 +202,6 @@ const getWheelNaturalProgress = (rawProgress: number) => {
   const brakeElapsed = progress - DAILY_WHEEL_BRAKE_START;
   const brakeAreaNow = DAILY_WHEEL_BRAKE_DECAY * (1 - Math.exp(-brakeElapsed / DAILY_WHEEL_BRAKE_DECAY));
   return Math.min(1, (launchArea + cruiseArea + brakeAreaNow) / totalArea);
-};
-
-const getWheelSpinPhaseByProgress = (
-  progress: number
-): 'launch' | 'cruise' | 'brake' => {
-  if (progress < DAILY_WHEEL_LAUNCH_END) return 'launch';
-  if (progress < DAILY_WHEEL_BRAKE_START) return 'cruise';
-  return 'brake';
 };
 
 export default function App() {
@@ -260,7 +240,6 @@ export default function App() {
   const [wheelWinningIndex, setWheelWinningIndex] = useState<number | null>(null);
   const [wheelCelebrating, setWheelCelebrating] = useState(false);
   const [wheelResult, setWheelResult] = useState<{ label: string; value: number } | null>(null);
-  const [wheelPointerKick, setWheelPointerKick] = useState(0);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
@@ -305,10 +284,9 @@ export default function App() {
   const animatingOutRef = useRef<Set<string>>(new Set());
   const wheelRotationRef = useRef(DAILY_WHEEL_BASE_ROTATION);
   const wheelRotorRef = useRef<HTMLDivElement | null>(null);
-  const wheelPointerFrameRef = useRef<number | null>(null);
-  const wheelPointerLastAngleRef = useRef<number | null>(null);
-  const wheelPointerDistanceRef = useRef(0);
-  const spinFrameRef = useRef<number | null>(null);
+  const rotorAnimationRef = useRef<Animation | null>(null);
+  const spinPhaseCruiseTimeoutRef = useRef<number | null>(null);
+  const spinPhaseBrakeTimeoutRef = useRef<number | null>(null);
   const wheelCelebrateTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
@@ -535,58 +513,6 @@ export default function App() {
   }, [wheelRotation]);
 
   useEffect(() => {
-    if (!wheelSpinning) {
-      if (wheelPointerFrameRef.current) {
-        window.cancelAnimationFrame(wheelPointerFrameRef.current);
-        wheelPointerFrameRef.current = null;
-      }
-      wheelPointerLastAngleRef.current = null;
-      wheelPointerDistanceRef.current = 0;
-      return;
-    }
-
-    const rotorNode = wheelRotorRef.current;
-    if (!rotorNode) return;
-
-    wheelPointerLastAngleRef.current = null;
-    wheelPointerDistanceRef.current = 0;
-
-    const trackWheelNotches = () => {
-      const transformValue = window.getComputedStyle(rotorNode).transform;
-      const currentAngle = getRotationFromTransform(transformValue);
-      const previousAngle = wheelPointerLastAngleRef.current;
-
-      if (previousAngle !== null) {
-        let delta = currentAngle - previousAngle;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-
-        if (delta > 0) {
-          wheelPointerDistanceRef.current += delta;
-          while (wheelPointerDistanceRef.current >= DAILY_WHEEL_NOTCH_SLICE) {
-            wheelPointerDistanceRef.current -= DAILY_WHEEL_NOTCH_SLICE;
-            setWheelPointerKick((prev) => prev + 1);
-          }
-        }
-      }
-
-      wheelPointerLastAngleRef.current = currentAngle;
-      wheelPointerFrameRef.current = window.requestAnimationFrame(trackWheelNotches);
-    };
-
-    wheelPointerFrameRef.current = window.requestAnimationFrame(trackWheelNotches);
-
-    return () => {
-      if (wheelPointerFrameRef.current) {
-        window.cancelAnimationFrame(wheelPointerFrameRef.current);
-        wheelPointerFrameRef.current = null;
-      }
-      wheelPointerLastAngleRef.current = null;
-      wheelPointerDistanceRef.current = 0;
-    };
-  }, [wheelSpinning]);
-
-  useEffect(() => {
     if (!dailyBonusStatus.nextAvailableAt) return;
     const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
@@ -594,14 +520,18 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (spinFrameRef.current) {
-        window.cancelAnimationFrame(spinFrameRef.current);
+      if (rotorAnimationRef.current) {
+        rotorAnimationRef.current.cancel();
+        rotorAnimationRef.current = null;
+      }
+      if (spinPhaseCruiseTimeoutRef.current) {
+        window.clearTimeout(spinPhaseCruiseTimeoutRef.current);
+      }
+      if (spinPhaseBrakeTimeoutRef.current) {
+        window.clearTimeout(spinPhaseBrakeTimeoutRef.current);
       }
       if (wheelCelebrateTimeoutRef.current) {
         window.clearTimeout(wheelCelebrateTimeoutRef.current);
-      }
-      if (wheelPointerFrameRef.current) {
-        window.cancelAnimationFrame(wheelPointerFrameRef.current);
       }
       if (inviteCopyTimeoutRef.current) {
         window.clearTimeout(inviteCopyTimeoutRef.current);
@@ -1359,11 +1289,17 @@ export default function App() {
     setWheelSpinPhase('launch');
     setWheelCelebrating(false);
     setWheelWinningIndex(null);
-    setWheelPointerKick(0);
-
-    if (spinFrameRef.current) {
-      window.cancelAnimationFrame(spinFrameRef.current);
-      spinFrameRef.current = null;
+    if (rotorAnimationRef.current) {
+      rotorAnimationRef.current.cancel();
+      rotorAnimationRef.current = null;
+    }
+    if (spinPhaseCruiseTimeoutRef.current) {
+      window.clearTimeout(spinPhaseCruiseTimeoutRef.current);
+      spinPhaseCruiseTimeoutRef.current = null;
+    }
+    if (spinPhaseBrakeTimeoutRef.current) {
+      window.clearTimeout(spinPhaseBrakeTimeoutRef.current);
+      spinPhaseBrakeTimeoutRef.current = null;
     }
     if (wheelCelebrateTimeoutRef.current) {
       window.clearTimeout(wheelCelebrateTimeoutRef.current);
@@ -1391,33 +1327,23 @@ export default function App() {
       const startRotation = wheelRotationRef.current;
       const nextRotation = getWheelTargetRotation(startRotation, rewardIndex);
       const totalDistance = Math.max(DAILY_WHEEL_SLICE * 2, nextRotation - startRotation);
+      const launchRotation =
+        startRotation + totalDistance * getWheelNaturalProgress(DAILY_WHEEL_LAUNCH_END);
+      const brakeRotation =
+        startRotation + totalDistance * getWheelNaturalProgress(DAILY_WHEEL_BRAKE_START);
       setWheelWinningIndex(rewardIndex);
       setWheelSpinPhase('launch');
 
       const result = { label: rewardLabel, value: rewardValue };
-      const startTs = performance.now();
-      let phase: 'launch' | 'cruise' | 'brake' = 'launch';
-
-      const animateSpin = (now: number) => {
-        const elapsed = now - startTs;
-        const timeProgress = Math.min(1, Math.max(0, elapsed / DAILY_WHEEL_SPIN_MS));
-        const motionProgress = getWheelNaturalProgress(timeProgress);
-        const rotation = startRotation + totalDistance * motionProgress;
-        const nextPhase = getWheelSpinPhaseByProgress(timeProgress);
-
-        if (nextPhase !== phase) {
-          phase = nextPhase;
-          setWheelSpinPhase(nextPhase);
+      const finishSpin = () => {
+        if (spinPhaseCruiseTimeoutRef.current) {
+          window.clearTimeout(spinPhaseCruiseTimeoutRef.current);
+          spinPhaseCruiseTimeoutRef.current = null;
         }
-
-        setWheelRotation(rotation);
-
-        if (timeProgress < 1) {
-          spinFrameRef.current = window.requestAnimationFrame(animateSpin);
-          return;
+        if (spinPhaseBrakeTimeoutRef.current) {
+          window.clearTimeout(spinPhaseBrakeTimeoutRef.current);
+          spinPhaseBrakeTimeoutRef.current = null;
         }
-
-        spinFrameRef.current = null;
         setWheelRotation(nextRotation);
         setWheelSpinning(false);
         setWheelSpinPhase('celebrate');
@@ -1429,11 +1355,60 @@ export default function App() {
         }, DAILY_WHEEL_CELEBRATE_MS);
       };
 
-      spinFrameRef.current = window.requestAnimationFrame(animateSpin);
+      const rotorNode = wheelRotorRef.current;
+      if (!rotorNode || typeof rotorNode.animate !== 'function') {
+        // Fallback path for engines without WAAPI.
+        setWheelRotation(nextRotation);
+        window.setTimeout(finishSpin, DAILY_WHEEL_SPIN_MS);
+        return;
+      }
+
+      spinPhaseCruiseTimeoutRef.current = window.setTimeout(() => {
+        setWheelSpinPhase('cruise');
+        spinPhaseCruiseTimeoutRef.current = null;
+      }, Math.round(DAILY_WHEEL_SPIN_MS * DAILY_WHEEL_LAUNCH_END));
+      spinPhaseBrakeTimeoutRef.current = window.setTimeout(() => {
+        setWheelSpinPhase('brake');
+        spinPhaseBrakeTimeoutRef.current = null;
+      }, Math.round(DAILY_WHEEL_SPIN_MS * DAILY_WHEEL_BRAKE_START));
+
+      const animation = rotorNode.animate(
+        [
+          { transform: `rotate(${startRotation}deg)`, offset: 0 },
+          { transform: `rotate(${launchRotation}deg)`, offset: DAILY_WHEEL_LAUNCH_END },
+          { transform: `rotate(${brakeRotation}deg)`, offset: DAILY_WHEEL_BRAKE_START },
+          { transform: `rotate(${nextRotation}deg)`, offset: 1 },
+        ],
+        {
+          duration: DAILY_WHEEL_SPIN_MS,
+          easing: 'linear',
+          fill: 'forwards',
+        }
+      );
+      rotorAnimationRef.current = animation;
+
+      animation.onfinish = () => {
+        if (rotorAnimationRef.current !== animation) return;
+        rotorAnimationRef.current = null;
+        finishSpin();
+      };
+      animation.oncancel = () => {
+        if (rotorAnimationRef.current === animation) {
+          rotorAnimationRef.current = null;
+        }
+      };
     } catch (error: any) {
-      if (spinFrameRef.current) {
-        window.cancelAnimationFrame(spinFrameRef.current);
-        spinFrameRef.current = null;
+      if (rotorAnimationRef.current) {
+        rotorAnimationRef.current.cancel();
+        rotorAnimationRef.current = null;
+      }
+      if (spinPhaseCruiseTimeoutRef.current) {
+        window.clearTimeout(spinPhaseCruiseTimeoutRef.current);
+        spinPhaseCruiseTimeoutRef.current = null;
+      }
+      if (spinPhaseBrakeTimeoutRef.current) {
+        window.clearTimeout(spinPhaseBrakeTimeoutRef.current);
+        spinPhaseBrakeTimeoutRef.current = null;
       }
       setWheelSpinning(false);
       setWheelSpinPhase('idle');
@@ -1730,9 +1705,9 @@ export default function App() {
                   </div>
                 </div>
                 <div
-                  className={`wheel-pointer-assembly ${
-                    wheelSpinning ? `kick-${wheelPointerKick % 2 === 0 ? 'a' : 'b'}` : ''
-                  } ${wheelCelebrating ? 'celebrate' : ''}`}
+                  className={`wheel-pointer-assembly ${wheelSpinning ? 'spinning' : ''} ${
+                    wheelCelebrating ? 'celebrate' : ''
+                  }`}
                   aria-hidden="true"
                 >
                   <div className="wheel-pointer-base" />
