@@ -1258,27 +1258,14 @@ body::before {
 .wheel-wrapper::before {
   content: '';
   position: absolute;
-  inset: -12%;
+  inset: -6%;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 76%, #173145 0%, #0d2235 44%, #091928 70%, #06111d 100%);
-  box-shadow:
-    0 0 30px #0d2a38,
-    inset 0 0 30px #0a1e30;
+  background: radial-gradient(circle at 50% 70%, #122939 0%, #0e2233 52%, #0b1a2a 100%);
   z-index: 0;
 }
 
 .wheel-wrapper::after {
-  content: '';
-  position: absolute;
-  inset: -10%;
-  border-radius: 50% 50% 45% 45%;
-  background:
-    radial-gradient(circle at 50% 86%, #2b5748 0%, #173441 44%, #0d1f30 72%, #091522 100%);
-  opacity: 0.32;
-  filter: blur(2px);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .wheel-rotor {
@@ -1313,9 +1300,7 @@ body::before {
   background:
     radial-gradient(circle at 50% 24%, #29433f 0%, #1a3037 56%, #121f2a 100%),
     radial-gradient(circle at 50% 86%, #1b3630 0%, #132a35 58%, #0f2231 100%);
-  box-shadow:
-    0 0 18px #0d1f2d,
-    inset 0 0 14px #132b37;
+  box-shadow: inset 0 0 14px #132b37;
   pointer-events: none;
   z-index: 0;
 }
@@ -1349,7 +1334,6 @@ body::before {
     transparent calc(100% - 15px)
   );
   box-shadow:
-    0 0 8px #1d373b,
     inset 0 0 10px #203c3f;
 }
 
@@ -1361,48 +1345,76 @@ body::before {
   border: 2px solid #6f9788;
   box-shadow:
     inset 0 0 0 2px #233e4a,
-    inset 0 1px 1px #aac7bc,
-    0 0 6px #294a4d;
+    inset 0 1px 1px #aac7bc;
   pointer-events: none;
 }
 
 .wheel-orbit {
   position: absolute;
-  inset: 7.2%;
+  inset: 6.5%;
   border-radius: 50%;
-  border: 1px solid #5d7b72;
+  border: 1px solid #4f6d67;
   background: repeating-conic-gradient(
     from -90deg,
-    #d3e4dc 0deg,
-    #d3e4dc 3.4deg,
-    #6f8a80 3.4deg,
-    #6f8a80 5deg,
-    #233f46 5deg,
-    #233f46 45deg
+    #bdcdc4 0deg,
+    #bdcdc4 2deg,
+    #6e837b 2deg,
+    #6e837b 4.6deg,
+    #223941 4.6deg,
+    #223941 45deg
   );
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 13px),
-    #000 calc(100% - 13px),
+    transparent calc(100% - 9px),
+    #000 calc(100% - 9px),
     #000 calc(100% - 2px),
     transparent calc(100% - 2px)
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - 13px),
-    #000 calc(100% - 13px),
+    transparent calc(100% - 9px),
+    #000 calc(100% - 9px),
     #000 calc(100% - 2px),
     transparent calc(100% - 2px)
   );
-  box-shadow:
-    inset 0 0 0 1px #28464d,
-    0 0 7px #27494f;
+  box-shadow: inset 0 0 0 1px #28464d;
   z-index: 0;
+}
+
+.wheel-ratchet {
+  position: absolute;
+  inset: 5.8%;
+  border-radius: 50%;
+  z-index: 1;
+  background: repeating-conic-gradient(
+    from -90deg,
+    #dbe6de 0deg,
+    #dbe6de 1deg,
+    #7b9086 1deg,
+    #7b9086 3.8deg,
+    #263a41 3.8deg,
+    #263a41 45deg
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 14px),
+    #000 calc(100% - 14px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 14px),
+    #000 calc(100% - 14px),
+    #000 calc(100% - 3px),
+    transparent calc(100% - 3px)
+  );
+  box-shadow: inset 0 0 0 1px #2b464c;
 }
 
 .wheel-pointer-base {
   position: absolute;
-  top: 6px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   width: 64px;
@@ -1424,12 +1436,10 @@ body::before {
   background:
     radial-gradient(circle at 50% 78%, #102434 0%, #0a1a28 60%, #071321 100%),
     radial-gradient(circle at 50% 18%, #273f44 0%, #1a2f3a 44%, #11222f 100%);
-  border: 10px solid #688276;
+  border: 9px solid #5f7870;
   box-shadow:
-    0 16px 28px #04111d,
     inset 0 2px 0 #c7ddd4,
-    inset 0 -14px 20px #122736,
-    0 0 10px #23474b;
+    inset 0 -14px 20px #122736;
   position: relative;
   z-index: 2;
   display: grid;
@@ -1439,7 +1449,7 @@ body::before {
 
 .wheel-facet-disk {
   position: absolute;
-  inset: 8.8%;
+  inset: 4.6%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 50% -8%, #dbf0e5 0%, #dbf0e500 30%),
@@ -1487,7 +1497,7 @@ body::before {
 .wheel-facet-disk::after {
   content: '';
   position: absolute;
-  inset: 34%;
+  inset: 40%;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 26%, #d6ebe4 0%, #91b6ac 42%, #2d5967 100%);
   border: 1px solid #98bdb2;
@@ -1511,21 +1521,11 @@ body::before {
 }
 
 .wheel::after {
-  content: '';
-  position: absolute;
-  inset: 8.5%;
-  border-radius: 50%;
-  border: 1px solid #5e8278;
-  background: radial-gradient(circle at 50% 120%, #0a1f3240 0%, #0815258c 100%);
-  box-shadow:
-    inset 0 8px 12px #14334a66,
-    inset 0 -8px 12px #0715278f;
-  pointer-events: none;
-  z-index: 2;
+  display: none;
 }
 
 .wheel-rotor.spinning .wheel {
-  filter: drop-shadow(0 0 9px #34585a);
+  filter: none;
 }
 
 .wheel-segment {
@@ -1557,7 +1557,7 @@ body::before {
 .wheel-value {
   position: relative;
   z-index: 2;
-  margin-top: 16px;
+  margin-top: 18px;
   font-size: clamp(23px, 5.2vw, 31px);
   font-weight: 800;
   line-height: 1;
@@ -1603,15 +1603,14 @@ body::before {
 
 .wheel-center {
   position: absolute;
-  width: 58px;
-  height: 58px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: radial-gradient(circle at 32% 30%, #d7e9e2 0%, #92b4a9 52%, #355562 100%);
   border: 2px solid #9ec2b5;
   box-shadow:
-    inset 0 2px 5px #e5f3ec,
-    inset 0 -6px 9px #2f4f5c,
-    0 8px 14px #041421;
+    inset 0 2px 4px #e5f3ec,
+    inset 0 -5px 8px #2f4f5c;
   z-index: 5;
   display: grid;
   place-items: center;
@@ -1620,7 +1619,7 @@ body::before {
 .wheel-center::before {
   content: '';
   position: absolute;
-  inset: 7px;
+  inset: 5px;
   border-radius: 50%;
   border: 1px solid #b4d2c7;
   background: radial-gradient(circle at 32% 26%, #e2f0eb 0%, #99bab1 58%, #355666 100%);
@@ -1634,7 +1633,7 @@ body::before {
 }
 
 .wheel-center-star {
-  font-size: 17px;
+  font-size: 13px;
   line-height: 1;
   color: #f0f7f3;
   -webkit-text-stroke: 0.35px #355364;
@@ -1646,17 +1645,15 @@ body::before {
 
 .wheel-pointer {
   position: absolute;
-  top: 25px;
+  top: 17px;
   left: 50%;
   transform: translateX(-50%);
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 21px;
   transform-origin: 50% 0%;
   background: linear-gradient(180deg, #ccddd8 0%, #93b3ab 48%, #41656a 100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
-  box-shadow:
-    0 6px 12px #041220,
-    0 0 5px #37565b;
+  box-shadow: 0 5px 10px #041220;
   border: 1px solid #acc8bf;
   z-index: 7;
   animation: wheelPointerIdle 2.4s ease-in-out infinite;
