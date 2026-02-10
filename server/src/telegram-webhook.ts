@@ -109,6 +109,13 @@ export const handleBotWebhookUpdate = async (
       user: TelegramUser;
       startParam: string;
     }) => Promise<void>;
+    handlePrivateMessage?: (payload: {
+      chatId: number;
+      user: TelegramUser;
+      text: string;
+      command: string;
+      args: string[];
+    }) => Promise<void>;
   }
 ) => {
   const payload = update.my_chat_member;
@@ -152,18 +159,28 @@ export const handleBotWebhookUpdate = async (
   }
 
   if (message?.text && message.from && message.chat?.type === 'private') {
-    const parts = message.text.trim().split(/\s+/);
-    const commandRaw = parts[0] ?? '';
-    const command = commandRaw.split('@')[0];
-    if (command === '/start') {
-      const param = parts[1] ?? '';
-      if (param) {
-        await deps.handleStartPayload?.({
-          chatId: message.chat.id,
-          user: message.from,
-          startParam: param,
-        });
+    const text = message.text.trim();
+    if (text) {
+      const parts = text.split(/\s+/);
+      const commandRaw = parts[0] ?? '';
+      const command = commandRaw.startsWith('/') ? commandRaw.split('@')[0].toLowerCase() : '';
+      if (command === '/start') {
+        const param = parts[1] ?? '';
+        if (param) {
+          await deps.handleStartPayload?.({
+            chatId: message.chat.id,
+            user: message.from,
+            startParam: param,
+          });
+        }
       }
+      await deps.handlePrivateMessage?.({
+        chatId: message.chat.id,
+        user: message.from,
+        text,
+        command,
+        args: parts.slice(1),
+      });
     }
   }
   if (!payload) return { ok: true };

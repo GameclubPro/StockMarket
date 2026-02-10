@@ -101,6 +101,11 @@ const FIRST_LOGIN_WELCOME_BONUS_LIMIT = 50;
 const FIRST_LOGIN_WELCOME_BONUS_REASON = 'system_welcome_bonus_500_first50';
 const FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY = 'jr_welcome_bonus_500_first50';
 const FIRST_LOGIN_WELCOME_BONUS_LOCK_TIMEOUT_SEC = 10;
+const BOT_PANEL_ALLOWED_COMMANDS = new Set(['/admin', '/stats', '/panel']);
+const BOT_PANEL_ALLOWED_TEXTS = new Set(['админ', 'админка', 'панель', 'статистика']);
+const BOT_PANEL_DEFAULT_ADMIN_USERNAMES = ['@Nitchim'];
+let botPanelSeedPromise: Promise<void> | null = null;
+let botPanelStoragePromise: Promise<void> | null = null;
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
@@ -325,6 +330,135 @@ const grantFirstLoginWelcomeBonusIfEligible = async (tx: Prisma.TransactionClien
   } finally {
     await releaseNamedDbLock(tx, FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY);
   }
+};
+
+const normalizeBotPanelUsername = (value: string | null | undefined) => {
+  return value?.trim().replace(/^@+/, '').toLowerCase() ?? '';
+};
+
+const ensureBotPanelAccessStorage = async () => {
+  if (botPanelStoragePromise) return await botPanelStoragePromise;
+
+  botPanelStoragePromise = prisma
+    .$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS BotPanelAccess (
+        id VARCHAR(191) NOT NULL,
+        telegramId VARCHAR(191) NULL,
+        username VARCHAR(191) NULL,
+        isEnabled BOOLEAN NOT NULL DEFAULT true,
+        createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updatedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        UNIQUE INDEX BotPanelAccess_telegramId_key (telegramId),
+        UNIQUE INDEX BotPanelAccess_username_key (username),
+        INDEX BotPanelAccess_isEnabled_createdAt_idx (isEnabled, createdAt),
+        PRIMARY KEY (id)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `)
+    .then(() => undefined)
+    .catch((error) => {
+      botPanelStoragePromise = null;
+      throw error;
+    });
+
+  return await botPanelStoragePromise;
+};
+
+const ensureDefaultBotPanelAccess = async () => {
+  await ensureBotPanelAccessStorage();
+  if (botPanelSeedPromise) return await botPanelSeedPromise;
+
+  botPanelSeedPromise = (async () => {
+    for (const rawUsername of BOT_PANEL_DEFAULT_ADMIN_USERNAMES) {
+      const username = normalizeBotPanelUsername(rawUsername);
+      if (!username) continue;
+      await prisma.botPanelAccess.upsert({
+        where: { username },
+        update: { isEnabled: true },
+        create: {
+          username,
+          isEnabled: true,
+        },
+      });
+    }
+  })().catch((error) => {
+    botPanelSeedPromise = null;
+    throw error;
+  });
+
+  return await botPanelSeedPromise;
+};
+
+const hasBotPanelAccess = async (payload: { telegramId: number; username?: string }) => {
+  await ensureBotPanelAccessStorage();
+  const rawUsername = payload.username?.trim() ?? '';
+  const username = normalizeBotPanelUsername(payload.username);
+  const usernameVariants = new Set<string>();
+  if (rawUsername) {
+    usernameVariants.add(rawUsername);
+    usernameVariants.add(rawUsername.toLowerCase());
+    usernameVariants.add(rawUsername.startsWith('@') ? rawUsername.slice(1) : rawUsername);
+    usernameVariants.add(
+      rawUsername.startsWith('@') ? rawUsername.slice(1).toLowerCase() : rawUsername.toLowerCase()
+    );
+  }
+  if (username) {
+    usernameVariants.add(username);
+    usernameVariants.add(`@${username}`);
+  }
+  const filters: Prisma.BotPanelAccessWhereInput[] = [{ telegramId: String(payload.telegramId) }];
+  for (const candidate of usernameVariants) {
+    filters.push({ username: candidate });
+  }
+
+  const access = await prisma.botPanelAccess.findFirst({
+    where: {
+      isEnabled: true,
+      OR: filters,
+    },
+    select: { id: true },
+  });
+
+  return Boolean(access);
+};
+
+const getTodayRange = (now = new Date()) => {
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+  return { from, to };
+};
+
+const formatAdminPanelStatsText = async (now = new Date()) => {
+  const { from, to } = getTodayRange(now);
+  const [newUsersToday, totalUsers, bonusGranted] = await Promise.all([
+    prisma.user.count({
+      where: {
+        createdAt: {
+          gte: from,
+          lt: to,
+        },
+      },
+    }),
+    prisma.user.count(),
+    prisma.ledgerEntry.count({
+      where: { reason: FIRST_LOGIN_WELCOME_BONUS_REASON },
+    }),
+  ]);
+
+  const remainingBonusSlots = Math.max(0, FIRST_LOGIN_WELCOME_BONUS_LIMIT - bonusGranted);
+  const updatedAt = now.toLocaleString('ru-RU', {
+    hour12: false,
+  });
+
+  return [
+    'Админ-панель',
+    `Новых пользователей за сегодня: ${newUsersToday}`,
+    `Пользователей всего: ${totalUsers}`,
+    `Получили бонус +500: ${bonusGranted}/${FIRST_LOGIN_WELCOME_BONUS_LIMIT}`,
+    `Осталось бонусов: ${remainingBonusSlots}`,
+    `Обновлено: ${updatedAt}`,
+  ].join('\n');
 };
 
 const updateReferralProgress = async (
@@ -673,6 +807,9 @@ const isRetryableWebhookError = (error: unknown) => {
 
 export const registerRoutes = (app: FastifyInstance) => {
   app.get('/health', async () => ({ ok: true }));
+  void ensureDefaultBotPanelAccess().catch((error) => {
+    app.log.error({ err: error }, 'failed to seed default bot panel access');
+  });
 
   app.post('/telegram/webhook', async (request, reply) => {
     const secret = config.botWebhookSecret;
@@ -1067,6 +1204,38 @@ export const registerRoutes = (app: FastifyInstance) => {
               );
             } catch {
               // ignore notification errors
+            }
+          }
+        },
+        handlePrivateMessage: async ({ chatId, user, text, command }) => {
+          const normalizedText = text.trim().toLowerCase();
+          const isPanelRequest =
+            BOT_PANEL_ALLOWED_COMMANDS.has(command) || BOT_PANEL_ALLOWED_TEXTS.has(normalizedText);
+          if (!isPanelRequest) return;
+
+          try {
+            await ensureDefaultBotPanelAccess();
+            const allowed = await hasBotPanelAccess({
+              telegramId: user.id,
+              username: user.username,
+            });
+            if (!allowed) {
+              await sendMessage(config.botToken, String(chatId), 'У вас нет доступа к админ-панели.');
+              return;
+            }
+
+            const statsText = await formatAdminPanelStatsText();
+            await sendMessage(config.botToken, String(chatId), statsText);
+          } catch (error) {
+            request.log.error({ err: error, userId: user.id }, 'failed to process admin panel request');
+            try {
+              await sendMessage(
+                config.botToken,
+                String(chatId),
+                'Не удалось загрузить админ-панель. Попробуйте позже.'
+              );
+            } catch {
+              // ignore follow-up delivery errors
             }
           }
         },

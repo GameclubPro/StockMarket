@@ -176,3 +176,14 @@ model ReferralReward {
 
   @@unique([referralId, side, milestone])
 }
+
+model BotPanelAccess {
+  id         String   @id @default(cuid())
+  telegramId String?  @unique
+  username   String?  @unique
+  isEnabled  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isEnabled, createdAt])
+}
