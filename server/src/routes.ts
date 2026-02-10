@@ -96,6 +96,11 @@ const REFERRAL_MILESTONES = [
 const REFERRAL_JOIN_MILESTONE = REFERRAL_MILESTONES[0];
 const REFERRAL_CODE_BYTES = 5;
 const REFERRAL_CODE_ATTEMPTS = 6;
+const FIRST_LOGIN_WELCOME_BONUS_AMOUNT = 500;
+const FIRST_LOGIN_WELCOME_BONUS_LIMIT = 50;
+const FIRST_LOGIN_WELCOME_BONUS_REASON = 'system_welcome_bonus_500_first50';
+const FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY = 'jr_welcome_bonus_500_first50';
+const FIRST_LOGIN_WELCOME_BONUS_LOCK_TIMEOUT_SEC = 10;
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
@@ -255,6 +260,71 @@ const awardReferralMilestone = async (
     });
   }
   return { referrerGranted, referredGranted };
+};
+
+const acquireNamedDbLock = async (
+  tx: Prisma.TransactionClient,
+  key: string,
+  timeoutSec: number
+) => {
+  const safeTimeout = Math.max(0, Math.floor(timeoutSec));
+  const rows = await tx.$queryRaw<Array<{ acquired: number | bigint | null }>>`
+    SELECT GET_LOCK(${key}, ${safeTimeout}) AS acquired
+  `;
+  return Number(rows[0]?.acquired ?? 0) === 1;
+};
+
+const releaseNamedDbLock = async (tx: Prisma.TransactionClient, key: string) => {
+  try {
+    await tx.$queryRaw`SELECT RELEASE_LOCK(${key})`;
+  } catch {
+    // ignore lock release errors
+  }
+};
+
+const grantFirstLoginWelcomeBonusIfEligible = async (tx: Prisma.TransactionClient, user: User) => {
+  const lockAcquired = await acquireNamedDbLock(
+    tx,
+    FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY,
+    FIRST_LOGIN_WELCOME_BONUS_LOCK_TIMEOUT_SEC
+  );
+  if (!lockAcquired) return user;
+
+  try {
+    const alreadyGranted = await tx.ledgerEntry.findFirst({
+      where: {
+        userId: user.id,
+        reason: FIRST_LOGIN_WELCOME_BONUS_REASON,
+      },
+      select: { id: true },
+    });
+    if (alreadyGranted) return user;
+
+    const grantedCount = await tx.ledgerEntry.count({
+      where: { reason: FIRST_LOGIN_WELCOME_BONUS_REASON },
+    });
+    if (grantedCount >= FIRST_LOGIN_WELCOME_BONUS_LIMIT) return user;
+
+    const updated = await tx.user.update({
+      where: { id: user.id },
+      data: {
+        balance: { increment: FIRST_LOGIN_WELCOME_BONUS_AMOUNT },
+      },
+    });
+
+    await tx.ledgerEntry.create({
+      data: {
+        userId: user.id,
+        type: 'REFUND',
+        amount: FIRST_LOGIN_WELCOME_BONUS_AMOUNT,
+        reason: FIRST_LOGIN_WELCOME_BONUS_REASON,
+      },
+    });
+
+    return updated;
+  } finally {
+    await releaseNamedDbLock(tx, FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY);
+  }
 };
 
 const updateReferralProgress = async (
@@ -1077,6 +1147,10 @@ export const registerRoutes = (app: FastifyInstance) => {
             where: { id: current.id },
             data: { referralCode: await createUniqueReferralCode(tx) },
           });
+        }
+
+        if (isFirstAuth) {
+          current = await grantFirstLoginWelcomeBonusIfEligible(tx, current);
         }
 
         if (isFirstAuth && startParam) {
