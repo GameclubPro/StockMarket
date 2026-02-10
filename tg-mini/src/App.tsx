@@ -483,6 +483,39 @@ export default function App() {
         : 0,
     [parsedTaskPrice]
   );
+  const createCtaState = useMemo(() => {
+    if (!selectedGroupId) return { blocked: true, label: 'Выберите проект' };
+    if (taskType === 'reaction' && !reactionLink.trim()) {
+      return { blocked: true, label: 'Добавьте ссылку' };
+    }
+    if (parsedTaskPrice === null || !Number.isFinite(parsedTaskPrice)) {
+      return { blocked: true, label: 'Проверьте цену' };
+    }
+    if (parsedTaskPrice < MIN_TASK_PRICE || parsedTaskPrice > MAX_TASK_PRICE) {
+      return { blocked: true, label: 'Проверьте цену' };
+    }
+    if (!Number.isFinite(taskCount) || taskCount < 1 || taskCount > maxAffordableCount) {
+      return { blocked: true, label: 'Проверьте объем' };
+    }
+    if (totalBudget > MAX_TOTAL_BUDGET) {
+      return { blocked: true, label: 'Сократите бюджет' };
+    }
+    if (displayPoints < totalBudget) {
+      return { blocked: true, label: 'Пополните баланс' };
+    }
+    return { blocked: false, label: 'Создать' };
+  }, [
+    displayPoints,
+    maxAffordableCount,
+    parsedTaskPrice,
+    reactionLink,
+    selectedGroupId,
+    taskCount,
+    taskType,
+    totalBudget,
+  ]);
+  const createButtonDisabled = createLoading || createCtaState.blocked;
+  const createButtonLabel = createLoading ? 'Создание…' : createCtaState.label;
   const rangeProgress = useMemo(() => {
     const min = 1;
     const max = maxAffordableCount;
@@ -1773,6 +1806,7 @@ export default function App() {
   const contentClassName = [
     'content',
     activeTab === 'home' ? 'home-content' : '',
+    activeTab === 'promo' ? 'promo-content' : '',
     activeTab === 'tasks' ? 'tasks-content' : '',
   ]
     .filter(Boolean)
@@ -2314,8 +2348,13 @@ export default function App() {
                     <div className="task-form-title">Разместить задание</div>
                     <div className="task-form-sub">
                       {taskType === 'subscribe'
-                        ? 'Укажите цену за вступление. Нажмите "Получить", вступите — бот подтвердит автоматически.'
-                        : 'Укажите ссылку на пост и цену. Сначала нажмите "Получить", затем поставьте реакцию.'}
+                        ? 'Цена и объем: запуск за минуту.'
+                        : 'Ссылка на пост и цена: запуск за минуту.'}
+                    </div>
+                    <div className="task-form-helper">
+                      {taskType === 'subscribe'
+                        ? 'Проверка вступлений автоматическая.'
+                        : 'Поддержка ссылок: t.me/username/123 и t.me/c/…/123.'}
                     </div>
                   </div>
                 </div>
@@ -2330,9 +2369,7 @@ export default function App() {
                         value={reactionLink}
                         onChange={(event) => setReactionLink(event.target.value)}
                       />
-                      <div className="range-hint">
-                        Ссылка должна быть из выбранной группы (t.me/username/123 или t.me/c/123456/789).
-                      </div>
+                      <div className="range-hint">Пост должен быть из выбранного проекта.</div>
                     </label>
                   )}
                   <div className="link-tools">
@@ -2355,7 +2392,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="link-hint">
-                    Быстро добавит бота администратором в канал/группу.
+                    Бот подключается как администратор.
                   </div>
                   {selectedGroupTitle && (
                     <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
@@ -2500,9 +2537,7 @@ export default function App() {
                       </div>
                     </div>
                     <div className="range-hint">
-                      Ставка {taskPriceValue} баллов · Исполнитель получит {minPayoutPreview}–
-                      {maxPayoutPreview}{' '}
-                      баллов (зависит от ранга)
+                      Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
                     </div>
                   </label>
                   <label className="field">
@@ -2518,7 +2553,7 @@ export default function App() {
                     />
                     <div className="range-meta">
                       <span>{taskCount} действий</span>
-                      <span>Итог списание: {totalBudget} баллов</span>
+                      <span>Списание: {totalBudget} баллов</span>
                     </div>
                   </label>
                 </div>
@@ -2531,9 +2566,9 @@ export default function App() {
                     className="primary-button"
                     type="button"
                     onClick={() => void handleCreateCampaign()}
-                    disabled={createLoading}
+                    disabled={createButtonDisabled}
                   >
-                    {createLoading ? 'Создание…' : 'Создать'}
+                    {createButtonLabel}
                   </button>
                 </div>
                 {createError && <div className="form-status error">{createError}</div>}
