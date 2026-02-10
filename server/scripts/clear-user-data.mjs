@@ -1,6 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const force = process.env.ALLOW_DATA_RESET === 'true' || process.argv.includes('--yes');
+
+if (!force) {
+  console.error(
+    'Refusing to clear data. Re-run with ALLOW_DATA_RESET=true or pass --yes to confirm.'
+  );
+  process.exit(1);
+}
 
 const main = async () => {
   const result = await prisma.$transaction(async (tx) => {

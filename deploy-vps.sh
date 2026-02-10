@@ -9,7 +9,7 @@ git pull
 cd "$ROOT_DIR/server"
 
 npm install
-npx prisma db push --accept-data-loss
+npx prisma migrate deploy
 npx prisma generate
 npm run build
 if ! npm run webhook:set; then

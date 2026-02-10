@@ -1,10 +1,24 @@
 import crypto from 'node:crypto';
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { type Prisma, type User } from '@prisma/client';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
+import {
+  calculatePayoutWithBonus,
+  calculateUnsubscribePenalty,
+  getRankByTotal,
+} from './domain/economy.js';
+import {
+  DAILY_BONUS_COOLDOWN_MS,
+  DAILY_BONUS_REASON,
+  pickDailyBonus,
+  calculateDailyBonusStreakFromDates,
+  getNextDailyBonusAt,
+  isDailyBonusAvailable,
+} from './domain/daily-bonus.js';
+import { normalizeApiError, toPublicErrorMessage } from './http/errors.js';
 import { verifyInitData } from './telegram.js';
 import {
   ensureBotIsAdmin,
@@ -43,35 +57,6 @@ const campaignQuerySchema = z.object({
   actionType: z.enum(['subscribe', 'reaction']).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
-
-const PLATFORM_FEE_RATE = 0.3;
-const RANKS = [
-  { level: 0, minTotal: 0, title: 'Новичок', bonusRate: 0 },
-  { level: 1, minTotal: 100, title: 'Бронза', bonusRate: 0.05 },
-  { level: 2, minTotal: 300, title: 'Серебро', bonusRate: 0.1 },
-  { level: 3, minTotal: 1000, title: 'Золото', bonusRate: 0.15 },
-  { level: 4, minTotal: 3000, title: 'Платина', bonusRate: 0.2 },
-  { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
-];
-
-const getRankByTotal = (totalEarned: number) => {
-  let current = RANKS[0];
-  for (const rank of RANKS) {
-    if (totalEarned >= rank.minTotal) current = rank;
-  }
-  return current;
-};
-
-const calculateBasePayout = (rewardPoints: number) => {
-  const payout = Math.round(rewardPoints * (1 - PLATFORM_FEE_RATE));
-  return Math.max(1, Math.min(rewardPoints, payout));
-};
-
-const calculatePayoutWithBonus = (rewardPoints: number, bonusRate: number) => {
-  const base = calculateBasePayout(rewardPoints);
-  const bonus = Math.round(base * bonusRate);
-  return Math.max(1, Math.min(rewardPoints, base + bonus));
-};
 
 const REFERRAL_MILESTONES = [
   {
@@ -300,34 +285,6 @@ const updateReferralProgress = async (
   }
 };
 
-const DAILY_BONUS_REASON = 'Ежедневный бонус';
-const DAILY_BONUS_COOLDOWN_MS = 1000;
-const DAILY_BONUS_SEGMENTS = [
-  { label: '+10', value: 10, weight: 2 },
-  { label: '+10', value: 10, weight: 2 },
-  { label: '+20', value: 20, weight: 2 },
-  { label: '+50', value: 50, weight: 1 },
-  { label: '+15', value: 15, weight: 3 },
-  { label: '+50', value: 50, weight: 1 },
-  { label: '+10', value: 10, weight: 3 },
-  { label: '+100', value: 100, weight: 1 },
-];
-
-const pickDailyBonus = () => {
-  const totalWeight = DAILY_BONUS_SEGMENTS.reduce((sum, item) => sum + item.weight, 0);
-  const roll = Math.random() * totalWeight;
-  let cursor = 0;
-  for (let index = 0; index < DAILY_BONUS_SEGMENTS.length; index += 1) {
-    cursor += DAILY_BONUS_SEGMENTS[index].weight;
-    if (roll <= cursor) {
-      const reward = DAILY_BONUS_SEGMENTS[index];
-      return { index, value: reward.value, label: reward.label };
-    }
-  }
-  const fallback = DAILY_BONUS_SEGMENTS[0];
-  return { index: 0, value: fallback.value, label: fallback.label };
-};
-
 const getDailyBonusWindow = async (tx: Prisma.TransactionClient, userId: string) => {
   const lastEntry = await tx.ledgerEntry.findFirst({
     where: { userId, reason: DAILY_BONUS_REASON },
@@ -335,10 +292,8 @@ const getDailyBonusWindow = async (tx: Prisma.TransactionClient, userId: string)
     select: { createdAt: true },
   });
   const lastSpinAt = lastEntry?.createdAt ?? null;
-  const nextAvailableAt = lastSpinAt
-    ? new Date(lastSpinAt.getTime() + DAILY_BONUS_COOLDOWN_MS)
-    : null;
-  const available = !nextAvailableAt || Date.now() >= nextAvailableAt.getTime();
+  const nextAvailableAt = getNextDailyBonusAt(lastSpinAt);
+  const available = isDailyBonusAvailable(lastSpinAt);
   return { available, lastSpinAt, nextAvailableAt };
 };
 
@@ -349,23 +304,7 @@ const calculateDailyBonusStreak = async (tx: Prisma.TransactionClient, userId: s
     take: 30,
     select: { createdAt: true },
   });
-  if (!entries.length) return 0;
-  const dayNumbers: number[] = [];
-  for (const entry of entries) {
-    const dayNumber = Math.floor(entry.createdAt.getTime() / DAILY_BONUS_COOLDOWN_MS);
-    if (dayNumbers[dayNumbers.length - 1] !== dayNumber) {
-      dayNumbers.push(dayNumber);
-    }
-  }
-  let streak = 1;
-  for (let i = 1; i < dayNumbers.length; i += 1) {
-    if (dayNumbers[i] === dayNumbers[i - 1] - 1) {
-      streak += 1;
-    } else {
-      break;
-    }
-  }
-  return streak;
+  return calculateDailyBonusStreakFromDates(entries.map((entry) => entry.createdAt));
 };
 
 const parseMessageLink = (value: string) => {
@@ -418,8 +357,10 @@ const getToken = (authHeader?: string) => {
   return token ?? '';
 };
 
-const getOptionalUser = async (request: any) => {
-  const bearer = getToken(request.headers.authorization);
+const getOptionalUser = async (request: FastifyRequest) => {
+  const authHeader =
+    typeof request.headers.authorization === 'string' ? request.headers.authorization : undefined;
+  const bearer = getToken(authHeader);
   if (!bearer) return null;
   try {
     const payload = await verifySession(bearer);
@@ -472,7 +413,10 @@ const applyUnsubscribePenalty = async (
   payload: { userId: string; campaignId: string }
 ) => {
   const [user, earnedEntry] = await Promise.all([
-    tx.user.findUnique({ where: { id: payload.userId }, select: { totalEarned: true } }),
+    tx.user.findUnique({
+      where: { id: payload.userId },
+      select: { balance: true, totalEarned: true },
+    }),
     tx.ledgerEntry.findFirst({
       where: { userId: payload.userId, campaignId: payload.campaignId, type: 'EARN' },
       orderBy: { createdAt: 'desc' },
@@ -485,14 +429,19 @@ const applyUnsubscribePenalty = async (
   const earnedAmount = Math.max(0, Math.abs(earnedEntry.amount));
   if (earnedAmount === 0) return null;
 
-  const penalty = earnedAmount * 2;
-  const newTotalEarned = Math.max(0, user.totalEarned - penalty);
+  const penaltyResult = calculateUnsubscribePenalty({
+    currentBalance: user.balance,
+    currentTotalEarned: user.totalEarned,
+    earnedAmount,
+    multiplier: 2,
+  });
+  if (penaltyResult.appliedPenalty <= 0) return null;
 
   await tx.user.update({
     where: { id: payload.userId },
     data: {
-      balance: { decrement: penalty },
-      totalEarned: newTotalEarned,
+      balance: penaltyResult.nextBalance,
+      totalEarned: penaltyResult.nextTotalEarned,
     },
   });
 
@@ -500,7 +449,7 @@ const applyUnsubscribePenalty = async (
     data: {
       userId: payload.userId,
       type: 'ADJUST',
-      amount: -penalty,
+      amount: -penaltyResult.appliedPenalty,
       reason: 'Отписка от группы',
       campaignId: payload.campaignId,
     },
@@ -508,7 +457,7 @@ const applyUnsubscribePenalty = async (
 
   await updateReferralProgress(tx, { userId: payload.userId, delta: -1 });
 
-  return penalty;
+  return penaltyResult.appliedPenalty;
 };
 
 const ensureLegacyStats = async (user: User) => {
@@ -579,8 +528,10 @@ const syncGroupAdminsForUser = async (user: User) => {
   }
 };
 
-const requireUser = async (request: any) => {
-  const bearer = getToken(request.headers.authorization);
+const requireUser = async (request: FastifyRequest) => {
+  const authHeader =
+    typeof request.headers.authorization === 'string' ? request.headers.authorization : undefined;
+  const bearer = getToken(authHeader);
   if (bearer) {
     const payload = await verifySession(bearer);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
@@ -618,6 +569,36 @@ const requireUser = async (request: any) => {
   }
 
   throw new Error('unauthorized');
+};
+
+const sendRouteError = (reply: FastifyReply, error: unknown, fallbackStatus = 400) => {
+  const normalized = normalizeApiError(error, fallbackStatus);
+  return reply.code(normalized.status).send({
+    ok: false,
+    error: toPublicErrorMessage(normalized.message),
+  });
+};
+
+const isRetryableWebhookError = (error: unknown) => {
+  const status = Number((error as { status?: unknown } | null)?.status);
+  if (Number.isFinite(status) && status >= 500) return true;
+
+  const code = String((error as { code?: unknown } | null)?.code ?? '');
+  if (['ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'P1001', 'P1002'].includes(code)) {
+    return true;
+  }
+
+  const message = String((error as { message?: unknown } | null)?.message ?? '').toLowerCase();
+  if (
+    message.includes('timeout') ||
+    message.includes('connect') ||
+    message.includes('connection') ||
+    message.includes('database is unreachable')
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 export const registerRoutes = (app: FastifyInstance) => {
@@ -1021,8 +1002,20 @@ export const registerRoutes = (app: FastifyInstance) => {
         },
       });
       return reply.send(result);
-    } catch {
-      return reply.send({ ok: true });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          retryable: isRetryableWebhookError(error),
+        },
+        'telegram webhook processing failed'
+      );
+
+      if (isRetryableWebhookError(error)) {
+        return reply.code(500).send({ ok: false, error: 'webhook_retryable_error' });
+      }
+
+      return reply.code(200).send({ ok: false, error: 'webhook_non_retryable_error' });
     }
   });
 
@@ -1030,92 +1023,96 @@ export const registerRoutes = (app: FastifyInstance) => {
     const parsed = authBodySchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
-    const authData = verifyInitData(parsed.data.initData, config.botToken, config.maxAuthAgeSec);
-    const tgUser = authData.user;
-    if (!tgUser) return reply.code(401).send({ ok: false, error: 'no user' });
+    try {
+      const authData = verifyInitData(parsed.data.initData, config.botToken, config.maxAuthAgeSec);
+      const tgUser = authData.user;
+      if (!tgUser) return reply.code(401).send({ ok: false, error: 'no user' });
 
-    const rawStartParam =
-      typeof authData.start_param === 'string' ? normalizeReferralCode(authData.start_param) : '';
-    const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
-    const now = new Date();
+      const rawStartParam =
+        typeof authData.start_param === 'string' ? normalizeReferralCode(authData.start_param) : '';
+      const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
+      const now = new Date();
 
-    const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({
-        where: { telegramId: String(tgUser.id) },
-      });
-      let current: User;
-      let isFirstAuth = false;
-      let referralBonus: { amount: number; reason: string } | null = null;
+      const result = await prisma.$transaction(async (tx) => {
+        const existing = await tx.user.findUnique({
+          where: { telegramId: String(tgUser.id) },
+        });
+        let current: User;
+        let isFirstAuth = false;
+        let referralBonus: { amount: number; reason: string } | null = null;
 
-      if (existing) {
-        const updateData: Prisma.UserUpdateInput = {
-          username: tgUser.username,
-          firstName: tgUser.first_name,
-          lastName: tgUser.last_name,
-          photoUrl: tgUser.photo_url,
-        };
-        if (!existing.firstAuthAt) {
-          updateData.firstAuthAt = now;
-          isFirstAuth = true;
-        }
-        current = await tx.user.update({ where: { id: existing.id }, data: updateData });
-      } else {
-        const referralCode = await createUniqueReferralCode(tx);
-        current = await tx.user.create({
-          data: {
-            telegramId: String(tgUser.id),
+        if (existing) {
+          const updateData: Prisma.UserUpdateInput = {
             username: tgUser.username,
             firstName: tgUser.first_name,
             lastName: tgUser.last_name,
             photoUrl: tgUser.photo_url,
-            balance: 30,
-            totalEarned: 0,
-            rating: 0,
-            firstAuthAt: now,
-            referralCode,
-          },
-        });
-        isFirstAuth = true;
-      }
-
-      if (!current.referralCode) {
-        current = await tx.user.update({
-          where: { id: current.id },
-          data: { referralCode: await createUniqueReferralCode(tx) },
-        });
-      }
-
-      if (isFirstAuth && startParam) {
-        const linked = await linkReferralByCode(tx, {
-          referredUserId: current.id,
-          referralCode: startParam,
-        });
-        if (linked?.referredBonus) {
-          referralBonus = linked.referredBonus;
+          };
+          if (!existing.firstAuthAt) {
+            updateData.firstAuthAt = now;
+            isFirstAuth = true;
+          }
+          current = await tx.user.update({ where: { id: existing.id }, data: updateData });
+        } else {
+          const referralCode = await createUniqueReferralCode(tx);
+          current = await tx.user.create({
+            data: {
+              telegramId: String(tgUser.id),
+              username: tgUser.username,
+              firstName: tgUser.first_name,
+              lastName: tgUser.last_name,
+              photoUrl: tgUser.photo_url,
+              balance: 30,
+              totalEarned: 0,
+              rating: 0,
+              firstAuthAt: now,
+              referralCode,
+            },
+          });
+          isFirstAuth = true;
         }
+
+        if (!current.referralCode) {
+          current = await tx.user.update({
+            where: { id: current.id },
+            data: { referralCode: await createUniqueReferralCode(tx) },
+          });
+        }
+
+        if (isFirstAuth && startParam) {
+          const linked = await linkReferralByCode(tx, {
+            referredUserId: current.id,
+            referralCode: startParam,
+          });
+          if (linked?.referredBonus) {
+            referralBonus = linked.referredBonus;
+          }
+        }
+
+        return { user: current, referralBonus };
+      });
+
+      const ensuredUser = await ensureLegacyStats(result.user);
+
+      let token = '';
+      if (config.appSecret) {
+        token = await signSession({
+          sub: ensuredUser.id,
+          tid: ensuredUser.telegramId,
+          username: ensuredUser.username ?? undefined,
+        });
       }
 
-      return { user: current, referralBonus };
-    });
-
-    const ensuredUser = await ensureLegacyStats(result.user);
-
-    let token = '';
-    if (config.appSecret) {
-      token = await signSession({
-        sub: ensuredUser.id,
-        tid: ensuredUser.telegramId,
-        username: ensuredUser.username ?? undefined,
-      });
+      return {
+        ok: true,
+        user: ensuredUser,
+        balance: ensuredUser.balance,
+        token,
+        referralBonus: result.referralBonus,
+      };
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
-
-    return {
-      ok: true,
-      user: ensuredUser,
-      balance: ensuredUser.balance,
-      token,
-      referralBonus: result.referralBonus,
-    };
   });
 
   app.get('/me', async (request, reply) => {
@@ -1136,15 +1133,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         balance: user.balance,
         stats: { groups, campaigns, applications },
       };
-    } catch (error: any) {
-      const message = error?.message ?? 'unauthorized';
-      const status =
-        message === 'unauthorized' || message === 'user not found' || message === 'no user'
-          ? 401
-          : error?.status && Number.isFinite(error.status)
-            ? error.status
-            : 400;
-      return reply.code(status).send({ ok: false, error: message });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -1185,10 +1175,8 @@ export const registerRoutes = (app: FastifyInstance) => {
           earned: Math.max(0, rewards._sum.amount ?? 0),
         },
       };
-    } catch (error: any) {
-      const message = error?.message ?? 'unauthorized';
-      const status = message === 'unauthorized' || message === 'no user' ? 401 : 400;
-      return reply.code(status).send({ ok: false, error: message });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -1220,10 +1208,8 @@ export const registerRoutes = (app: FastifyInstance) => {
       }));
 
       return { ok: true, referrals: result };
-    } catch (error: any) {
-      const message = error?.message ?? 'unauthorized';
-      const status = message === 'unauthorized' || message === 'no user' ? 401 : 400;
-      return reply.code(status).send({ ok: false, error: message });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -1242,8 +1228,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         cooldownMs: DAILY_BONUS_COOLDOWN_MS,
         streak,
       };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
   });
 
@@ -1286,7 +1272,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           },
         });
 
-        const nextAvailableAt = new Date(spinAt.getTime() + DAILY_BONUS_COOLDOWN_MS);
+        const nextAvailableAt = getNextDailyBonusAt(spinAt) ?? new Date(spinAt.getTime());
         const streak = await calculateDailyBonusStreak(tx, user.id);
         return { reward, updatedUser, spinAt, nextAvailableAt, streak };
       });
@@ -1301,21 +1287,23 @@ export const registerRoutes = (app: FastifyInstance) => {
         cooldownMs: DAILY_BONUS_COOLDOWN_MS,
         streak: result.streak,
       };
-    } catch (error: any) {
-      if (error?.status === 429) {
+    } catch (error) {
+      const normalized = normalizeApiError(error, 401);
+      if (normalized.status === 429) {
+        const raw = error as { window?: { lastSpinAt?: Date | null; nextAvailableAt?: Date | null } };
         return reply.code(429).send({
           ok: false,
           error: 'Бонус еще не доступен.',
-          lastSpinAt: error.window?.lastSpinAt
-            ? error.window.lastSpinAt.toISOString()
+          lastSpinAt: raw.window?.lastSpinAt
+            ? raw.window.lastSpinAt.toISOString()
             : null,
-          nextAvailableAt: error.window?.nextAvailableAt
-            ? error.window.nextAvailableAt.toISOString()
+          nextAvailableAt: raw.window?.nextAvailableAt
+            ? raw.window.nextAvailableAt.toISOString()
             : null,
           cooldownMs: DAILY_BONUS_COOLDOWN_MS,
         });
       }
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+      return sendRouteError(reply, normalized, 401);
     }
   });
 
@@ -1330,8 +1318,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         orderBy: { createdAt: 'desc' },
       });
       return { ok: true, groups };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
   });
 
@@ -1392,15 +1380,8 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
 
       return { ok: true, group };
-    } catch (error: any) {
-      const message = error?.message ?? 'unauthorized';
-      const status =
-        message === 'unauthorized' || message === 'user not found' || message === 'no user'
-          ? 401
-          : error?.status && Number.isFinite(error.status)
-            ? error.status
-            : 400;
-      return reply.code(status).send({ ok: false, error: message });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -1443,8 +1424,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         orderBy: { createdAt: 'desc' },
       });
       return { ok: true, campaigns };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
   });
 
@@ -1586,21 +1567,15 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       const balance = await prisma.user.findUnique({ where: { id: user.id } });
       return { ok: true, campaign, balance: balance?.balance ?? user.balance };
-    } catch (error: any) {
-      const rawMessage = String(error?.message ?? 'unauthorized');
-      const status =
-        rawMessage === 'unauthorized' || rawMessage === 'user not found' || rawMessage === 'no user'
-          ? 401
-          : 400;
-      const message = rawMessage === 'insufficient_balance' ? 'Недостаточно баллов.' : rawMessage;
-      return reply.code(status).send({ ok: false, error: message });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
-  app.post('/campaigns/:id/apply', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/campaigns/:id/apply', async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const campaignId = (request.params as any).id as string;
+      const campaignId = request.params.id;
       const campaign = await prisma.campaign.findUnique({
         where: { id: campaignId },
         include: { group: true },
@@ -1610,7 +1585,9 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'cannot apply own campaign' });
       }
       if (campaign.status !== 'ACTIVE' || campaign.remainingBudget < campaign.rewardPoints) {
-        return reply.code(400).send({ ok: false, error: 'Задание приостановлено или бюджет исчерпан.' });
+        return reply
+          .code(409)
+          .send({ ok: false, error: 'Задание приостановлено или бюджет исчерпан.' });
       }
 
       let existing = await prisma.application.findUnique({
@@ -1716,8 +1693,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         campaign: result.campaign,
         balance: updatedUser?.balance ?? user.balance,
       };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -1730,8 +1707,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         orderBy: { createdAt: 'desc' },
       });
       return { ok: true, applications };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
   });
 
@@ -1747,15 +1724,15 @@ export const registerRoutes = (app: FastifyInstance) => {
         orderBy: { createdAt: 'desc' },
       });
       return { ok: true, applications };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 401);
     }
   });
 
-  app.post('/applications/:id/approve', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/applications/:id/approve', async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const applicationId = (request.params as any).id as string;
+      const applicationId = request.params.id;
 
       const application = await prisma.application.findUnique({
         where: { id: applicationId },
@@ -1766,7 +1743,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(403).send({ ok: false, error: 'not owner' });
       }
       if (application.status !== 'PENDING') {
-        return reply.code(400).send({ ok: false, error: 'already reviewed' });
+        return reply.code(409).send({ ok: false, error: 'already reviewed' });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1798,15 +1775,15 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
 
       return { ok: true, campaign: result };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
-  app.post('/applications/:id/reject', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/applications/:id/reject', async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const applicationId = (request.params as any).id as string;
+      const applicationId = request.params.id;
 
       const application = await prisma.application.findUnique({
         where: { id: applicationId },
@@ -1823,8 +1800,8 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
 
       return { ok: true, application: updated };
-    } catch (error: any) {
-      return reply.code(401).send({ ok: false, error: error?.message ?? 'unauthorized' });
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 };

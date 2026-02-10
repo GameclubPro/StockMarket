@@ -36,7 +36,7 @@ const MIN_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
 const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
-const DAILY_BONUS_FALLBACK_MS = 1000;
+const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
 const DAILY_WHEEL_SEGMENTS = [
   { label: '+10', value: 10, weight: 2 },
   { label: '+10', value: 10, weight: 2 },
@@ -1118,6 +1118,38 @@ export default function App() {
     };
   };
 
+  const getOwnerCampaignStatusMeta = (campaign: CampaignDto) => {
+    const budgetLabel = `Остаток ${campaign.remainingBudget} ${formatPointsLabel(
+      campaign.remainingBudget
+    )}`;
+
+    if (
+      campaign.status === 'COMPLETED' ||
+      campaign.remainingBudget <= 0 ||
+      campaign.remainingBudget < campaign.rewardPoints
+    ) {
+      return {
+        label: 'Завершена',
+        className: 'approved',
+        budgetLabel,
+      };
+    }
+
+    if (campaign.status === 'PAUSED') {
+      return {
+        label: 'Пауза',
+        className: 'pending',
+        budgetLabel,
+      };
+    }
+
+    return {
+      label: 'Активна',
+      className: 'neutral',
+      budgetLabel,
+    };
+  };
+
   const getReferralUserLabel = (user?: ReferralListItem['referredUser']) => {
     if (!user) return 'Пользователь';
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
@@ -1907,7 +1939,7 @@ export default function App() {
                   </div>
                   <div className="daily-bonus-title">Ежедневный бонус</div>
                   <div className="daily-bonus-sub">
-                    Крути колесо раз в <strong>1 секунду</strong>
+                    Крути колесо раз в <strong>24 часа</strong>
                   </div>
                 </div>
                 <div className="daily-bonus-top-side">
@@ -2053,7 +2085,7 @@ export default function App() {
                     </svg>
                   </span>
                   <span>
-                    <strong>1 прокрутка</strong> раз в <strong>1 секунду</strong>
+                    <strong>1 прокрутка</strong> раз в <strong>24 часа</strong>
                   </span>
                 </div>
                 <div className="wheel-reward-row">
@@ -2678,6 +2710,7 @@ export default function App() {
                     const badgeLabel = `${campaign.rewardPoints} ${formatPointsLabel(
                       campaign.rewardPoints
                     )}`;
+                    const ownerStatus = getOwnerCampaignStatusMeta(campaign);
                     return (
                       <div className="task-card" key={campaign.id}>
                         <div className="task-card-head">
@@ -2693,7 +2726,12 @@ export default function App() {
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
                             <div className="task-meta">
-                              <span className="status-badge approved compact">Выполнено</span>
+                              <span className={`status-badge compact ${ownerStatus.className}`}>
+                                {ownerStatus.label}
+                              </span>
+                              <span className="status-badge neutral compact">
+                                {ownerStatus.budgetLabel}
+                              </span>
                             </div>
                           </div>
                           <div className="task-actions">

@@ -58,12 +58,12 @@
 
 ## 3) Архитектура и Source of Truth
 - Frontend: React + TypeScript + Vite.
-  - Экраны: `src/screens`
-  - Общие UI-компоненты: `src/components`
-  - Основные стили: `src/App.css`, `src/index.css`, `src/redesign-2026.css`
-- Backend: Express + Postgres, основной файл: `server/index.js`
-- Контракты и типы: `src/types/app.ts` (обязательно синхронизировать с API)
-- API base: `VITE_API_URL` (fallback: `http://localhost:4000`)
+  - Основной экран: `tg-mini/src/App.tsx`
+  - Основные стили: `tg-mini/src/styles.css`
+  - Контракты и типы: `tg-mini/src/types/app.ts` (обязательно синхронизировать с API)
+- Backend: Fastify + Prisma + MySQL, основной файл: `server/src/index.ts`
+- Схема БД: `server/prisma/schema.prisma`
+- API base: `VITE_API_URL` или `VITE_API_BASE` (fallback: same-origin)
 - Идентификация пользователя: Telegram WebApp init data
 
 ## 4) Базовая стратегия реализации

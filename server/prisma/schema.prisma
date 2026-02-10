@@ -111,6 +111,9 @@ model Campaign {
 
   applications    Application[]
   ledgerEntries   LedgerEntry[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, remainingBudget, createdAt])
 }
 
 model Application {
@@ -126,6 +129,8 @@ model Application {
   applicant   User              @relation(fields: [applicantId], references: [id])
 
   @@unique([campaignId, applicantId])
+  @@index([applicantId, createdAt])
+  @@index([campaignId, status, createdAt])
 }
 
 model LedgerEntry {
@@ -139,6 +144,9 @@ model LedgerEntry {
 
   user       User       @relation(fields: [userId], references: [id])
   campaign   Campaign?  @relation(fields: [campaignId], references: [id])
+
+  @@index([userId, reason, createdAt])
+  @@index([campaignId, createdAt])
 }
 
 model Referral {
@@ -152,6 +160,8 @@ model Referral {
   referrer      User            @relation("ReferralReferrer", fields: [referrerId], references: [id])
   referredUser  User            @relation("ReferralReferred", fields: [referredUserId], references: [id])
   rewards       ReferralReward[]
+
+  @@index([referrerId, createdAt])
 }
 
 model ReferralReward {

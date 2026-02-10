@@ -1,86 +1,28 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+import type {
+  ApplicationDto,
+  CampaignDto,
+  DailyBonusSpin,
+  DailyBonusStatus,
+  GroupDto,
+  ReferralBonus,
+  ReferralListItem,
+  ReferralStats,
+  UserDto,
+} from './types/app';
 
-export type UserDto = {
-  id: string;
-  username?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  photoUrl?: string | null;
-  totalEarned?: number | null;
-};
+const API_BASE = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE ?? '';
 
-export type GroupDto = {
-  id: string;
-  title: string;
-  username?: string | null;
-  telegramChatId?: string | null;
-  inviteLink: string;
-  description?: string | null;
-  category?: string | null;
-  createdAt: string;
-};
-
-export type CampaignDto = {
-  id: string;
-  actionType: 'SUBSCRIBE' | 'REACTION';
-  targetMessageId?: number | null;
-  rewardPoints: number;
-  totalBudget: number;
-  remainingBudget: number;
-  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
-  createdAt: string;
-  group: GroupDto;
-  owner?: UserDto;
-};
-
-export type ApplicationDto = {
-  id: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
-  createdAt: string;
-  reviewedAt?: string | null;
-  campaign: CampaignDto;
-  applicant?: UserDto;
-};
-
-export type DailyBonusStatus = {
-  available: boolean;
-  lastSpinAt?: string | null;
-  nextAvailableAt?: string | null;
-  cooldownMs?: number;
-  streak?: number;
-};
-
-export type DailyBonusSpin = {
-  reward: { index: number; value: number; label: string };
-  balance: number;
-  totalEarned: number;
-  lastSpinAt: string;
-  nextAvailableAt: string;
-  cooldownMs: number;
-  streak?: number;
-};
-
-export type ReferralBonus = {
-  amount: number;
-  reason: string;
-};
-
-export type ReferralStats = {
-  code: string;
-  link: string;
-  stats: {
-    invited: number;
-    earned: number;
-  };
-};
-
-export type ReferralListItem = {
-  id: string;
-  createdAt: string;
-  completedOrders: number;
-  earned: number;
-  referredUser: UserDto;
-};
+export type {
+  ApplicationDto,
+  CampaignDto,
+  DailyBonusSpin,
+  DailyBonusStatus,
+  GroupDto,
+  ReferralBonus,
+  ReferralListItem,
+  ReferralStats,
+  UserDto,
+} from './types/app';
 
 const request = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('sessionToken');

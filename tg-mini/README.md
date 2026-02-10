@@ -27,7 +27,7 @@ npm run build
 
 ## API
 - По умолчанию фронт ждёт backend на том же домене через `/api`.
-- Если API на другом домене, задай `VITE_API_BASE` (например `https://api.play-team.ru`).
+- Если API на другом домене, задай `VITE_API_URL` (или `VITE_API_BASE`), например `https://api.play-team.ru`.
 
 ## Визуальное сканирование и скриншоты (mobile fullscreen)
 1. Установить Chromium для Playwright (один раз):
