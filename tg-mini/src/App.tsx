@@ -1694,12 +1694,6 @@ export default function App() {
     openTelegramContact(url);
   };
 
-  const handleOpenTopUpContact = () => {
-    const url = `https://t.me/${TOP_UP_MANAGER_USERNAME}`;
-    openTelegramContact(url);
-  };
-
-
   return (
     <>
       <div className={`content ${activeTab === 'home' ? 'home-content' : ''}`} ref={contentRef}>
@@ -2732,7 +2726,7 @@ export default function App() {
                   Пополнение баланса
                 </div>
                 <div className="topup-modal-sub">
-                  Выберите пакет, чтобы отправить заявку в @{TOP_UP_MANAGER_USERNAME}
+                  Выберите пакет
                 </div>
               </div>
               <button
@@ -2762,9 +2756,6 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button className="topup-modal-contact" type="button" onClick={handleOpenTopUpContact}>
-              Открыть @{TOP_UP_MANAGER_USERNAME}
-            </button>
           </div>
         </div>
       )}

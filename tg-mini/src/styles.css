@@ -2406,21 +2406,6 @@ body::before {
   color: rgba(191, 217, 205, 0.92);
 }
 
-.topup-modal-contact {
-  min-height: 46px;
-  border-radius: 14px;
-  border: 1px solid rgba(186, 236, 206, 0.52);
-  background: linear-gradient(
-    140deg,
-    rgba(143, 243, 190, 0.92) 0%,
-    rgba(255, 218, 126, 0.9) 100%
-  );
-  color: var(--ink-dark);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .wheel-reward-modal-backdrop {
   position: fixed;
   inset: 0;
