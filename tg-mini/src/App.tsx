@@ -233,6 +233,11 @@ const getWheelStopOffset = () => {
   return (getRandomUnit() * 2 - 1) * maxOffset;
 };
 
+const parseFiniteNumber = (value: unknown) => {
+  const normalized = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(normalized) ? normalized : null;
+};
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -240,9 +245,9 @@ export default function App() {
   const [pointsToday, setPointsToday] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
-  const [activeTab, setActiveTab] = useState<
-    'home' | 'promo' | 'tasks' | 'settings' | 'wheel' | 'referrals'
-  >('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'wheel' | 'referrals'>(
+    'home'
+  );
   const [dailyBonusStatus, setDailyBonusStatus] = useState<DailyBonusStatus>({
     available: false,
     lastSpinAt: null,
@@ -1383,6 +1388,7 @@ export default function App() {
     }
 
     try {
+      const pointsBeforeSpin = points;
       const data = await spinDailyBonus();
       if (typeof data.balance === 'number') setPoints(data.balance);
       if (typeof data.totalEarned === 'number') setTotalEarned(data.totalEarned);
@@ -1396,9 +1402,21 @@ export default function App() {
           typeof data.streak === 'number' ? data.streak : dailyBonusStatus.streak ?? 0,
       });
 
-      const rewardValue = typeof data.reward?.value === 'number' ? data.reward.value : 0;
-      const rewardLabel = data.reward?.label ?? `+${rewardValue}`;
-      const rewardIndexRaw = Number.isFinite(data.reward?.index) ? data.reward.index : 0;
+      const nextBalance = parseFiniteNumber(data.balance);
+      const balanceReward =
+        nextBalance === null
+          ? null
+          : Math.max(0, Math.round(nextBalance - Math.round(pointsBeforeSpin)));
+      const rawRewardValue = parseFiniteNumber(data.reward?.value);
+      const rewardValueFromPayload = rawRewardValue === null ? null : Math.max(0, Math.round(rawRewardValue));
+      const rewardValue =
+        balanceReward !== null && balanceReward > 0
+          ? balanceReward
+          : rewardValueFromPayload ??
+            DAILY_WHEEL_SEGMENTS[0]?.value ??
+            0;
+      const rewardLabel = `+${rewardValue}`;
+      const rewardIndexRaw = parseFiniteNumber(data.reward?.index) ?? 0;
       const rewardIndex = resolveWheelRewardIndex(rewardIndexRaw, rewardValue);
       if (rewardValue > 0) bumpPointsToday(rewardValue);
       const startRotation = wheelRotationRef.current;
@@ -2583,16 +2601,6 @@ export default function App() {
             )}
           </>
         )}
-
-        {activeTab === 'settings' && (
-          <>
-            <div className="page-title">Настройки</div>
-            <div className="section-card">
-              <div className="section-title">Профиль и уведомления</div>
-              <div className="section-text">Настройте аккаунт, уведомления и безопасность.</div>
-            </div>
-          </>
-        )}
       </div>
 
       {activeTab === 'wheel' && wheelRewardModalOpen && wheelResult && (
@@ -2676,17 +2684,6 @@ export default function App() {
               <path d="M8 9h8M8 13h6" />
             </svg>
             <span>Задания</span>
-          </button>
-          <button
-            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-            type="button"
-            onClick={() => setActiveTab('settings')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <circle cx="12" cy="12" r="3.5" />
-              <path d="M19 12a7 7 0 00-.1-1l2.1-1.6-2-3.4-2.4.9a7 7 0 00-1.7-1l-.3-2.6H9.4l-.3 2.6a7 7 0 00-1.7 1l-2.4-.9-2 3.4L5.1 11a7 7 0 000 2l-2.1 1.6 2 3.4 2.4-.9a7 7 0 001.7 1l.3 2.6h4.2l.3-2.6a7 7 0 001.7-1l2.4.9 2-3.4L18.9 13a7 7 0 00.1-1z" />
-            </svg>
-            <span>Настройки</span>
           </button>
         </div>
       )}

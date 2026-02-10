@@ -4724,7 +4724,7 @@ body::before {
   padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   text-align: center;
   gap: 4px;
   color: var(--muted);

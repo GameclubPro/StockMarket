@@ -63,13 +63,6 @@ const SCREEN_STEPS = [
     },
   },
   {
-    id: 'settings',
-    open: async (page, waitMs) => {
-      await openBottomTab(page, 'Настройки', waitMs);
-      await page.waitForSelector('.section-card', { timeout: 10_000 });
-    },
-  },
-  {
     id: 'wheel',
     open: async (page, waitMs) => {
       await ensureHome(page, waitMs);
