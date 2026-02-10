@@ -1505,15 +1505,6 @@ export default function App() {
               </svg>
               <span>Пополнить баланс</span>
             </button>
-            {adminPanelAllowed && (
-              <button className="sub sub-admin" type="button" onClick={() => setActiveTab('admin')}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M12 3l7 3v5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6l7-3z" />
-                  <path d="M9.4 12.2l1.8 1.8 3.4-3.4" />
-                </svg>
-                <span>Админ</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

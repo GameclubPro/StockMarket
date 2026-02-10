@@ -190,20 +190,9 @@ body::before {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.sub-admin {
-  min-width: 92px;
-  background: linear-gradient(130deg, rgba(24, 58, 112, 0.96), rgba(15, 38, 82, 0.96));
-  border-color: rgba(140, 199, 255, 0.74);
-  color: #edf6ff;
-}
-
 .sub:hover {
   transform: translateY(-1px);
   border-color: rgba(140, 255, 200, 0.9);
-}
-
-.sub-admin:hover {
-  border-color: rgba(170, 217, 255, 0.95);
 }
 
 .sub:active {
@@ -6317,16 +6306,6 @@ body::before {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-}
-
-.sub.sub-admin {
-  background: linear-gradient(138deg, rgba(137, 205, 255, 0.9), rgba(138, 221, 255, 0.74));
-  border-color: rgba(198, 236, 255, 0.95);
-  color: #052034;
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(247, 253, 255, 0.82),
-    inset 0 -10px 14px rgba(25, 89, 140, 0.2);
 }
 
 .stats {
