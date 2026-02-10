@@ -4321,22 +4321,20 @@ body::before {
   cursor: not-allowed;
 }
 
-.field input.price-stepper-value {
+.price-stepper-value {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(15, 18, 30, 0.9), rgba(8, 10, 18, 0.7));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 14px rgba(0, 0, 0, 0.24);
+  display: grid;
+  place-items: center;
   text-align: center;
   padding: 8px 10px;
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.field input.price-stepper-value::-webkit-outer-spin-button,
-.field input.price-stepper-value::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.field input.price-stepper-value[type='number'] {
-  -moz-appearance: textfield;
+  color: var(--text);
 }
 
 .range-input {

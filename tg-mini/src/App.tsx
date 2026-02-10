@@ -442,33 +442,6 @@ export default function App() {
     const rounded = Math.round(value);
     return Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, rounded));
   }, []);
-  const handleTaskPriceInputChange = useCallback(
-    (rawValue: string) => {
-      if (rawValue === '') {
-        setTaskPriceInput('');
-        return;
-      }
-      const parsed = Number(rawValue);
-      if (!Number.isFinite(parsed)) return;
-      setTaskPriceInput(String(normalizeTaskPrice(parsed)));
-    },
-    [normalizeTaskPrice]
-  );
-  const handleTaskPriceInputBlur = useCallback(
-    (rawValue: string) => {
-      if (!rawValue.trim()) {
-        setTaskPriceInput(String(MIN_TASK_PRICE));
-        return;
-      }
-      const parsed = Number(rawValue);
-      if (!Number.isFinite(parsed)) {
-        setTaskPriceInput(String(MIN_TASK_PRICE));
-        return;
-      }
-      setTaskPriceInput(String(normalizeTaskPrice(parsed)));
-    },
-    [normalizeTaskPrice]
-  );
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
@@ -2334,32 +2307,11 @@ export default function App() {
                         <button
                           className="price-stepper-button"
                           type="button"
-                          onClick={() => adjustTaskPrice(10)}
-                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                          onClick={() => adjustTaskPrice(-10)}
+                          disabled={taskPriceValue <= MIN_TASK_PRICE}
                         >
-                          +10
+                          -10
                         </button>
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(1)}
-                          disabled={taskPriceValue >= MAX_TASK_PRICE}
-                        >
-                          +1
-                        </button>
-                      </div>
-                      <input
-                        className="price-stepper-value"
-                        type="number"
-                        inputMode="numeric"
-                        min={MIN_TASK_PRICE}
-                        max={MAX_TASK_PRICE}
-                        step={1}
-                        value={taskPriceInput}
-                        onChange={(event) => handleTaskPriceInputChange(event.target.value)}
-                        onBlur={(event) => handleTaskPriceInputBlur(event.target.value)}
-                      />
-                      <div className="price-stepper-side align-end">
                         <button
                           className="price-stepper-button"
                           type="button"
@@ -2368,13 +2320,30 @@ export default function App() {
                         >
                           -1
                         </button>
+                      </div>
+                      <output
+                        className="price-stepper-value"
+                        aria-live="polite"
+                        aria-atomic="true"
+                      >
+                        {taskPriceValue}
+                      </output>
+                      <div className="price-stepper-side align-end">
                         <button
                           className="price-stepper-button"
                           type="button"
-                          onClick={() => adjustTaskPrice(-10)}
-                          disabled={taskPriceValue <= MIN_TASK_PRICE}
+                          onClick={() => adjustTaskPrice(1)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
                         >
-                          -10
+                          +1
+                        </button>
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(10)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                        >
+                          +10
                         </button>
                       </div>
                     </div>
