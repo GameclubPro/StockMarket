@@ -128,6 +128,24 @@ const formatPointsLabel = (value: number) => {
 };
 const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
+const copyTextToClipboard = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!copied) {
+    throw new Error('Не удалось скопировать ссылку.');
+  }
+};
+
 const formatCountdown = (ms: number) => {
   if (!Number.isFinite(ms) || ms <= 0) return 'сейчас';
   const totalSeconds = Math.ceil(ms / 1000);
@@ -448,6 +466,13 @@ export default function App() {
     [referralList]
   );
   const referralHasInvites = referralInvitedCount > 0 || referralList.length > 0;
+  const referralLink = referralStats?.link ?? '';
+  const referralLinkAvailable = Boolean(referralLink);
+  const referralShareHint = inviteCopied
+    ? 'Ссылка скопирована. Отправьте её другу в чат.'
+    : referralLinkAvailable
+      ? 'Откроем Telegram и отправим приглашение.'
+      : 'Ссылка станет доступна после входа в Telegram Mini App.';
   const normalizeTaskPrice = useCallback((value: number) => {
     const rounded = Math.round(value);
     return Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, rounded));
@@ -1101,6 +1126,16 @@ export default function App() {
     return 'Пользователь';
   };
 
+  const getReferralCreatedLabel = (createdAt?: string) => {
+    const parsed = Date.parse(createdAt ?? '');
+    if (!Number.isFinite(parsed)) return 'дата не указана';
+    return new Date(parsed).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
   const getReferralProgressPercent = (orders: number) => {
     if (!Number.isFinite(orders)) return '0%';
     const value = Math.max(0, Math.min(orders, 30));
@@ -1734,47 +1769,67 @@ export default function App() {
     }
   };
 
+  const markInviteCopied = () => {
+    setInviteCopied(true);
+    if (inviteCopyTimeoutRef.current) {
+      window.clearTimeout(inviteCopyTimeoutRef.current);
+    }
+    inviteCopyTimeoutRef.current = window.setTimeout(() => {
+      setInviteCopied(false);
+    }, 2000);
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!referralLink) return;
+    setReferralError('');
+    try {
+      await copyTextToClipboard(referralLink);
+      markInviteCopied();
+    } catch (error: any) {
+      setReferralError(error?.message ?? 'Не удалось скопировать ссылку.');
+    }
+  };
+
   const handleShareInvite = async () => {
-    if (!referralStats?.link) return;
-    const link = referralStats.link;
+    if (!referralLink) return;
     const text = 'Присоединяйся и получай бонусы за задания!';
-    const shareText = `${text}\n${link}`;
+    const shareText = `${text}\n${referralLink}`;
     const shareUrl = `https://t.me/share/url?text=${encodeURIComponent(shareText)}`;
     const tg = (window as any)?.Telegram?.WebApp;
 
     setInviteCopied(false);
     setReferralError('');
 
+    const fallbackCopy = async () => {
+      await copyTextToClipboard(referralLink);
+      markInviteCopied();
+    };
+
     try {
-      if (tg?.openTelegramLink) {
+      if (typeof tg?.openTelegramLink === 'function') {
         tg.openTelegramLink(shareUrl);
         return;
       }
-      window.open(shareUrl, '_blank', 'noopener,noreferrer');
-    } catch {
-      // fallback to clipboard
+
+      if (typeof navigator.share === 'function') {
+        await navigator.share({
+          title: 'Приглашение',
+          text,
+          url: referralLink,
+        });
+        return;
+      }
+
+      const popup = window.open(shareUrl, '_blank', 'noopener,noreferrer');
+      if (!popup) {
+        await fallbackCopy();
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(link);
-        } else {
-          const textarea = document.createElement('textarea');
-          textarea.value = link;
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-        }
-        setInviteCopied(true);
-        if (inviteCopyTimeoutRef.current) {
-          window.clearTimeout(inviteCopyTimeoutRef.current);
-        }
-        inviteCopyTimeoutRef.current = window.setTimeout(() => {
-          setInviteCopied(false);
-        }, 2000);
-      } catch (error: any) {
-        setReferralError(error?.message ?? 'Не удалось поделиться ссылкой.');
+        await fallbackCopy();
+      } catch (copyError: any) {
+        setReferralError(copyError?.message ?? error?.message ?? 'Не удалось поделиться ссылкой.');
       }
     }
   };
@@ -1808,6 +1863,7 @@ export default function App() {
     activeTab === 'home' ? 'home-content' : '',
     activeTab === 'promo' ? 'promo-content' : '',
     activeTab === 'tasks' ? 'tasks-content' : '',
+    activeTab === 'referrals' ? 'referrals-content' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -2134,36 +2190,27 @@ export default function App() {
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
-              <div className="page-title">Реферальная система</div>
+              <div className="page-title referral-page-title">Реферальная система</div>
               <div className="header-spacer" aria-hidden="true" />
             </div>
 
             <section className="referral-hero">
               <div className="referral-hero-top">
-                <div className="referral-hero-copy">
-                  <div className="referral-hero-kicker">Приглашения</div>
-                  <div className="referral-hero-title">Приглашайте друзей по ссылке</div>
-                  <div className="referral-hero-sub">
-                    До {referralMaxRewardPerFriend} {formatPointsLabel(referralMaxRewardPerFriend)} за каждого.
-                  </div>
-                </div>
-                <div className="referral-hero-side">
-                  <div className="referral-hero-people" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                      <circle cx="8.5" cy="8" r="2.4" />
-                      <circle cx="15.5" cy="7.4" r="2.8" />
-                      <path d="M4.7 16.5c.4-2.4 2.2-4 4.4-4s4 1.6 4.4 4" />
-                      <path d="M10.8 16.5c.5-3 2.7-4.9 5.4-4.9 2.6 0 4.6 1.8 5.1 4.9" />
-                    </svg>
-                  </div>
-                  <button
-                    className={`referral-info-button ${referralInfoOpen ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setReferralInfoOpen((prev) => !prev)}
-                    aria-label="Показать детали реферальной программы"
-                  >
-                    i
-                  </button>
+                <div className="referral-hero-kicker">Реферальная программа</div>
+                <button
+                  className={`referral-info-button ${referralInfoOpen ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setReferralInfoOpen((prev) => !prev)}
+                  aria-label="Показать детали реферальной программы"
+                >
+                  i
+                </button>
+              </div>
+              <div className="referral-hero-copy">
+                <div className="referral-hero-title">Приглашайте друзей и получайте баллы</div>
+                <div className="referral-hero-sub">
+                  До {referralMaxRewardPerFriend} {formatPointsLabel(referralMaxRewardPerFriend)} за одного
+                  приглашённого.
                 </div>
               </div>
 
@@ -2180,12 +2227,35 @@ export default function App() {
                       <div className="referral-stat-value">{referralEarnedTotal}</div>
                       <div className="referral-stat-sub">{formatPointsLabel(referralEarnedTotal)}</div>
                     </div>
+                    <div className="referral-stat referral-stat-wide">
+                      <div className="referral-stat-label">Освоено потенциала</div>
+                      <div className="referral-stat-value">{referralPotentialProgress}%</div>
+                      <div className="referral-stat-sub">
+                        {referralInvitedCount > 0
+                          ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
+                          : 'Появится после первого приглашённого'}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="referral-link-block">
-                    <div className="referral-link-label">Ваша ссылка</div>
-                    <div className="referral-link">
-                      {referralStats?.link || 'Ссылка появится после входа в Telegram Mini App'}
+                    <div className="referral-link-head">
+                      <div className="referral-link-label">Ваша ссылка</div>
+                      <button
+                        className="referral-copy-link"
+                        type="button"
+                        onClick={handleCopyInviteLink}
+                        disabled={!referralLinkAvailable}
+                      >
+                        {!referralLinkAvailable
+                          ? 'Недоступно'
+                          : inviteCopied
+                            ? 'Скопировано'
+                            : 'Копировать'}
+                      </button>
+                    </div>
+                    <div className={`referral-link ${referralLinkAvailable ? '' : 'muted'}`}>
+                      {referralLink || 'Ссылка появится после входа в Telegram Mini App'}
                     </div>
                     <div className="referral-code">
                       Код: {referralStats?.code || 'недоступен'}
@@ -2243,10 +2313,11 @@ export default function App() {
                 className="referral-share"
                 type="button"
                 onClick={handleShareInvite}
-                disabled={!referralStats?.link}
+                disabled={!referralLinkAvailable}
               >
-                {inviteCopied ? 'Скопировано' : 'Пригласить друга'}
+                {referralLinkAvailable ? 'Пригласить друга' : 'Ссылка недоступна'}
               </button>
+              <div className="referral-share-sub">{referralShareHint}</div>
             </section>
 
             <section className="referral-list">
@@ -2261,7 +2332,24 @@ export default function App() {
                 <div className="referral-status error">{referralListError}</div>
               )}
               {!referralListLoading && !referralListError && referralList.length === 0 && (
-                <div className="referral-status">Пока нет приглашённых.</div>
+                <div className="referral-empty-state">
+                  <div className="referral-empty-title">Пока нет приглашённых</div>
+                  <div className="referral-empty-sub">
+                    Скопируйте ссылку и отправьте её в личный чат или канал.
+                  </div>
+                  <button
+                    className="referral-empty-action"
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                    disabled={!referralLinkAvailable}
+                  >
+                    {!referralLinkAvailable
+                      ? 'Ссылка недоступна'
+                      : inviteCopied
+                        ? 'Ссылка скопирована'
+                        : 'Скопировать ссылку'}
+                  </button>
+                </div>
               )}
               {!referralListLoading &&
                 !referralListError &&
@@ -2281,7 +2369,7 @@ export default function App() {
                             {getReferralUserLabel(item.referredUser)}
                           </div>
                           <div className="referral-item-sub">
-                            Заказов: {item.completedOrders}/30
+                            Заказов: {item.completedOrders}/30 • с {getReferralCreatedLabel(item.createdAt)}
                           </div>
                         </div>
                         <div className="referral-item-earned">+{item.earned}</div>
