@@ -12,7 +12,9 @@ npm install
 npx prisma db push --accept-data-loss
 npx prisma generate
 npm run build
-npm run webhook:set
+if ! npm run webhook:set; then
+  echo "WARNING: webhook:set failed. Continuing deploy."
+fi
 
 pm2 restart tg-mini-api --update-env
 
