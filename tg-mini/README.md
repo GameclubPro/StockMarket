@@ -56,3 +56,21 @@ npm run compare:design-redesign -- --width 430 --height 932 --baselineDir .logs/
 - Если хотите прогонять против уже работающего окружения, добавьте `--baseUrl http://127.0.0.1:5173 --noMockApi`.
 - Для `scan` можно задать нижнюю зону риска safe-area: `--safeBottomPx 16`.
 - Для `compare` можно управлять порогом расхождения в процентах: `--mismatchThresholdPct 0.25`.
+
+## Актуальный эмулятор Telegram Mini App (fullscreen, 2026)
+Запуск интерактивного эмулятора:
+```
+npm run emulator:miniapp
+```
+
+Что есть в эмуляторе:
+- Реальный fullscreen-профиль Telegram Mini App по умолчанию (fullscreen lock, не fullsize).
+- Живые `viewport/safe-area/fullscreen` события и обновляемый Telegram chrome.
+- Overlay-панель с текущими метриками viewport/safe-area и быстрыми действиями (`Fullscreen`, `MainButton`).
+
+Полезные опции:
+```
+npm run emulator:miniapp -- --openScreen home
+npm run emulator:miniapp -- --headless --noEmulatorOverlay
+npm run emulator:miniapp -- --allowNonFullscreen --tgMode compact
+```

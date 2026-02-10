@@ -10,7 +10,8 @@
     "playwright:install": "playwright install chromium",
     "screenshot:design-redesign": "node scripts/miniapp-visual.mjs screenshot",
     "scan:mobile-ui": "node scripts/miniapp-visual.mjs scan",
-    "compare:design-redesign": "node scripts/miniapp-visual.mjs compare"
+    "compare:design-redesign": "node scripts/miniapp-visual.mjs compare",
+    "emulator:miniapp": "node scripts/miniapp-visual.mjs emulator"
   },
   "dependencies": {
     "@telegram-apps/sdk": "^3.11.5",
