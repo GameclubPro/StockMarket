@@ -4268,6 +4268,77 @@ body::before {
   color: rgba(255, 255, 255, 0.35);
 }
 
+.price-stepper {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(68px, 72px) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.price-stepper-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.price-stepper-side.align-end {
+  justify-content: flex-end;
+}
+
+.price-stepper-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(20, 25, 38, 0.94), rgba(10, 14, 24, 0.94));
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.price-stepper-button:hover {
+  border-color: rgba(138, 210, 255, 0.45);
+}
+
+.price-stepper-button:focus-visible {
+  outline: 2px solid rgba(138, 210, 255, 0.6);
+  outline-offset: 1px;
+}
+
+.price-stepper-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.price-stepper-button:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+}
+
+.field input.price-stepper-value {
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.field input.price-stepper-value::-webkit-outer-spin-button,
+.field input.price-stepper-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.field input.price-stepper-value[type='number'] {
+  -moz-appearance: textfield;
+}
+
 .range-input {
   --thumb-size: 24px;
   --track-height: 8px;
@@ -4945,6 +5016,20 @@ button {
     gap: 8px;
   }
 
+  .price-stepper {
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) minmax(62px, 68px) minmax(0, 1fr);
+  }
+
+  .price-stepper-side {
+    gap: 4px;
+  }
+
+  .price-stepper-button {
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
   .referral-hero {
     padding: 14px;
     gap: 10px;
@@ -5100,7 +5185,8 @@ body::before {
 .link-picker-refresh,
 .link-picker-close,
 .welcome-close,
-.link-tool {
+.link-tool,
+.price-stepper-button {
   background: linear-gradient(180deg, rgba(17, 27, 37, 0.96), rgba(7, 13, 21, 0.98));
   border: 1px solid rgba(142, 216, 255, 0.36);
   color: rgba(232, 250, 242, 0.96);

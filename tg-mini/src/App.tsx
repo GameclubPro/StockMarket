@@ -438,11 +438,49 @@ export default function App() {
     [referralList]
   );
   const referralHasInvites = referralInvitedCount > 0 || referralList.length > 0;
+  const normalizeTaskPrice = useCallback((value: number) => {
+    const rounded = Math.round(value);
+    return Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, rounded));
+  }, []);
+  const handleTaskPriceInputChange = useCallback(
+    (rawValue: string) => {
+      if (rawValue === '') {
+        setTaskPriceInput('');
+        return;
+      }
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) return;
+      setTaskPriceInput(String(normalizeTaskPrice(parsed)));
+    },
+    [normalizeTaskPrice]
+  );
+  const handleTaskPriceInputBlur = useCallback(
+    (rawValue: string) => {
+      if (!rawValue.trim()) {
+        setTaskPriceInput(String(MIN_TASK_PRICE));
+        return;
+      }
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) {
+        setTaskPriceInput(String(MIN_TASK_PRICE));
+        return;
+      }
+      setTaskPriceInput(String(normalizeTaskPrice(parsed)));
+    },
+    [normalizeTaskPrice]
+  );
   const parsedTaskPrice = useMemo(() => {
     if (!taskPriceInput.trim()) return null;
     const parsed = Number(taskPriceInput);
     return Number.isFinite(parsed) ? parsed : null;
   }, [taskPriceInput]);
+  const adjustTaskPrice = useCallback(
+    (delta: number) => {
+      const basePrice = parsedTaskPrice ?? MIN_TASK_PRICE;
+      setTaskPriceInput(String(normalizeTaskPrice(basePrice + delta)));
+    },
+    [parsedTaskPrice, normalizeTaskPrice]
+  );
   const taskPriceValue = parsedTaskPrice ?? 0;
   const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
   const maxAffordableCount = useMemo(() => {
@@ -2291,23 +2329,55 @@ export default function App() {
                   </div>
                   <label className="field">
                     <span>Цена за действие</span>
-                    <input
-                      type="number"
-                      min={MIN_TASK_PRICE}
-                      max={MAX_TASK_PRICE}
-                      value={taskPriceInput}
-                      onChange={(event) => {
-                        const raw = event.target.value;
-                        if (raw === '') {
-                          setTaskPriceInput('');
-                          return;
-                        }
-                        const nextValue = Number(raw);
-                        if (!Number.isFinite(nextValue)) return;
-                        const clamped = Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, nextValue));
-                        setTaskPriceInput(String(clamped));
-                      }}
-                    />
+                    <div className="price-stepper" role="group" aria-label="Управление ценой за действие">
+                      <div className="price-stepper-side">
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(10)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                        >
+                          +10
+                        </button>
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(1)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                        >
+                          +1
+                        </button>
+                      </div>
+                      <input
+                        className="price-stepper-value"
+                        type="number"
+                        inputMode="numeric"
+                        min={MIN_TASK_PRICE}
+                        max={MAX_TASK_PRICE}
+                        step={1}
+                        value={taskPriceInput}
+                        onChange={(event) => handleTaskPriceInputChange(event.target.value)}
+                        onBlur={(event) => handleTaskPriceInputBlur(event.target.value)}
+                      />
+                      <div className="price-stepper-side align-end">
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(-1)}
+                          disabled={taskPriceValue <= MIN_TASK_PRICE}
+                        >
+                          -1
+                        </button>
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(-10)}
+                          disabled={taskPriceValue <= MIN_TASK_PRICE}
+                        >
+                          -10
+                        </button>
+                      </div>
+                    </div>
                     <div className="range-hint">
                       Ставка {taskPriceValue} баллов · Исполнитель получит {minPayoutPreview}–
                       {maxPayoutPreview}{' '}
