@@ -497,14 +497,15 @@ export default function App() {
     return campaigns.filter((campaign) => {
       const status = applicationsByCampaign.get(campaign.id)?.status;
       if (status === 'APPROVED' && acknowledgedSet.has(campaign.id)) return false;
+      if (status === 'REJECTED') return false;
       if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
   }, [applicationsByCampaign, campaigns, userId, acknowledgedIds]);
   const visibleCampaigns = useMemo(() => {
-    if (taskListFilter === 'history') return [];
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
     const base = activeCampaigns.filter((campaign) => campaign.actionType === type);
+    if (taskListFilter === 'history') return [];
     if (taskListFilter === 'hot') {
       return [...base].sort((a, b) => b.rewardPoints - a.rewardPoints);
     }
@@ -512,6 +513,10 @@ export default function App() {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }, [activeCampaigns, taskListFilter, taskTypeFilter]);
+  const taskTypeCampaigns = useMemo(() => {
+    const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
+    return activeCampaigns.filter((campaign) => campaign.actionType === type);
+  }, [activeCampaigns, taskTypeFilter]);
   const historyApplications = useMemo(() => {
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
     return applications
@@ -525,6 +530,29 @@ export default function App() {
           new Date(a.reviewedAt ?? a.createdAt).getTime()
       );
   }, [applications, taskTypeFilter]);
+  const taskStatusCounters = useMemo(() => {
+    return taskTypeCampaigns.reduce(
+      (acc, campaign) => {
+        const status = applicationsByCampaign.get(campaign.id)?.status;
+        if (status === 'PENDING') acc.pending += 1;
+        if (status === 'APPROVED') acc.ready += 1;
+        return acc;
+      },
+      { pending: 0, ready: 0 }
+    );
+  }, [applicationsByCampaign, taskTypeCampaigns]);
+  const taskHintText = useMemo(() => {
+    if (taskListFilter === 'history') {
+      return `Подтверждено: ${historyApplications.length}. Здесь хранится журнал завершённых заданий.`;
+    }
+    if (taskStatusCounters.ready > 0) {
+      return `К выдаче: ${taskStatusCounters.ready}. Подтвердите задания с галочкой, чтобы получить баллы.`;
+    }
+    if (taskStatusCounters.pending > 0) {
+      return `На проверке: ${taskStatusCounters.pending}. Можно брать новые задания параллельно.`;
+    }
+    return 'Нажмите «Получить», выполните действие в Telegram и дождитесь подтверждения.';
+  }, [historyApplications.length, taskListFilter, taskStatusCounters.pending, taskStatusCounters.ready]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -991,6 +1019,47 @@ export default function App() {
     return `https://t.me/i/userpic/320/${clean}.jpg`;
   };
 
+  const getTaskStatusMeta = (status?: ApplicationDto['status']) => {
+    if (status === 'APPROVED') {
+      return {
+        label: 'К выплате',
+        className: 'approved',
+        actionLabel: 'Открыть',
+        shouldApplyBeforeOpen: false,
+      };
+    }
+    if (status === 'PENDING') {
+      return {
+        label: 'На проверке',
+        className: 'pending',
+        actionLabel: 'Открыть',
+        shouldApplyBeforeOpen: false,
+      };
+    }
+    if (status === 'REVOKED') {
+      return {
+        label: 'Нужно заново',
+        className: 'neutral',
+        actionLabel: 'Получить',
+        shouldApplyBeforeOpen: true,
+      };
+    }
+    if (status === 'REJECTED') {
+      return {
+        label: 'Отклонено',
+        className: 'rejected',
+        actionLabel: 'Открыть',
+        shouldApplyBeforeOpen: false,
+      };
+    }
+    return {
+      label: 'Не начато',
+      className: 'neutral',
+      actionLabel: 'Получить',
+      shouldApplyBeforeOpen: true,
+    };
+  };
+
   const getReferralUserLabel = (user?: ReferralListItem['referredUser']) => {
     if (!user) return 'Пользователь';
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
@@ -1362,21 +1431,29 @@ export default function App() {
     setActionLoadingId(campaignId);
     try {
       const data = await applyCampaign(campaignId);
+      if (!data.ok) {
+        throw new Error('Не удалось получить задание.');
+      }
       if (typeof data.balance === 'number') {
         setPoints(data.balance);
       }
       await loadCampaigns();
       await loadMyApplications();
+      return true;
     } catch (error: any) {
       setActionError(error?.message ?? 'Не удалось отправить задание.');
+      return false;
     } finally {
       setActionLoadingId('');
     }
   };
 
   const handleOpenCampaign = async (campaign: CampaignDto, status?: ApplicationDto['status']) => {
-    if (!status && actionLoadingId !== campaign.id) {
-      void handleApplyCampaign(campaign.id);
+    const statusMeta = getTaskStatusMeta(status);
+    if (statusMeta.shouldApplyBeforeOpen) {
+      if (actionLoadingId === campaign.id) return;
+      const applied = await handleApplyCampaign(campaign.id);
+      if (!applied) return;
     }
     openCampaignLink(campaign);
   };
@@ -1693,10 +1770,17 @@ export default function App() {
     setTopUpModalOpen(false);
     openTelegramContact(url);
   };
+  const contentClassName = [
+    'content',
+    activeTab === 'home' ? 'home-content' : '',
+    activeTab === 'tasks' ? 'tasks-content' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <>
-      <div className={`content ${activeTab === 'home' ? 'home-content' : ''}`} ref={contentRef}>
+      <div className={contentClassName} ref={contentRef}>
         {welcomeBonus && (
           <div className="welcome-banner">
             <div className="welcome-text">
@@ -2572,6 +2656,35 @@ export default function App() {
                 </button>
               </div>
             </div>
+            <div className={`tasks-overview ${taskListFilter === 'history' ? 'history' : ''}`}>
+              <div className="tasks-overview-row">
+                <div className="tasks-overview-item">
+                  <span className="tasks-overview-value">
+                    {taskListFilter === 'history' ? historyApplications.length : visibleCampaigns.length}
+                  </span>
+                  <span className="tasks-overview-label">
+                    {taskListFilter === 'history' ? 'в истории' : 'доступно'}
+                  </span>
+                </div>
+                <div className="tasks-overview-item">
+                  <span className="tasks-overview-value">
+                    {taskListFilter === 'history' ? taskTypeCampaigns.length : taskStatusCounters.pending}
+                  </span>
+                  <span className="tasks-overview-label">
+                    {taskListFilter === 'history' ? 'активно' : 'на проверке'}
+                  </span>
+                </div>
+                <div className="tasks-overview-item">
+                  <span className="tasks-overview-value">
+                    {taskListFilter === 'history' ? taskStatusCounters.pending : taskStatusCounters.ready}
+                  </span>
+                  <span className="tasks-overview-label">
+                    {taskListFilter === 'history' ? 'на проверке' : 'готово'}
+                  </span>
+                </div>
+              </div>
+              <div className="tasks-overview-hint">{taskHintText}</div>
+            </div>
             {taskListFilter !== 'history' && (
               <div className="task-list">
                 {actionError && <div className="form-status error">{actionError}</div>}
@@ -2591,6 +2704,7 @@ export default function App() {
                   visibleCampaigns.map((campaign) => {
                     const application = applicationsByCampaign.get(campaign.id);
                     const status = application?.status;
+                    const statusMeta = getTaskStatusMeta(status);
                     const payout = calculatePayout(campaign.rewardPoints);
                     const badgeLabel = `+${payout} ${formatPointsLabel(payout)}`;
                     return (
@@ -2606,25 +2720,31 @@ export default function App() {
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
+                            </div>
+                            <div className="task-handle">
+                              {getGroupSecondaryLabel(campaign.group)}
+                            </div>
+                            <div className="task-meta">
                               <span
                                 className="badge sticker"
                                 ref={(node) => registerTaskBadgeRef(campaign.id, node)}
                               >
                                 {badgeLabel}
                               </span>
-                            </div>
-                            <div className="task-handle">
-                              {getGroupSecondaryLabel(campaign.group)}
+                              <span className={`status-badge compact ${statusMeta.className}`}>
+                                {statusMeta.label}
+                              </span>
                             </div>
                           </div>
                           <div className="task-actions">
                             <button
-                              className="open-button icon"
+                              className="open-button action"
                               type="button"
                               onClick={() => void handleOpenCampaign(campaign, status)}
-                              aria-label={status ? 'Открыть' : 'Получить и открыть'}
+                              aria-label={statusMeta.actionLabel}
                               disabled={actionLoadingId === campaign.id}
                             >
+                              <span>{actionLoadingId === campaign.id ? 'Ждите' : statusMeta.actionLabel}</span>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
                                 <path d="M9 5h10v10" />
                                 <path d="M19 5l-9 9" />
@@ -2642,9 +2762,6 @@ export default function App() {
                                   <path d="M5 13l4 4L19 7" />
                                 </svg>
                               </button>
-                            )}
-                            {status === 'PENDING' && (
-                              <span className="status-badge pending">Ожидание</span>
                             )}
                           </div>
                         </div>
@@ -2677,22 +2794,23 @@ export default function App() {
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
-                              <span className="badge sticker">{badgeLabel}</span>
                             </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
                             <div className="task-meta">
+                              <span className="badge sticker">{badgeLabel}</span>
                               <span className="status-badge approved compact">Выполнено</span>
                             </div>
                           </div>
                           <div className="task-actions">
                             <button
-                              className="open-button icon"
+                              className="open-button action"
                               type="button"
                               onClick={() => openCampaignLink(campaign)}
                               aria-label="Открыть"
                             >
+                              <span>Открыть</span>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
                                 <path d="M9 5h10v10" />
                                 <path d="M19 5l-9 9" />
