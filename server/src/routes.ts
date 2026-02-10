@@ -106,6 +106,16 @@ const BOT_PANEL_ALLOWED_TEXTS = new Set(['админ', 'админка', 'пан
 const BOT_PANEL_DEFAULT_ADMIN_USERNAMES = ['@Nitchim'];
 let botPanelSeedPromise: Promise<void> | null = null;
 let botPanelStoragePromise: Promise<void> | null = null;
+type AdminPanelStats = {
+  newUsersToday: number;
+  totalUsers: number;
+  bonusGranted: number;
+  bonusLimit: number;
+  bonusRemaining: number;
+  periodStart: string;
+  periodEnd: string;
+  updatedAt: string;
+};
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
@@ -388,8 +398,9 @@ const ensureDefaultBotPanelAccess = async () => {
   return await botPanelSeedPromise;
 };
 
-const hasBotPanelAccess = async (payload: { telegramId: number; username?: string }) => {
+const hasBotPanelAccess = async (payload: { telegramId: number | string; username?: string }) => {
   await ensureBotPanelAccessStorage();
+  const telegramId = String(payload.telegramId ?? '').trim();
   const rawUsername = payload.username?.trim() ?? '';
   const username = normalizeBotPanelUsername(payload.username);
   const usernameVariants = new Set<string>();
@@ -405,10 +416,14 @@ const hasBotPanelAccess = async (payload: { telegramId: number; username?: strin
     usernameVariants.add(username);
     usernameVariants.add(`@${username}`);
   }
-  const filters: Prisma.BotPanelAccessWhereInput[] = [{ telegramId: String(payload.telegramId) }];
+  const filters: Prisma.BotPanelAccessWhereInput[] = [];
+  if (telegramId) {
+    filters.push({ telegramId });
+  }
   for (const candidate of usernameVariants) {
     filters.push({ username: candidate });
   }
+  if (filters.length === 0) return false;
 
   const access = await prisma.botPanelAccess.findFirst({
     where: {
@@ -429,7 +444,7 @@ const getTodayRange = (now = new Date()) => {
   return { from, to };
 };
 
-const formatAdminPanelStatsText = async (now = new Date()) => {
+const getAdminPanelStats = async (now = new Date()): Promise<AdminPanelStats> => {
   const { from, to } = getTodayRange(now);
   const [newUsersToday, totalUsers, bonusGranted] = await Promise.all([
     prisma.user.count({
@@ -447,16 +462,28 @@ const formatAdminPanelStatsText = async (now = new Date()) => {
   ]);
 
   const remainingBonusSlots = Math.max(0, FIRST_LOGIN_WELCOME_BONUS_LIMIT - bonusGranted);
-  const updatedAt = now.toLocaleString('ru-RU', {
-    hour12: false,
-  });
+  return {
+    newUsersToday,
+    totalUsers,
+    bonusGranted,
+    bonusLimit: FIRST_LOGIN_WELCOME_BONUS_LIMIT,
+    bonusRemaining: remainingBonusSlots,
+    periodStart: from.toISOString(),
+    periodEnd: to.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+};
+
+const formatAdminPanelStatsText = async (now = new Date()) => {
+  const stats = await getAdminPanelStats(now);
+  const updatedAt = new Date(stats.updatedAt).toLocaleString('ru-RU', { hour12: false });
 
   return [
     'Админ-панель',
-    `Новых пользователей за сегодня: ${newUsersToday}`,
-    `Пользователей всего: ${totalUsers}`,
-    `Получили бонус +500: ${bonusGranted}/${FIRST_LOGIN_WELCOME_BONUS_LIMIT}`,
-    `Осталось бонусов: ${remainingBonusSlots}`,
+    `Новых пользователей за сегодня: ${stats.newUsersToday}`,
+    `Пользователей всего: ${stats.totalUsers}`,
+    `Получили бонус +500: ${stats.bonusGranted}/${stats.bonusLimit}`,
+    `Осталось бонусов: ${stats.bonusRemaining}`,
     `Обновлено: ${updatedAt}`,
   ].join('\n');
 };
@@ -1376,6 +1403,24 @@ export const registerRoutes = (app: FastifyInstance) => {
         balance: user.balance,
         stats: { groups, campaigns, applications },
       };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.get('/admin/panel', async (request, reply) => {
+    try {
+      await ensureDefaultBotPanelAccess();
+      const user = await requireUser(request);
+      const allowed = await hasBotPanelAccess({
+        telegramId: user.telegramId,
+        username: user.username ?? undefined,
+      });
+      if (!allowed) {
+        return reply.code(403).send({ ok: false, error: 'forbidden' });
+      }
+      const stats = await getAdminPanelStats();
+      return { ok: true, allowed: true, stats };
     } catch (error) {
       return sendRouteError(reply, error, 400);
     }

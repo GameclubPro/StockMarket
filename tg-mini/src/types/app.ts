@@ -79,3 +79,14 @@ export type ReferralListItem = {
   earned: number;
   referredUser: UserDto;
 };
+
+export type AdminPanelStats = {
+  newUsersToday: number;
+  totalUsers: number;
+  bonusGranted: number;
+  bonusLimit: number;
+  bonusRemaining: number;
+  periodStart: string;
+  periodEnd: string;
+  updatedAt: string;
+};

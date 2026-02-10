@@ -1,4 +1,5 @@
 import type {
+  AdminPanelStats,
   ApplicationDto,
   CampaignDto,
   DailyBonusSpin,
@@ -9,10 +10,12 @@ import type {
   ReferralStats,
   UserDto,
 } from './types/app';
+import { getInitDataRaw } from './telegram';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE ?? '';
 
 export type {
+  AdminPanelStats,
   ApplicationDto,
   CampaignDto,
   DailyBonusSpin,
@@ -24,10 +27,19 @@ export type {
   UserDto,
 } from './types/app';
 
-const request = async (path: string, options: RequestInit = {}) => {
+const withAuthHeaders = (base?: HeadersInit) => {
+  const headers = new Headers(base);
   const token = localStorage.getItem('sessionToken');
-  const headers = new Headers(options.headers);
   if (token) headers.set('authorization', `Bearer ${token}`);
+
+  const initData = getInitDataRaw();
+  if (initData) headers.set('x-init-data', initData);
+
+  return headers;
+};
+
+const request = async (path: string, options: RequestInit = {}) => {
+  const headers = withAuthHeaders(options.headers);
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -82,6 +94,32 @@ export const verifyInitData = async (initData: string) => {
 export const fetchMe = async () => {
   const data = await request('/api/me');
   return data as { ok: boolean; user: UserDto; balance: number; stats: { groups: number; campaigns: number; applications: number } };
+};
+
+export const fetchAdminPanelStats = async () => {
+  const response = await fetch(`${API_BASE}/api/admin/panel`, {
+    headers: withAuthHeaders(),
+  });
+  if (response.status === 401 || response.status === 403) return null;
+
+  if (!response.ok) {
+    let message = 'request failed';
+    try {
+      const data = await response.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    allowed?: boolean;
+    stats?: AdminPanelStats;
+  };
+  if (!data.ok || !data.allowed || !data.stats) return null;
+  return data as { ok: true; allowed: true; stats: AdminPanelStats };
 };
 
 export const fetchCampaigns = async (category?: string, actionType?: 'subscribe' | 'reaction') => {

@@ -37,8 +37,10 @@ const TELEGRAM_MOCK_THEME_PARAMS = JSON.stringify({
   header_bg_color: '#10101b',
 });
 
-const TELEGRAM_MOCK_INIT_DATA =
-  'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash';
+const buildTelegramMockInitData = (mockAdminAccess) =>
+  mockAdminAccess
+    ? 'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22Nitchim%22%7D&auth_date=1710000000&hash=dev_hash'
+    : 'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash';
 
 const SCREEN_STEPS = [
   {
@@ -53,6 +55,14 @@ const SCREEN_STEPS = [
     open: async (page, waitMs) => {
       await openBottomTab(page, 'Продвижение', waitMs);
       await page.waitForSelector('.task-form-card', { timeout: 10_000 });
+    },
+  },
+  {
+    id: 'admin',
+    open: async (page, waitMs) => {
+      await ensureHome(page, waitMs);
+      await openBottomTab(page, 'Админ', waitMs);
+      await page.waitForSelector('.admin-panel-card', { timeout: 10_000 });
     },
   },
   {
@@ -216,6 +226,7 @@ function parseConfig(mode, rawArgs) {
   const cleanOutput = rawArgs.clean === true || rawArgs.clean === 'true';
   const headful = rawArgs.headful === true || rawArgs.headful === 'true';
   const mockApi = !(rawArgs.noMockApi === true || rawArgs.noMockApi === 'true');
+  const mockAdminAccess = !(rawArgs.noMockAdminAccess === true || rawArgs.noMockAdminAccess === 'true');
   const outDirDefault = `.logs/design-after-${width}x${height}`;
   const outFileDefault =
     mode === 'compare'
@@ -244,6 +255,7 @@ function parseConfig(mode, rawArgs) {
     mismatchThresholdPct,
     headful,
     mockApi,
+    mockAdminAccess,
     baseUrl: typeof rawArgs.baseUrl === 'string' ? rawArgs.baseUrl : '',
     outDir: resolvePath(rawArgs.outDir, outDirDefault),
     outFile: resolvePath(rawArgs.outFile, outFileDefault),
@@ -258,7 +270,7 @@ function buildTelegramMockQuery(config) {
     tgWebAppPlatform: 'android',
     tgWebAppVersion: config.tgWebAppVersion,
     tgWebAppThemeParams: TELEGRAM_MOCK_THEME_PARAMS,
-    tgWebAppData: TELEGRAM_MOCK_INIT_DATA,
+    tgWebAppData: buildTelegramMockInitData(config.mockAdminAccess),
   }).toString();
 }
 
@@ -386,7 +398,7 @@ function isoMinutesAgo(minutes) {
 function buildFixtures() {
   const myUser = {
     id: 'user-client-1',
-    username: 'design_bot',
+    username: 'Nitchim',
     firstName: 'Тест',
     lastName: 'Пользователь',
     photoUrl: null,
@@ -599,6 +611,16 @@ function buildFixtures() {
         },
       },
     ],
+    adminPanelStats: {
+      newUsersToday: 27,
+      totalUsers: 1458,
+      bonusGranted: 34,
+      bonusLimit: 50,
+      bonusRemaining: 16,
+      periodStart: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+      periodEnd: new Date(new Date().setHours(24, 0, 0, 0)).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
   };
 }
 
@@ -685,6 +707,13 @@ async function registerApiMocks(page) {
       return;
     }
 
+    if (pathname.endsWith('/admin/panel') && method === 'GET') {
+      await route.fulfill(
+        jsonResponse({ ok: true, allowed: true, stats: fixtures.adminPanelStats })
+      );
+      return;
+    }
+
     if (pathname === '/api/daily-bonus/spin' && method === 'POST') {
       await route.fulfill(jsonResponse({ ok: true, ...fixtures.dailyBonusSpin }));
       return;
@@ -748,6 +777,10 @@ async function installTelegramMocks(page, config) {
     const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
     const webAppVersion = typeof params?.tgWebAppVersion === 'string' ? params.tgWebAppVersion : '9.3';
+    const buildInitData = (isAdmin) =>
+      isAdmin
+        ? 'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22Nitchim%22%7D&auth_date=1710000000&hash=dev_hash'
+        : 'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash';
 
     const eventListeners = new Map();
     const storageFactory = () => {
@@ -971,11 +1004,10 @@ async function installTelegramMocks(page, config) {
           id: 100001,
           first_name: 'Тест',
           last_name: 'Пользователь',
-          username: 'design_bot',
+          username: params?.mockAdminAccess ? 'Nitchim' : 'design_bot',
         },
       },
-      initData:
-        'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22design_bot%22%7D&auth_date=1710000000&hash=dev_hash',
+      initData: buildInitData(Boolean(params?.mockAdminAccess)),
       ready: () => {},
       close: () => {},
       expand: () => {
@@ -1075,6 +1107,7 @@ async function installTelegramMocks(page, config) {
     tgFullscreenControlsPx: config.tgFullscreenControlsPx,
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
+    mockAdminAccess: config.mockAdminAccess,
   });
 }
 
@@ -1269,12 +1302,40 @@ async function waitForFonts(page, timeoutMs = 10_000) {
 }
 
 async function openBottomTab(page, label, waitMs) {
-  const button = page
-    .locator('.bottom-nav .nav-item')
-    .filter({ hasText: label })
-    .first();
-  await button.waitFor({ state: 'visible', timeout: 10_000 });
-  await button.click();
+  const button = page.locator('.bottom-nav .nav-item').filter({ hasText: label }).first();
+  const byText = page.locator('.bottom-nav .nav-item span', { hasText: label }).first();
+
+  if (label === 'Админ') {
+    const profileButton = page.locator('.profile-card .sub.sub-admin').first();
+    const deadline = Date.now() + 12_000;
+
+    while (Date.now() < deadline) {
+      if (await button.isVisible().catch(() => false)) {
+        await button.click();
+        await sleep(waitMs);
+        return;
+      }
+      if (await byText.isVisible().catch(() => false)) {
+        await byText.click();
+        await sleep(waitMs);
+        return;
+      }
+      if (await profileButton.isVisible().catch(() => false)) {
+        await profileButton.click();
+        await sleep(waitMs);
+        return;
+      }
+      await sleep(220);
+    }
+  }
+
+  try {
+    await button.waitFor({ state: 'visible', timeout: 10_000 });
+    await button.click();
+  } catch {
+    await byText.waitFor({ state: 'visible', timeout: 10_000 });
+    await byText.click();
+  }
   await sleep(waitMs);
 }
 

@@ -215,6 +215,15 @@ const getUserFromLaunchParams = (): User | undefined => {
   }
 };
 
+const getUserFromWebAppGlobal = (): User | undefined => {
+  try {
+    const tg = (window as any)?.Telegram?.WebApp;
+    return tg?.initDataUnsafe?.user as User | undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const getUserLabel = () => {
   let user: User | undefined;
 
@@ -226,6 +235,7 @@ export const getUserLabel = () => {
   }
 
   if (!user) user = getUserFromLaunchParams();
+  if (!user) user = getUserFromWebAppGlobal();
   if (!user) return 'Гость';
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
   if (fullName) return fullName;
@@ -244,6 +254,7 @@ export const getUserPhotoUrl = () => {
   }
 
   if (!user) user = getUserFromLaunchParams();
+  if (!user) user = getUserFromWebAppGlobal();
   return user?.photo_url || '';
 };
 
@@ -251,6 +262,15 @@ export const getInitDataRaw = () => {
   try {
     const raw = initData.raw?.();
     if (raw) return raw;
+  } catch {
+    // noop
+  }
+
+  try {
+    const globalInitData = (window as any)?.Telegram?.WebApp?.initData;
+    if (typeof globalInitData === 'string' && globalInitData) {
+      return globalInitData;
+    }
   } catch {
     // noop
   }

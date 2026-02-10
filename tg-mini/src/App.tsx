@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   applyCampaign,
   createCampaign,
+  fetchAdminPanelStats,
   fetchCampaigns,
   fetchDailyBonusStatus,
   fetchReferralStats,
@@ -12,6 +13,7 @@ import {
   fetchMyGroups,
   spinDailyBonus,
   type ApplicationDto,
+  type AdminPanelStats,
   type CampaignDto,
   type DailyBonusStatus,
   type GroupDto,
@@ -127,6 +129,18 @@ const formatPointsLabel = (value: number) => {
   return 'баллов';
 };
 const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+const formatNumberRu = (value: number) =>
+  Math.max(0, Math.floor(value)).toLocaleString('ru-RU');
+const formatDateTimeRu = (value: string) => {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return 'н/д';
+  return new Date(parsed).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 const copyTextToClipboard = async (value: string) => {
   if (navigator.clipboard?.writeText) {
@@ -264,6 +278,34 @@ const parseFiniteNumber = (value: unknown) => {
   return Number.isFinite(normalized) ? normalized : null;
 };
 
+const normalizeUsername = (value: unknown) =>
+  typeof value === 'string' ? value.trim().replace(/^@+/, '') : '';
+
+const extractUsernameFromInitData = (rawInitData: string) => {
+  if (!rawInitData) return '';
+  try {
+    const params = new URLSearchParams(rawInitData);
+    const userRaw = params.get('user');
+    if (!userRaw) return '';
+    const parsed = JSON.parse(userRaw) as { username?: unknown } | null;
+    return normalizeUsername(parsed?.username);
+  } catch {
+    return '';
+  }
+};
+
+const extractUsernameFromTelegramUnsafe = () => {
+  try {
+    const username = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user?.username;
+    return normalizeUsername(username);
+  } catch {
+    return '';
+  }
+};
+
+const isPrivilegedAdminUsername = (username: string) =>
+  username.toLowerCase() === TOP_UP_MANAGER_USERNAME.toLowerCase();
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -271,9 +313,10 @@ export default function App() {
   const [pointsToday, setPointsToday] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'promo' | 'tasks' | 'wheel' | 'referrals'>(
-    'home'
-  );
+  const [tgUsername, setTgUsername] = useState('');
+  const [activeTab, setActiveTab] = useState<
+    'home' | 'promo' | 'tasks' | 'wheel' | 'referrals' | 'admin'
+  >('home');
   const [dailyBonusStatus, setDailyBonusStatus] = useState<DailyBonusStatus>({
     available: false,
     lastSpinAt: null,
@@ -292,6 +335,10 @@ export default function App() {
   const [referralList, setReferralList] = useState<ReferralListItem[]>([]);
   const [referralListLoading, setReferralListLoading] = useState(false);
   const [referralListError, setReferralListError] = useState('');
+  const [adminPanelAllowed, setAdminPanelAllowed] = useState(false);
+  const [adminPanelLoading, setAdminPanelLoading] = useState(false);
+  const [adminPanelError, setAdminPanelError] = useState('');
+  const [adminPanelStats, setAdminPanelStats] = useState<AdminPanelStats | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
@@ -473,6 +520,16 @@ export default function App() {
     : referralLinkAvailable
       ? 'Откроем Telegram и отправим приглашение.'
       : 'Ссылка станет доступна после входа в Telegram Mini App.';
+  const adminBonusProgress = useMemo(() => {
+    if (!adminPanelStats) return 0;
+    if (adminPanelStats.bonusLimit <= 0) return 0;
+    const progress = (adminPanelStats.bonusGranted / adminPanelStats.bonusLimit) * 100;
+    return Math.max(0, Math.min(100, Math.round(progress)));
+  }, [adminPanelStats]);
+  const adminUpdatedAtLabel = useMemo(() => {
+    if (!adminPanelStats?.updatedAt) return 'н/д';
+    return formatDateTimeRu(adminPanelStats.updatedAt);
+  }, [adminPanelStats?.updatedAt]);
   const normalizeTaskPrice = useCallback((value: number) => {
     const rounded = Math.round(value);
     return Math.min(MAX_TASK_PRICE, Math.max(MIN_TASK_PRICE, rounded));
@@ -624,9 +681,12 @@ export default function App() {
   useEffect(() => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
+    const initData = getInitDataRaw();
+    const username =
+      extractUsernameFromInitData(initData) || extractUsernameFromTelegramUnsafe();
+    setTgUsername(username);
 
     const loadProfile = async () => {
-      const initData = getInitDataRaw();
       if (!initData) return;
 
       try {
@@ -652,6 +712,13 @@ export default function App() {
 
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (adminPanelAllowed) return;
+    if (!tgUsername) return;
+    if (tgUsername.toLowerCase() !== TOP_UP_MANAGER_USERNAME.toLowerCase()) return;
+    setAdminPanelAllowed(true);
+  }, [adminPanelAllowed, tgUsername]);
 
   useEffect(() => {
     wheelRotationRef.current = wheelRotation;
@@ -874,6 +941,28 @@ export default function App() {
     }
   }, []);
 
+  const loadAdminPanel = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    setAdminPanelLoading(true);
+    if (!silent) setAdminPanelError('');
+    try {
+      const data = await fetchAdminPanelStats();
+      if (!data?.allowed || !data.stats) {
+        setAdminPanelAllowed((current) =>
+          current && isPrivilegedAdminUsername(tgUsername) ? current : false
+        );
+        setAdminPanelStats(null);
+        return;
+      }
+      setAdminPanelAllowed(true);
+      setAdminPanelStats(data.stats);
+    } catch (error: any) {
+      if (!silent) setAdminPanelError(error?.message ?? 'Не удалось загрузить админ-статистику.');
+    } finally {
+      setAdminPanelLoading(false);
+    }
+  }, [tgUsername]);
+
   const loadDailyBonusStatus = useCallback(async () => {
     setDailyBonusError('');
     setDailyBonusLoading(true);
@@ -947,6 +1036,11 @@ export default function App() {
   }, [userId, loadReferralStats]);
 
   useEffect(() => {
+    if (!userId) return;
+    void loadAdminPanel({ silent: true });
+  }, [userId, loadAdminPanel]);
+
+  useEffect(() => {
     if (activeTab !== 'referrals') return;
     if (!userId) return;
     void loadReferralStats();
@@ -958,6 +1052,19 @@ export default function App() {
     if (!userId) return;
     void loadDailyBonusStatus();
   }, [activeTab, userId, loadDailyBonusStatus]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin') return;
+    if (!userId) return;
+    void loadAdminPanel();
+  }, [activeTab, userId, loadAdminPanel]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin') return;
+    if (adminPanelLoading) return;
+    if (adminPanelAllowed) return;
+    setActiveTab('home');
+  }, [activeTab, adminPanelAllowed, adminPanelLoading]);
 
   useEffect(() => {
     if (activeTab === 'wheel') return;
@@ -1012,10 +1119,11 @@ export default function App() {
         loadCampaigns({ silent: true }),
         loadMyApplications({ silent: true }),
         loadMe(),
+        loadAdminPanel({ silent: true }),
       ]);
       restoreScrollTop(contentRef.current, scrollTop);
     })();
-  }, [loadCampaigns, loadMyApplications, loadMe]);
+  }, [loadCampaigns, loadMyApplications, loadMe, loadAdminPanel]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -1388,14 +1496,25 @@ export default function App() {
         </div>
         <div className="identity">
           <div className="user-name">{userLabel}</div>
-          <button className="sub" type="button" onClick={openTopUpModal}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="3.5" y="6.5" width="17" height="11" rx="2.6" />
-              <path d="M16 12h.01" />
-              <path d="M7 9.5h3.5" />
-            </svg>
-            <span>Пополнить баланс</span>
-          </button>
+          <div className="identity-actions">
+            <button className="sub" type="button" onClick={openTopUpModal}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="3.5" y="6.5" width="17" height="11" rx="2.6" />
+                <path d="M16 12h.01" />
+                <path d="M7 9.5h3.5" />
+              </svg>
+              <span>Пополнить баланс</span>
+            </button>
+            {adminPanelAllowed && (
+              <button className="sub sub-admin" type="button" onClick={() => setActiveTab('admin')}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M12 3l7 3v5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6l7-3z" />
+                  <path d="M9.4 12.2l1.8 1.8 3.4-3.4" />
+                </svg>
+                <span>Админ</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <div className="stats">
@@ -1896,6 +2015,7 @@ export default function App() {
     activeTab === 'promo' ? 'promo-content' : '',
     activeTab === 'tasks' ? 'tasks-content' : '',
     activeTab === 'referrals' ? 'referrals-content' : '',
+    activeTab === 'admin' ? 'admin-content' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -2437,6 +2557,97 @@ export default function App() {
                     </div>
                   );
                 })}
+            </section>
+          </>
+        )}
+
+        {activeTab === 'admin' && adminPanelAllowed && (
+          <>
+            <div className="page-header admin-header">
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setActiveTab('home')}
+                aria-label="Назад"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+              <div className="page-title admin-page-title">Админ-панель</div>
+              <div className="header-spacer" aria-hidden="true" />
+            </div>
+
+            <section className="admin-panel-card">
+              <div className="admin-panel-head">
+                <div className="admin-panel-kicker">Внутренняя аналитика</div>
+                <div className="admin-panel-title">Статистика сервиса</div>
+                <div className="admin-panel-sub">Данные обновляются по запросу.</div>
+              </div>
+
+              {adminPanelLoading && <div className="admin-panel-status">Загрузка статистики…</div>}
+              {!adminPanelLoading && adminPanelError && (
+                <div className="admin-panel-status error">{adminPanelError}</div>
+              )}
+
+              {!adminPanelLoading && !adminPanelError && adminPanelStats && (
+                <>
+                  <div className="admin-panel-grid">
+                    <div className="admin-stat-card">
+                      <span className="admin-stat-label">Новых за сегодня</span>
+                      <strong className="admin-stat-value">
+                        {formatNumberRu(adminPanelStats.newUsersToday)}
+                      </strong>
+                    </div>
+                    <div className="admin-stat-card">
+                      <span className="admin-stat-label">Пользователей всего</span>
+                      <strong className="admin-stat-value">
+                        {formatNumberRu(adminPanelStats.totalUsers)}
+                      </strong>
+                    </div>
+                    <div className="admin-stat-card">
+                      <span className="admin-stat-label">Бонус +500 выдан</span>
+                      <strong className="admin-stat-value">
+                        {formatNumberRu(adminPanelStats.bonusGranted)}
+                      </strong>
+                      <span className="admin-stat-sub">
+                        из {formatNumberRu(adminPanelStats.bonusLimit)}
+                      </span>
+                    </div>
+                    <div className="admin-stat-card">
+                      <span className="admin-stat-label">Осталось слотов</span>
+                      <strong className="admin-stat-value accent">
+                        {formatNumberRu(adminPanelStats.bonusRemaining)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="admin-progress">
+                    <div className="admin-progress-track" aria-hidden="true">
+                      <span style={{ width: `${adminBonusProgress}%` }} />
+                    </div>
+                    <div className="admin-progress-meta">
+                      Лимит бонуса заполнен на <strong>{adminBonusProgress}%</strong>
+                    </div>
+                  </div>
+
+                  <div className="admin-panel-foot">
+                    <span>Обновлено</span>
+                    <strong>{adminUpdatedAtLabel}</strong>
+                  </div>
+                </>
+              )}
+
+              <button
+                className="admin-refresh-button"
+                type="button"
+                onClick={() => {
+                  void loadAdminPanel();
+                }}
+                disabled={adminPanelLoading}
+              >
+                {adminPanelLoading ? 'Обновляем…' : 'Обновить'}
+              </button>
             </section>
           </>
         )}
@@ -3088,7 +3299,7 @@ export default function App() {
       )}
 
       {activeTab !== 'wheel' && activeTab !== 'referrals' && (
-        <div className="bottom-nav">
+        <div className={`bottom-nav ${adminPanelAllowed ? 'has-admin' : ''}`}>
           <button
             className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
             type="button"
@@ -3121,6 +3332,19 @@ export default function App() {
             </svg>
             <span>Задания</span>
           </button>
+          {adminPanelAllowed && (
+            <button
+              className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setActiveTab('admin')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M12 3l7 3v5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6l7-3z" />
+                <path d="M9.4 12.2l1.8 1.8 3.4-3.4" />
+              </svg>
+              <span>Админ</span>
+            </button>
+          )}
         </div>
       )}
     </>
