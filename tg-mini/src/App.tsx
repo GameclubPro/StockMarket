@@ -109,6 +109,14 @@ const calculatePayoutWithBonus = (value: number, bonusRate: number) => {
 const BOT_SETUP_CHANNEL_URL = 'https://t.me/JoinRush_bot?startchannel=setup';
 const BOT_SETUP_GROUP_URL =
   'https://t.me/JoinRush_bot?startgroup&admin=invite_users+restrict_members+delete_messages+pin_messages+manage_chat+manage_topics';
+const TOP_UP_MANAGER_USERNAME = 'Nitchim';
+const TOP_UP_PACKAGES = [
+  { points: 500, priceRub: 100 },
+  { points: 1000, priceRub: 190 },
+  { points: 2500, priceRub: 450 },
+  { points: 5000, priceRub: 800 },
+] as const;
+type TopUpPackage = (typeof TOP_UP_PACKAGES)[number];
 const formatPointsLabel = (value: number) => {
   const abs = Math.abs(value);
   const mod100 = abs % 100;
@@ -259,6 +267,7 @@ export default function App() {
   const [dailyBonusError, setDailyBonusError] = useState('');
   const [dailyBonusInfoOpen, setDailyBonusInfoOpen] = useState(false);
   const [referralInfoOpen, setReferralInfoOpen] = useState(false);
+  const [topUpModalOpen, setTopUpModalOpen] = useState(false);
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralError, setReferralError] = useState('');
@@ -877,6 +886,17 @@ export default function App() {
   }, [activeTab, referralInfoOpen]);
 
   useEffect(() => {
+    if (!topUpModalOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTopUpModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [topUpModalOpen]);
+
+  useEffect(() => {
     if (applicationsRequestedRef.current) return;
     applicationsRequestedRef.current = true;
     void loadMyApplications({ silent: true });
@@ -1199,7 +1219,7 @@ export default function App() {
         </div>
         <div className="identity">
           <div className="user-name">{userLabel}</div>
-          <button className="sub" type="button">
+          <button className="sub" type="button" onClick={openTopUpModal}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <rect x="3.5" y="6.5" width="17" height="11" rx="2.6" />
               <path d="M16 12h.01" />
@@ -1256,7 +1276,12 @@ export default function App() {
             {displayPoints}
           </span>
           <span className="metric-unit">{formatPointsLabel(displayPoints)}</span>
-          <button className="metric-plus" type="button" aria-label="Пополнить баланс">
+          <button
+            className="metric-plus"
+            type="button"
+            aria-label="Пополнить баланс"
+            onClick={openTopUpModal}
+          >
             +
           </button>
         </div>
@@ -1642,6 +1667,36 @@ export default function App() {
         setReferralError(error?.message ?? 'Не удалось поделиться ссылкой.');
       }
     }
+  };
+
+  const openTopUpModal = () => setTopUpModalOpen(true);
+  const closeTopUpModal = () => setTopUpModalOpen(false);
+
+  const openTelegramContact = (url: string) => {
+    const tg = (window as any)?.Telegram?.WebApp;
+    try {
+      if (typeof tg?.openTelegramLink === 'function') {
+        tg.openTelegramLink(url);
+        return;
+      }
+    } catch {
+      // fallback below
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleTopUpPackageSelect = (topUpPackage: TopUpPackage) => {
+    const text = `Здравствуйте! Хочу приобрести ${topUpPackage.points} ${formatPointsLabel(
+      topUpPackage.points
+    )} за ${topUpPackage.priceRub} рублей.`;
+    const url = `https://t.me/${TOP_UP_MANAGER_USERNAME}?text=${encodeURIComponent(text)}`;
+    setTopUpModalOpen(false);
+    openTelegramContact(url);
+  };
+
+  const handleOpenTopUpContact = () => {
+    const url = `https://t.me/${TOP_UP_MANAGER_USERNAME}`;
+    openTelegramContact(url);
   };
 
 
@@ -2660,6 +2715,59 @@ export default function App() {
           </>
         )}
       </div>
+
+      {topUpModalOpen && (
+        <div className="topup-modal-backdrop" onClick={closeTopUpModal}>
+          <div
+            className="topup-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="topup-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="topup-modal-handle" aria-hidden="true" />
+            <div className="topup-modal-head">
+              <div className="topup-modal-copy">
+                <div className="topup-modal-title" id="topup-modal-title">
+                  Пополнение баланса
+                </div>
+                <div className="topup-modal-sub">
+                  Выберите пакет, чтобы отправить заявку в @{TOP_UP_MANAGER_USERNAME}
+                </div>
+              </div>
+              <button
+                className="topup-modal-close"
+                type="button"
+                aria-label="Закрыть окно пополнения"
+                onClick={closeTopUpModal}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                  <path d="M6 6l12 12" />
+                  <path d="M18 6l-12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="topup-options" role="list">
+              {TOP_UP_PACKAGES.map((topUpPackage) => (
+                <button
+                  key={topUpPackage.points}
+                  className="topup-option-button"
+                  type="button"
+                  onClick={() => handleTopUpPackageSelect(topUpPackage)}
+                >
+                  <span className="topup-option-points">
+                    {topUpPackage.points} {formatPointsLabel(topUpPackage.points)}
+                  </span>
+                  <span className="topup-option-price">{topUpPackage.priceRub} рублей</span>
+                </button>
+              ))}
+            </div>
+            <button className="topup-modal-contact" type="button" onClick={handleOpenTopUpContact}>
+              Открыть @{TOP_UP_MANAGER_USERNAME}
+            </button>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'wheel' && wheelRewardModalOpen && wheelResult && (
         <div className="wheel-reward-modal-backdrop" onClick={handleClaimWheelReward}>

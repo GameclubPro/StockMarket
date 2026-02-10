@@ -2276,6 +2276,151 @@ body::before {
   background: rgba(71, 50, 17, 0.34);
 }
 
+.topup-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  padding:
+    calc(var(--tg-safe-top, env(safe-area-inset-top, 0px)) + 12px)
+    clamp(12px, 3.8vw, 16px)
+    calc(var(--tg-safe-bottom, env(safe-area-inset-bottom, 0px)) + 12px);
+  display: flex;
+  align-items: flex-end;
+  background:
+    linear-gradient(180deg, rgba(4, 10, 16, 0.2) 0%, rgba(4, 10, 16, 0.84) 58%),
+    radial-gradient(95% 66% at 50% 100%, rgba(146, 226, 255, 0.22) 0%, transparent 74%);
+  backdrop-filter: blur(7px);
+}
+
+.topup-modal {
+  width: min(100%, 430px);
+  margin: 0 auto;
+  border-radius: 26px;
+  border: 1px solid rgba(173, 231, 202, 0.42);
+  background:
+    radial-gradient(130% 92% at 50% -24%, rgba(157, 235, 255, 0.22) 0%, transparent 64%),
+    linear-gradient(170deg, rgba(12, 23, 32, 0.98), rgba(4, 11, 18, 0.99));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(230, 251, 238, 0.18);
+  padding: 10px 12px 14px;
+  display: grid;
+  gap: 11px;
+  animation: topupSheetIn 220ms cubic-bezier(0.2, 0.88, 0.3, 1) both;
+}
+
+.topup-modal-handle {
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  margin: 0 auto;
+  background: rgba(206, 232, 218, 0.42);
+}
+
+.topup-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.topup-modal-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.topup-modal-title {
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #effff7;
+}
+
+.topup-modal-sub {
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(208, 230, 218, 0.86);
+}
+
+.topup-modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  border: 1px solid rgba(169, 220, 255, 0.35);
+  background: linear-gradient(180deg, rgba(17, 29, 40, 0.95), rgba(7, 13, 22, 0.98));
+  color: rgba(223, 244, 235, 0.9);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.topup-modal-close svg {
+  width: 17px;
+  height: 17px;
+}
+
+.topup-options {
+  display: grid;
+  gap: 8px;
+}
+
+.topup-option-button {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 15px;
+  border: 1px solid rgba(161, 222, 255, 0.34);
+  background: linear-gradient(164deg, rgba(19, 32, 44, 0.95), rgba(9, 15, 24, 0.98));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  color: rgba(236, 251, 243, 0.96);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(220, 246, 255, 0.08);
+  transition: transform 0.18s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.topup-option-button:hover,
+.topup-option-button:focus-visible {
+  border-color: rgba(146, 240, 193, 0.56);
+  background: linear-gradient(164deg, rgba(27, 51, 67, 0.94), rgba(11, 23, 33, 0.97));
+}
+
+.topup-option-button:active {
+  transform: translateY(1px);
+}
+
+.topup-option-points {
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.topup-option-price {
+  font-size: 13px;
+  line-height: 1.2;
+  color: rgba(191, 217, 205, 0.92);
+}
+
+.topup-modal-contact {
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(186, 236, 206, 0.52);
+  background: linear-gradient(
+    140deg,
+    rgba(143, 243, 190, 0.92) 0%,
+    rgba(255, 218, 126, 0.9) 100%
+  );
+  color: var(--ink-dark);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .wheel-reward-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -3276,6 +3421,17 @@ body::before {
   }
 }
 
+@keyframes topupSheetIn {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wheel-wrapper::before,
   .daily-bonus-preview-wrap,
@@ -3312,6 +3468,10 @@ body::before {
   .wheel-reward-token-core,
   .wheel-reward-starfield span,
   .wheel-reward-claim::after {
+    animation: none;
+  }
+
+  .topup-modal {
     animation: none;
   }
 }
@@ -5073,6 +5233,33 @@ button {
   .wheel-reward-claim {
     min-height: 46px;
     font-size: 15px;
+  }
+
+  .topup-modal {
+    border-radius: 24px;
+    padding: 9px 10px 12px;
+    gap: 9px;
+  }
+
+  .topup-modal-title {
+    font-size: 17px;
+  }
+
+  .topup-modal-sub {
+    font-size: 11px;
+  }
+
+  .topup-option-button {
+    min-height: 52px;
+    padding: 10px 12px;
+  }
+
+  .topup-option-points {
+    font-size: 14px;
+  }
+
+  .topup-option-price {
+    font-size: 12px;
   }
 
   .bonus-stats-grid {
