@@ -7917,3 +7917,36 @@ body::before {
   color: #f1f4f2 !important;
   text-shadow: none !important;
 }
+
+/* Final cleanup: remove remaining cyan accents on non-home screens */
+:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.referrals-content, .content.admin-content)
+  .segment-button:focus-visible {
+  outline: 2px solid rgba(143, 243, 190, 0.56) !important;
+}
+
+:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.referrals-content, .content.admin-content)
+  .price-stepper-button:focus-visible {
+  outline: 2px solid rgba(143, 243, 190, 0.56) !important;
+}
+
+:is(.content.wheel-content) :is(.wheel-head, .wheel-head-icon, .wheel-rule-clock, .wheel-info-popover .daily-bonus-info-item) {
+  background: var(--home-theme-control-bg) !important;
+  border-color: var(--home-theme-control-border) !important;
+  color: var(--home-theme-control-text) !important;
+}
+
+.content.wheel-content .daily-bonus-info-popover.wheel-info-popover .daily-bonus-info-track span,
+.content.referrals-content .referral-progress-bar,
+.content.admin-content .admin-progress-track span {
+  background: linear-gradient(90deg, rgba(143, 243, 190, 0.86), rgba(143, 243, 190, 0.52)) !important;
+  box-shadow: none !important;
+}
+
+.content.tasks-content .filter-chip::after {
+  background: linear-gradient(
+    90deg,
+    rgba(143, 243, 190, 0.08),
+    rgba(143, 243, 190, 0.72),
+    rgba(143, 243, 190, 0.08)
+  ) !important;
+}
