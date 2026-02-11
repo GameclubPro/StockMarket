@@ -4257,7 +4257,7 @@ body::before {
 }
 
 .content.admin-content {
-  padding: calc(var(--tg-safe-top) + 14px) 12px 8px;
+  padding: calc(var(--tg-safe-top) + 14px + var(--tg-screen-top-gap)) 12px 8px;
   gap: 10px;
 }
 
@@ -6467,6 +6467,7 @@ body::before {
   --tg-safe-bottom-effective: max(var(--tg-safe-bottom), env(safe-area-inset-bottom, 0px), 18px);
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
   --tg-top-ui-gap: 18px;
+  --tg-screen-top-gap: 12px;
   --tg-home-top-gap: 24px;
   --tg-nav-bottom-gap: 18px;
 }
@@ -6494,7 +6495,8 @@ body::before {
 }
 
 .content {
-  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective)) 12px 12px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap)) 12px
+    12px;
   overscroll-behavior: contain;
 }
 
@@ -6537,7 +6539,7 @@ body::before {
 }
 
 .content.promo-content {
-  padding: calc(var(--tg-safe-top) + 30px) 12px 8px;
+  padding: calc(var(--tg-safe-top) + 30px + var(--tg-screen-top-gap)) 12px 8px;
   gap: 10px;
 }
 
@@ -6888,7 +6890,7 @@ body::before {
 }
 
 .content.tasks-content {
-  padding: calc(var(--tg-safe-top) + 14px) 12px 8px;
+  padding: calc(var(--tg-safe-top) + 14px + var(--tg-screen-top-gap)) 12px 8px;
   gap: 10px;
 }
 
@@ -7216,7 +7218,7 @@ body::before {
   }
 
   .content.promo-content {
-    padding: calc(var(--tg-safe-top) + 26px) 10px 8px;
+    padding: calc(var(--tg-safe-top) + 26px + var(--tg-screen-top-gap)) 10px 8px;
     gap: 8px;
   }
 
@@ -7360,7 +7362,7 @@ body::before {
 
 @media (max-width: 360px) {
   .content.promo-content {
-    padding: calc(var(--tg-safe-top) + 26px) 10px 8px;
+    padding: calc(var(--tg-safe-top) + 26px + var(--tg-screen-top-gap)) 10px 8px;
     gap: 7px;
   }
 
@@ -7508,7 +7510,7 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-safe-top) + 10px) 10px 12px;
+  padding: calc(var(--tg-safe-top) + 10px + var(--tg-screen-top-gap)) 10px 12px;
   gap: 10px;
 }
 
@@ -7735,7 +7737,7 @@ body::before {
 
 @media (max-width: 390px) {
   .content.admin-content {
-    padding: calc(var(--tg-safe-top) + 10px) 9px 8px;
+    padding: calc(var(--tg-safe-top) + 10px + var(--tg-screen-top-gap)) 9px 8px;
     gap: 8px;
   }
 
@@ -7815,7 +7817,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px) 9px 12px;
+    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 9px 12px;
     gap: 9px;
   }
 
@@ -7842,7 +7844,7 @@ body::before {
 
 @media (max-width: 360px) {
   .content.admin-content {
-    padding: calc(var(--tg-safe-top) + 8px) 8px 8px;
+    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 8px 8px;
   }
 
   .admin-panel-grid {
@@ -7870,7 +7872,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px) 8px 12px;
+    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 8px 12px;
   }
 
   .content.referrals-content .referral-link-head {
