@@ -8,3 +8,8 @@ node_modules
 .logs
 
 *.tsbuildinfo
+
+# Emulator fullscreen settings must stay tracked
+!package.json
+!README.md
+!scripts/miniapp-visual.mjs

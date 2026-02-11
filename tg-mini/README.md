@@ -63,6 +63,16 @@ npm run compare:design-redesign -- --width 430 --height 932 --baselineDir .logs/
 npm run emulator:miniapp
 ```
 
+Запуск с явной фиксацией `fullscreen` (рекомендуется):
+```
+npm run emulator:tg-2026-fullscreen
+```
+
+Сразу открыть экран `Продвижение` в `fullscreen`:
+```
+npm run emulator:tg-2026-fullscreen:promo
+```
+
 Что есть в эмуляторе:
 - Реальный fullscreen-профиль Telegram Mini App по умолчанию (fullscreen lock, не fullsize).
 - Живые `viewport/safe-area/fullscreen` события и обновляемый Telegram chrome.

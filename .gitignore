@@ -7,3 +7,8 @@ dist
 .env.*
 
 *.tsbuildinfo
+
+# Emulator fullscreen settings must stay tracked
+!/tg-mini/package.json
+!/tg-mini/README.md
+!/tg-mini/scripts/miniapp-visual.mjs

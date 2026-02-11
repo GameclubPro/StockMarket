@@ -6433,32 +6433,26 @@ body::before {
 
 /* Fullscreen Telegram Mini App + CTA palette refresh */
 :root {
-  --tg-top-reserved: 64px;
+  --tg-top-reserved: 0px;
   --tg-bottom-reserved: 0px;
-  --tg-safe-top: max(
-    env(safe-area-inset-top, 0px),
-    var(--tg-top-reserved, 0px),
-    var(--tg-viewport-safe-area-inset-top, 0px),
-    var(--tg-viewport-content-safe-area-inset-top, 0px)
+  --tg-safe-top: var(
+    --tg-viewport-safe-area-inset-top,
+    var(--tg-viewport-content-safe-area-inset-top, var(--tg-top-reserved, env(safe-area-inset-top, 0px)))
   );
-  --tg-safe-right: max(
-    env(safe-area-inset-right, 0px),
-    var(--tg-viewport-safe-area-inset-right, 0px),
-    var(--tg-viewport-content-safe-area-inset-right, 0px)
+  --tg-safe-right: var(
+    --tg-viewport-safe-area-inset-right,
+    var(--tg-viewport-content-safe-area-inset-right, env(safe-area-inset-right, 0px))
   );
-  --tg-safe-bottom: max(
-    env(safe-area-inset-bottom, 0px),
-    var(--tg-bottom-reserved, 0px),
-    var(--tg-viewport-safe-area-inset-bottom, 0px),
-    var(--tg-viewport-content-safe-area-inset-bottom, 0px)
+  --tg-safe-bottom: var(
+    --tg-viewport-safe-area-inset-bottom,
+    var(--tg-viewport-content-safe-area-inset-bottom, var(--tg-bottom-reserved, env(safe-area-inset-bottom, 0px)))
   );
-  --tg-safe-left: max(
-    env(safe-area-inset-left, 0px),
-    var(--tg-viewport-safe-area-inset-left, 0px),
-    var(--tg-viewport-content-safe-area-inset-left, 0px)
+  --tg-safe-left: var(
+    --tg-viewport-safe-area-inset-left,
+    var(--tg-viewport-content-safe-area-inset-left, env(safe-area-inset-left, 0px))
   );
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
-  --tg-top-ui-gap: 28px;
+  --tg-top-ui-gap: 10px;
 }
 
 html,

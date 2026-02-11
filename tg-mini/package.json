@@ -11,7 +11,9 @@
     "screenshot:design-redesign": "node scripts/miniapp-visual.mjs screenshot",
     "scan:mobile-ui": "node scripts/miniapp-visual.mjs scan",
     "compare:design-redesign": "node scripts/miniapp-visual.mjs compare",
-    "emulator:miniapp": "node scripts/miniapp-visual.mjs emulator"
+    "emulator:miniapp": "node scripts/miniapp-visual.mjs emulator",
+    "emulator:tg-2026-fullscreen": "node scripts/miniapp-visual.mjs emulator --tgMode fullscreen",
+    "emulator:tg-2026-fullscreen:promo": "node scripts/miniapp-visual.mjs emulator --tgMode fullscreen --openScreen promo"
   },
   "dependencies": {
     "@telegram-apps/sdk": "^3.11.5",

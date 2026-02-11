@@ -1476,7 +1476,7 @@ async function installTelegramMocks(page, config) {
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
     mockAdminAccess: config.mockAdminAccess,
-    enforceFullscreen: config.mode === 'emulator' && !config.allowNonFullscreen,
+    enforceFullscreen: config.tgMode === 'fullscreen' && !config.allowNonFullscreen,
   });
 }
 
