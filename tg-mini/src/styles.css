@@ -6433,7 +6433,7 @@ body::before {
 
 /* Fullscreen Telegram Mini App + CTA palette refresh */
 :root {
-  --tg-top-reserved: 0px;
+  --tg-top-reserved: 34px;
   --tg-bottom-reserved: 0px;
   --tg-safe-top: var(
     --tg-safe-top-actual,
