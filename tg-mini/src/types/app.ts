@@ -81,6 +81,147 @@ export type ReferralListItem = {
 };
 
 export type AdminPanelStats = {
+  period: {
+    preset: 'today' | '7d' | '30d';
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    updatedAt: string;
+  };
+  overview: {
+    newUsers: number;
+    totalUsers: number;
+    activeUsers: number;
+    activeCampaigns: number;
+    pendingApplications: number;
+    reviewedApplications: number;
+    approvedApplications: number;
+    rejectedApplications: number;
+    approvalRate: number;
+    pointsIssued: number;
+    pointsSpent: number;
+    pointsNet: number;
+    welcomeBonusGranted: number;
+    welcomeBonusLimit: number;
+    welcomeBonusRemaining: number;
+  };
+  trends: {
+    newUsers: {
+      current: number;
+      previous: number;
+      delta: number;
+      deltaPct: number | null;
+      direction: 'up' | 'down' | 'flat';
+    };
+    pointsIssued: {
+      current: number;
+      previous: number;
+      delta: number;
+      deltaPct: number | null;
+      direction: 'up' | 'down' | 'flat';
+    };
+    reviewedApplications: {
+      current: number;
+      previous: number;
+      delta: number;
+      deltaPct: number | null;
+      direction: 'up' | 'down' | 'flat';
+    };
+  };
+  campaigns: {
+    createdInPeriod: number;
+    activeCount: number;
+    pausedCount: number;
+    completedCount: number;
+    lowBudgetCount: number;
+    topCampaigns: Array<{
+      id: string;
+      groupTitle: string;
+      ownerLabel: string;
+      actionType: 'SUBSCRIBE' | 'REACTION';
+      status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+      spentBudget: number;
+      totalBudget: number;
+      remainingBudget: number;
+      rewardPoints: number;
+      approvalRate: number;
+    }>;
+  };
+  applications: {
+    pendingCount: number;
+    stalePendingCount: number;
+    reviewedInPeriod: number;
+    avgReviewMinutes: number;
+    recentPending: Array<{
+      id: string;
+      createdAt: string;
+      applicantLabel: string;
+      campaignId: string;
+      campaignLabel: string;
+      ownerLabel: string;
+    }>;
+    recentReviewed: Array<{
+      id: string;
+      status: 'APPROVED' | 'REJECTED';
+      createdAt: string;
+      reviewedAt: string;
+      applicantLabel: string;
+      campaignId: string;
+      campaignLabel: string;
+      ownerLabel: string;
+    }>;
+  };
+  economy: {
+    issuedPoints: number;
+    spentPoints: number;
+    netPoints: number;
+    topCredits: Array<{
+      id: string;
+      amount: number;
+      reason: string;
+      userLabel: string;
+      createdAt: string;
+    }>;
+    topDebits: Array<{
+      id: string;
+      amount: number;
+      reason: string;
+      userLabel: string;
+      createdAt: string;
+    }>;
+  };
+  referrals: {
+    invitedInPeriod: number;
+    rewardsInPeriod: number;
+    topReferrers: Array<{
+      userId: string;
+      userLabel: string;
+      rewards: number;
+      invited: number;
+    }>;
+  };
+  risks: {
+    highRejectOwners: Array<{
+      userId: string;
+      ownerLabel: string;
+      reviewed: number;
+      rejected: number;
+      rejectRate: number;
+    }>;
+    suspiciousApplicants: Array<{
+      userId: string;
+      userLabel: string;
+      applications: number;
+      approved: number;
+      approveRate: number;
+    }>;
+  };
+  alerts: Array<{
+    level: 'info' | 'warning' | 'critical';
+    message: string;
+  }>;
+  // legacy fields
   newUsersToday: number;
   totalUsers: number;
   bonusGranted: number;

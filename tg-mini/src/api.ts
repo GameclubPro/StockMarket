@@ -96,8 +96,9 @@ export const fetchMe = async () => {
   return data as { ok: boolean; user: UserDto; balance: number; stats: { groups: number; campaigns: number; applications: number } };
 };
 
-export const fetchAdminPanelStats = async () => {
-  const response = await fetch(`${API_BASE}/api/admin/panel`, {
+export const fetchAdminPanelStats = async (period: 'today' | '7d' | '30d' = 'today') => {
+  const params = new URLSearchParams({ period });
+  const response = await fetch(`${API_BASE}/api/admin/panel?${params.toString()}`, {
     headers: withAuthHeaders(),
   });
   if (response.status === 401 || response.status === 403) return null;

@@ -294,12 +294,16 @@ function parseConfig(mode, rawArgs) {
 }
 
 function buildTelegramMockQuery(config) {
-  return new URLSearchParams({
+  const params = new URLSearchParams({
     tgWebAppPlatform: 'android',
     tgWebAppVersion: config.tgWebAppVersion,
     tgWebAppThemeParams: TELEGRAM_MOCK_THEME_PARAMS,
     tgWebAppData: buildTelegramMockInitData(config.mockAdminAccess),
-  }).toString();
+  });
+  if (config.mockAdminAccess) {
+    params.set('jrVisualAdmin', '1');
+  }
+  return params.toString();
 }
 
 async function sleep(ms) {
@@ -640,6 +644,220 @@ function buildFixtures() {
       },
     ],
     adminPanelStats: {
+      period: {
+        preset: '7d',
+        from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        to: new Date().toISOString(),
+        previousFrom: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+        previousTo: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      overview: {
+        newUsers: 27,
+        totalUsers: 1458,
+        activeUsers: 512,
+        activeCampaigns: 119,
+        pendingApplications: 22,
+        reviewedApplications: 314,
+        approvedApplications: 243,
+        rejectedApplications: 71,
+        approvalRate: 77.4,
+        pointsIssued: 28640,
+        pointsSpent: 19320,
+        pointsNet: 9320,
+        welcomeBonusGranted: 34,
+        welcomeBonusLimit: 50,
+        welcomeBonusRemaining: 16,
+      },
+      trends: {
+        newUsers: {
+          current: 27,
+          previous: 19,
+          delta: 8,
+          deltaPct: 42.1,
+          direction: 'up',
+        },
+        pointsIssued: {
+          current: 28640,
+          previous: 23120,
+          delta: 5520,
+          deltaPct: 23.9,
+          direction: 'up',
+        },
+        reviewedApplications: {
+          current: 314,
+          previous: 338,
+          delta: -24,
+          deltaPct: -7.1,
+          direction: 'down',
+        },
+      },
+      campaigns: {
+        createdInPeriod: 96,
+        activeCount: 119,
+        pausedCount: 14,
+        completedCount: 488,
+        lowBudgetCount: 11,
+        topCampaigns: [
+          {
+            id: 'camp-1',
+            groupTitle: 'Crypto Alpha',
+            ownerLabel: '@owner_1',
+            actionType: 'SUBSCRIBE',
+            status: 'ACTIVE',
+            spentBudget: 3220,
+            totalBudget: 4000,
+            remainingBudget: 780,
+            rewardPoints: 20,
+            approvalRate: 81.2,
+          },
+          {
+            id: 'camp-2',
+            groupTitle: 'Wallstreet Notes',
+            ownerLabel: '@owner_2',
+            actionType: 'REACTION',
+            status: 'ACTIVE',
+            spentBudget: 2750,
+            totalBudget: 3000,
+            remainingBudget: 250,
+            rewardPoints: 25,
+            approvalRate: 68.9,
+          },
+          {
+            id: 'camp-3',
+            groupTitle: 'My Test Channel',
+            ownerLabel: '@owner_3',
+            actionType: 'SUBSCRIBE',
+            status: 'PAUSED',
+            spentBudget: 1430,
+            totalBudget: 2200,
+            remainingBudget: 770,
+            rewardPoints: 18,
+            approvalRate: 74.6,
+          },
+        ],
+      },
+      applications: {
+        pendingCount: 22,
+        stalePendingCount: 9,
+        reviewedInPeriod: 314,
+        avgReviewMinutes: 42,
+        recentPending: [
+          {
+            id: 'app-pending-1',
+            createdAt: isoMinutesAgo(1900),
+            applicantLabel: '@design_user_1',
+            campaignId: 'camp-1',
+            campaignLabel: 'Crypto Alpha',
+            ownerLabel: '@owner_1',
+          },
+          {
+            id: 'app-pending-2',
+            createdAt: isoMinutesAgo(1300),
+            applicantLabel: '@design_user_2',
+            campaignId: 'camp-2',
+            campaignLabel: 'Wallstreet Notes',
+            ownerLabel: '@owner_2',
+          },
+        ],
+        recentReviewed: [
+          {
+            id: 'app-reviewed-1',
+            status: 'APPROVED',
+            createdAt: isoMinutesAgo(340),
+            reviewedAt: isoMinutesAgo(210),
+            applicantLabel: '@design_user_4',
+            campaignId: 'camp-1',
+            campaignLabel: 'Crypto Alpha',
+            ownerLabel: '@owner_1',
+          },
+          {
+            id: 'app-reviewed-2',
+            status: 'REJECTED',
+            createdAt: isoMinutesAgo(260),
+            reviewedAt: isoMinutesAgo(120),
+            applicantLabel: '@design_user_6',
+            campaignId: 'camp-3',
+            campaignLabel: 'My Test Channel',
+            ownerLabel: '@owner_3',
+          },
+        ],
+      },
+      economy: {
+        issuedPoints: 28640,
+        spentPoints: 19320,
+        netPoints: 9320,
+        topCredits: [
+          {
+            id: 'credit-1',
+            amount: 500,
+            reason: 'Реферальный бонус: 30 заказов',
+            userLabel: '@market_pro',
+            createdAt: isoMinutesAgo(220),
+          },
+          {
+            id: 'credit-2',
+            amount: 320,
+            reason: 'Вступление в группу',
+            userLabel: '@growth_user',
+            createdAt: isoMinutesAgo(170),
+          },
+        ],
+        topDebits: [
+          {
+            id: 'debit-1',
+            amount: 800,
+            reason: 'Бюджет кампании',
+            userLabel: '@owner_1',
+            createdAt: isoMinutesAgo(260),
+          },
+          {
+            id: 'debit-2',
+            amount: 620,
+            reason: 'Бюджет кампании',
+            userLabel: '@owner_2',
+            createdAt: isoMinutesAgo(205),
+          },
+        ],
+      },
+      referrals: {
+        invitedInPeriod: 39,
+        rewardsInPeriod: 2180,
+        topReferrers: [
+          { userId: 'u-ref-1', userLabel: '@super_ref', rewards: 620, invited: 8 },
+          { userId: 'u-ref-2', userLabel: '@fast_ref', rewards: 410, invited: 6 },
+        ],
+      },
+      risks: {
+        highRejectOwners: [
+          {
+            userId: 'owner-risk-1',
+            ownerLabel: '@owner_3',
+            reviewed: 34,
+            rejected: 17,
+            rejectRate: 50,
+          },
+        ],
+        suspiciousApplicants: [
+          {
+            userId: 'appl-risk-1',
+            userLabel: '@spam_apply',
+            applications: 11,
+            approved: 2,
+            approveRate: 18.2,
+          },
+        ],
+      },
+      alerts: [
+        {
+          level: 'warning',
+          message: 'На проверке 9 заявок старше 24 часов.',
+        },
+        {
+          level: 'info',
+          message: 'У 11 активных кампаний бюджет на исходе.',
+        },
+      ],
       newUsersToday: 27,
       totalUsers: 1458,
       bonusGranted: 34,

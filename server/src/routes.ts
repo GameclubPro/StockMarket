@@ -58,6 +58,10 @@ const campaignQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
+const adminPanelQuerySchema = z.object({
+  period: z.enum(['today', '7d', '30d']).optional(),
+});
+
 const REFERRAL_MILESTONES = [
   {
     milestone: 'JOIN',
@@ -104,9 +108,145 @@ const FIRST_LOGIN_WELCOME_BONUS_LOCK_TIMEOUT_SEC = 10;
 const BOT_PANEL_ALLOWED_COMMANDS = new Set(['/admin', '/stats', '/panel']);
 const BOT_PANEL_ALLOWED_TEXTS = new Set(['админ', 'админка', 'панель', 'статистика']);
 const BOT_PANEL_DEFAULT_ADMIN_USERNAMES = ['@Nitchim'];
+const ADMIN_PERIOD_DAY_MS = 24 * 60 * 60 * 1000;
+const ADMIN_STALE_PENDING_MS = 24 * 60 * 60 * 1000;
+const ADMIN_LOW_BUDGET_MULTIPLIER = 3;
 let botPanelSeedPromise: Promise<void> | null = null;
 let botPanelStoragePromise: Promise<void> | null = null;
+type AdminPanelPeriodPreset = 'today' | '7d' | '30d';
+type AdminPanelTrendDirection = 'up' | 'down' | 'flat';
+type AdminPanelTrend = {
+  current: number;
+  previous: number;
+  delta: number;
+  deltaPct: number | null;
+  direction: AdminPanelTrendDirection;
+};
+type AdminPanelAlert = {
+  level: 'info' | 'warning' | 'critical';
+  message: string;
+};
 type AdminPanelStats = {
+  period: {
+    preset: AdminPanelPeriodPreset;
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    updatedAt: string;
+  };
+  overview: {
+    newUsers: number;
+    totalUsers: number;
+    activeUsers: number;
+    activeCampaigns: number;
+    pendingApplications: number;
+    reviewedApplications: number;
+    approvedApplications: number;
+    rejectedApplications: number;
+    approvalRate: number;
+    pointsIssued: number;
+    pointsSpent: number;
+    pointsNet: number;
+    welcomeBonusGranted: number;
+    welcomeBonusLimit: number;
+    welcomeBonusRemaining: number;
+  };
+  trends: {
+    newUsers: AdminPanelTrend;
+    pointsIssued: AdminPanelTrend;
+    reviewedApplications: AdminPanelTrend;
+  };
+  campaigns: {
+    createdInPeriod: number;
+    activeCount: number;
+    pausedCount: number;
+    completedCount: number;
+    lowBudgetCount: number;
+    topCampaigns: Array<{
+      id: string;
+      groupTitle: string;
+      ownerLabel: string;
+      actionType: 'SUBSCRIBE' | 'REACTION';
+      status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+      spentBudget: number;
+      totalBudget: number;
+      remainingBudget: number;
+      rewardPoints: number;
+      approvalRate: number;
+    }>;
+  };
+  applications: {
+    pendingCount: number;
+    stalePendingCount: number;
+    reviewedInPeriod: number;
+    avgReviewMinutes: number;
+    recentPending: Array<{
+      id: string;
+      createdAt: string;
+      applicantLabel: string;
+      campaignId: string;
+      campaignLabel: string;
+      ownerLabel: string;
+    }>;
+    recentReviewed: Array<{
+      id: string;
+      status: 'APPROVED' | 'REJECTED';
+      createdAt: string;
+      reviewedAt: string;
+      applicantLabel: string;
+      campaignId: string;
+      campaignLabel: string;
+      ownerLabel: string;
+    }>;
+  };
+  economy: {
+    issuedPoints: number;
+    spentPoints: number;
+    netPoints: number;
+    topCredits: Array<{
+      id: string;
+      amount: number;
+      reason: string;
+      userLabel: string;
+      createdAt: string;
+    }>;
+    topDebits: Array<{
+      id: string;
+      amount: number;
+      reason: string;
+      userLabel: string;
+      createdAt: string;
+    }>;
+  };
+  referrals: {
+    invitedInPeriod: number;
+    rewardsInPeriod: number;
+    topReferrers: Array<{
+      userId: string;
+      userLabel: string;
+      rewards: number;
+      invited: number;
+    }>;
+  };
+  risks: {
+    highRejectOwners: Array<{
+      userId: string;
+      ownerLabel: string;
+      reviewed: number;
+      rejected: number;
+      rejectRate: number;
+    }>;
+    suspiciousApplicants: Array<{
+      userId: string;
+      userLabel: string;
+      applications: number;
+      approved: number;
+      approveRate: number;
+    }>;
+  };
+  alerts: AdminPanelAlert[];
+  // legacy fields for backward compatibility
   newUsersToday: number;
   totalUsers: number;
   bonusGranted: number;
@@ -436,54 +576,731 @@ const hasBotPanelAccess = async (payload: { telegramId: number | string; usernam
   return Boolean(access);
 };
 
-const getTodayRange = (now = new Date()) => {
-  const from = new Date(now);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(from);
-  to.setDate(to.getDate() + 1);
-  return { from, to };
+const getStartOfDay = (value: Date) => {
+  const next = new Date(value);
+  next.setHours(0, 0, 0, 0);
+  return next;
 };
 
-const getAdminPanelStats = async (now = new Date()): Promise<AdminPanelStats> => {
-  const { from, to } = getTodayRange(now);
-  const [newUsersToday, totalUsers, bonusGranted] = await Promise.all([
+const addDays = (value: Date, days: number) =>
+  new Date(value.getTime() + days * ADMIN_PERIOD_DAY_MS);
+
+const getAdminPeriodRange = (preset: AdminPanelPeriodPreset, now = new Date()) => {
+  const todayStart = getStartOfDay(now);
+  const todayEnd = addDays(todayStart, 1);
+  const days = preset === 'today' ? 1 : preset === '7d' ? 7 : 30;
+  const from = addDays(todayEnd, -days);
+  const to = todayEnd;
+  const previousTo = from;
+  const previousFrom = addDays(previousTo, -days);
+  return { preset, from, to, previousFrom, previousTo };
+};
+
+const toPositiveInt = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(value ?? 0));
+};
+
+const toRatioPercent = (value: number, total: number) => {
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Number(((value / total) * 100).toFixed(1));
+};
+
+const toAdminTrend = (current: number, previous: number): AdminPanelTrend => {
+  const safeCurrent = Number.isFinite(current) ? current : 0;
+  const safePrevious = Number.isFinite(previous) ? previous : 0;
+  const delta = safeCurrent - safePrevious;
+  const deltaPct =
+    safePrevious === 0 ? (safeCurrent === 0 ? 0 : null) : Number(((delta / safePrevious) * 100).toFixed(1));
+  const direction: AdminPanelTrendDirection =
+    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+
+  return {
+    current: safeCurrent,
+    previous: safePrevious,
+    delta,
+    deltaPct,
+    direction,
+  };
+};
+
+const getPersonLabel = (payload?: {
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}) => {
+  const username = payload?.username?.trim();
+  if (username) return `@${username.replace(/^@+/, '')}`;
+  const fullName = [payload?.firstName?.trim(), payload?.lastName?.trim()]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  if (fullName) return fullName;
+  return 'Без имени';
+};
+
+const getAdminPanelStats = async (options?: {
+  now?: Date;
+  periodPreset?: AdminPanelPeriodPreset;
+}): Promise<AdminPanelStats> => {
+  const now = options?.now ?? new Date();
+  const periodPreset = options?.periodPreset ?? 'today';
+  const period = getAdminPeriodRange(periodPreset, now);
+  const stalePendingThreshold = new Date(now.getTime() - ADMIN_STALE_PENDING_MS);
+
+  const [
+    newUsers,
+    previousNewUsers,
+    totalUsers,
+    activeCampaigns,
+    pausedCampaigns,
+    completedCampaigns,
+    createdCampaignsInPeriod,
+    pendingApplications,
+    stalePendingCount,
+    reviewedInPeriod,
+    reviewedInPrevious,
+    approvedInPeriod,
+    rejectedInPeriod,
+    welcomeBonusGranted,
+    periodIssuedAggregate,
+    periodSpentAggregate,
+    previousIssuedAggregate,
+    invitedInPeriod,
+    referralRewardsAggregate,
+    activeUserLedgerRows,
+    activeUserApplicationRows,
+    activeUserCampaignRows,
+    activeCampaignBudgetRows,
+    topCampaignPool,
+    recentPendingRows,
+    recentReviewedRows,
+    reviewedForAverageRows,
+    topCreditRows,
+    topDebitRows,
+    topReferrerRewardRows,
+    reviewedOwnerRows,
+    applicantWindowRows,
+  ] = await Promise.all([
     prisma.user.count({
       where: {
         createdAt: {
-          gte: from,
-          lt: to,
+          gte: period.from,
+          lt: period.to,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        createdAt: {
+          gte: period.previousFrom,
+          lt: period.previousTo,
         },
       },
     }),
     prisma.user.count(),
+    prisma.campaign.count({ where: { status: 'ACTIVE' } }),
+    prisma.campaign.count({ where: { status: 'PAUSED' } }),
+    prisma.campaign.count({ where: { status: 'COMPLETED' } }),
+    prisma.campaign.count({
+      where: {
+        createdAt: {
+          gte: period.from,
+          lt: period.to,
+        },
+      },
+    }),
+    prisma.application.count({ where: { status: 'PENDING' } }),
+    prisma.application.count({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: stalePendingThreshold },
+      },
+    }),
+    prisma.application.count({
+      where: {
+        status: { in: ['APPROVED', 'REJECTED'] },
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+    }),
+    prisma.application.count({
+      where: {
+        status: { in: ['APPROVED', 'REJECTED'] },
+        reviewedAt: { gte: period.previousFrom, lt: period.previousTo },
+      },
+    }),
+    prisma.application.count({
+      where: {
+        status: 'APPROVED',
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+    }),
+    prisma.application.count({
+      where: {
+        status: 'REJECTED',
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+    }),
     prisma.ledgerEntry.count({
       where: { reason: FIRST_LOGIN_WELCOME_BONUS_REASON },
     }),
+    prisma.ledgerEntry.aggregate({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+        amount: { gt: 0 },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.ledgerEntry.aggregate({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+        amount: { lt: 0 },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.ledgerEntry.aggregate({
+      where: {
+        createdAt: { gte: period.previousFrom, lt: period.previousTo },
+        amount: { gt: 0 },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.referral.count({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+      },
+    }),
+    prisma.referralReward.aggregate({
+      where: {
+        rewardedAt: { gte: period.from, lt: period.to },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.ledgerEntry.findMany({
+      where: { createdAt: { gte: period.from, lt: period.to } },
+      select: { userId: true },
+      distinct: ['userId'],
+    }),
+    prisma.application.findMany({
+      where: { createdAt: { gte: period.from, lt: period.to } },
+      select: { applicantId: true },
+      distinct: ['applicantId'],
+    }),
+    prisma.campaign.findMany({
+      where: { createdAt: { gte: period.from, lt: period.to } },
+      select: { ownerId: true },
+      distinct: ['ownerId'],
+    }),
+    prisma.campaign.findMany({
+      where: { status: 'ACTIVE' },
+      select: { remainingBudget: true, rewardPoints: true },
+    }),
+    prisma.campaign.findMany({
+      where: {
+        OR: [{ createdAt: { gte: period.from, lt: period.to } }, { status: 'ACTIVE' }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 180,
+      select: {
+        id: true,
+        actionType: true,
+        status: true,
+        rewardPoints: true,
+        totalBudget: true,
+        remainingBudget: true,
+        group: { select: { title: true } },
+        owner: { select: { username: true, firstName: true, lastName: true } },
+      },
+    }),
+    prisma.application.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+      take: 8,
+      select: {
+        id: true,
+        createdAt: true,
+        applicant: { select: { username: true, firstName: true, lastName: true } },
+        campaign: {
+          select: {
+            id: true,
+            group: { select: { title: true } },
+            owner: { select: { username: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+    prisma.application.findMany({
+      where: {
+        status: { in: ['APPROVED', 'REJECTED'] },
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+      orderBy: { reviewedAt: 'desc' },
+      take: 8,
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        reviewedAt: true,
+        applicant: { select: { username: true, firstName: true, lastName: true } },
+        campaign: {
+          select: {
+            id: true,
+            group: { select: { title: true } },
+            owner: { select: { username: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+    prisma.application.findMany({
+      where: {
+        status: { in: ['APPROVED', 'REJECTED'] },
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+      orderBy: { reviewedAt: 'desc' },
+      take: 120,
+      select: { createdAt: true, reviewedAt: true },
+    }),
+    prisma.ledgerEntry.findMany({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+        amount: { gt: 0 },
+      },
+      orderBy: [{ amount: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+      select: {
+        id: true,
+        amount: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { username: true, firstName: true, lastName: true } },
+      },
+    }),
+    prisma.ledgerEntry.findMany({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+        amount: { lt: 0 },
+      },
+      orderBy: [{ amount: 'asc' }, { createdAt: 'desc' }],
+      take: 5,
+      select: {
+        id: true,
+        amount: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { username: true, firstName: true, lastName: true } },
+      },
+    }),
+    prisma.referralReward.groupBy({
+      by: ['referralId'],
+      where: {
+        side: 'REFERRER',
+        rewardedAt: { gte: period.from, lt: period.to },
+      },
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: 'desc' } },
+      take: 12,
+    }),
+    prisma.application.findMany({
+      where: {
+        status: { in: ['APPROVED', 'REJECTED'] },
+        reviewedAt: { gte: period.from, lt: period.to },
+      },
+      select: {
+        status: true,
+        campaign: {
+          select: {
+            ownerId: true,
+            owner: { select: { username: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+      take: 4000,
+      orderBy: { reviewedAt: 'desc' },
+    }),
+    prisma.application.findMany({
+      where: {
+        createdAt: { gte: period.from, lt: period.to },
+      },
+      select: {
+        applicantId: true,
+        status: true,
+        applicant: { select: { username: true, firstName: true, lastName: true } },
+      },
+      take: 5000,
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
-  const remainingBonusSlots = Math.max(0, FIRST_LOGIN_WELCOME_BONUS_LIMIT - bonusGranted);
+  const activeUserIds = new Set<string>();
+  for (const item of activeUserLedgerRows) activeUserIds.add(item.userId);
+  for (const item of activeUserApplicationRows) activeUserIds.add(item.applicantId);
+  for (const item of activeUserCampaignRows) activeUserIds.add(item.ownerId);
+  const activeUsers = activeUserIds.size;
+
+  const issuedPoints = toPositiveInt(periodIssuedAggregate._sum.amount);
+  const spentPoints = Math.abs(periodSpentAggregate._sum.amount ?? 0);
+  const previousIssuedPoints = toPositiveInt(previousIssuedAggregate._sum.amount);
+  const netPoints = issuedPoints - spentPoints;
+  const reviewedApplications = approvedInPeriod + rejectedInPeriod;
+  const approvalRate = toRatioPercent(approvedInPeriod, reviewedApplications);
+  const bonusRemaining = Math.max(0, FIRST_LOGIN_WELCOME_BONUS_LIMIT - welcomeBonusGranted);
+
+  const lowBudgetCount = activeCampaignBudgetRows.reduce((count, campaign) => {
+    if (campaign.remainingBudget <= campaign.rewardPoints * ADMIN_LOW_BUDGET_MULTIPLIER) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+
+  const sortedTopCampaignPool = topCampaignPool
+    .map((campaign) => ({
+      ...campaign,
+      spentBudget: Math.max(0, campaign.totalBudget - campaign.remainingBudget),
+    }))
+    .sort((a, b) => {
+      if (b.spentBudget !== a.spentBudget) return b.spentBudget - a.spentBudget;
+      return b.totalBudget - a.totalBudget;
+    })
+    .slice(0, 5);
+
+  const topCampaignIds = sortedTopCampaignPool.map((campaign) => campaign.id);
+  const topCampaignApplicationRows =
+    topCampaignIds.length > 0
+      ? await prisma.application.groupBy({
+          by: ['campaignId', 'status'],
+          where: {
+            campaignId: { in: topCampaignIds },
+          },
+          _count: { _all: true },
+        })
+      : [];
+
+  const topCampaignReviewStats = new Map<
+    string,
+    {
+      approved: number;
+      rejected: number;
+    }
+  >();
+  for (const row of topCampaignApplicationRows) {
+    const current = topCampaignReviewStats.get(row.campaignId) ?? { approved: 0, rejected: 0 };
+    if (row.status === 'APPROVED') {
+      current.approved += row._count._all;
+    }
+    if (row.status === 'REJECTED') {
+      current.rejected += row._count._all;
+    }
+    topCampaignReviewStats.set(row.campaignId, current);
+  }
+
+  const topCampaigns = sortedTopCampaignPool.map((campaign) => {
+    const reviewStats = topCampaignReviewStats.get(campaign.id) ?? { approved: 0, rejected: 0 };
+    const reviewTotal = reviewStats.approved + reviewStats.rejected;
+    return {
+      id: campaign.id,
+      groupTitle: campaign.group.title,
+      ownerLabel: getPersonLabel(campaign.owner),
+      actionType: campaign.actionType,
+      status: campaign.status,
+      spentBudget: campaign.spentBudget,
+      totalBudget: campaign.totalBudget,
+      remainingBudget: campaign.remainingBudget,
+      rewardPoints: campaign.rewardPoints,
+      approvalRate: toRatioPercent(reviewStats.approved, reviewTotal),
+    };
+  });
+
+  const recentPending = recentPendingRows.map((item) => ({
+    id: item.id,
+    createdAt: item.createdAt.toISOString(),
+    applicantLabel: getPersonLabel(item.applicant),
+    campaignId: item.campaign.id,
+    campaignLabel: item.campaign.group.title,
+    ownerLabel: getPersonLabel(item.campaign.owner),
+  }));
+
+  const recentReviewed = recentReviewedRows
+    .filter((item) => item.reviewedAt && (item.status === 'APPROVED' || item.status === 'REJECTED'))
+    .map((item) => {
+      const status: 'APPROVED' | 'REJECTED' =
+        item.status === 'APPROVED' ? 'APPROVED' : 'REJECTED';
+      return {
+        id: item.id,
+        status,
+        createdAt: item.createdAt.toISOString(),
+        reviewedAt: (item.reviewedAt as Date).toISOString(),
+        applicantLabel: getPersonLabel(item.applicant),
+        campaignId: item.campaign.id,
+        campaignLabel: item.campaign.group.title,
+        ownerLabel: getPersonLabel(item.campaign.owner),
+      };
+    });
+
+  const reviewedDurations = reviewedForAverageRows
+    .map((item) => {
+      if (!item.reviewedAt) return null;
+      return Math.max(0, item.reviewedAt.getTime() - item.createdAt.getTime());
+    })
+    .filter((value): value is number => typeof value === 'number');
+  const avgReviewMinutes =
+    reviewedDurations.length > 0
+      ? Math.round(
+          reviewedDurations.reduce((sum, value) => sum + value, 0) /
+            reviewedDurations.length /
+            60000
+        )
+      : 0;
+
+  const topCredits = topCreditRows.map((item) => ({
+    id: item.id,
+    amount: Math.max(0, item.amount),
+    reason: item.reason,
+    userLabel: getPersonLabel(item.user),
+    createdAt: item.createdAt.toISOString(),
+  }));
+
+  const topDebits = topDebitRows.map((item) => ({
+    id: item.id,
+    amount: Math.abs(item.amount),
+    reason: item.reason,
+    userLabel: getPersonLabel(item.user),
+    createdAt: item.createdAt.toISOString(),
+  }));
+
+  const topReferralIds = topReferrerRewardRows.map((item) => item.referralId);
+  const topReferralRows =
+    topReferralIds.length > 0
+      ? await prisma.referral.findMany({
+          where: { id: { in: topReferralIds } },
+          select: {
+            id: true,
+            referrerId: true,
+            referrer: { select: { id: true, username: true, firstName: true, lastName: true } },
+          },
+        })
+      : [];
+
+  const topReferrerIds = Array.from(new Set(topReferralRows.map((item) => item.referrerId)));
+  const invitedByTopReferrerRows =
+    topReferrerIds.length > 0
+      ? await prisma.referral.groupBy({
+          by: ['referrerId'],
+          where: {
+            referrerId: { in: topReferrerIds },
+            createdAt: { gte: period.from, lt: period.to },
+          },
+          _count: { _all: true },
+        })
+      : [];
+
+  const invitedByReferrerMap = new Map<string, number>();
+  for (const row of invitedByTopReferrerRows) {
+    invitedByReferrerMap.set(row.referrerId, row._count._all);
+  }
+
+  const topReferralRowById = new Map(topReferralRows.map((item) => [item.id, item]));
+  const topReferrers = topReferrerRewardRows
+    .map((row) => {
+      const referral = topReferralRowById.get(row.referralId);
+      if (!referral) return null;
+      const rewards = Math.max(0, row._sum.amount ?? 0);
+      return {
+        userId: referral.referrer.id,
+        userLabel: getPersonLabel(referral.referrer),
+        rewards,
+        invited: invitedByReferrerMap.get(referral.referrer.id) ?? 0,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .slice(0, 5);
+
+  const ownerRiskMap = new Map<
+    string,
+    { ownerLabel: string; reviewed: number; rejected: number }
+  >();
+  for (const item of reviewedOwnerRows) {
+    const ownerId = item.campaign.ownerId;
+    const stat = ownerRiskMap.get(ownerId) ?? {
+      ownerLabel: getPersonLabel(item.campaign.owner),
+      reviewed: 0,
+      rejected: 0,
+    };
+    stat.reviewed += 1;
+    if (item.status === 'REJECTED') {
+      stat.rejected += 1;
+    }
+    ownerRiskMap.set(ownerId, stat);
+  }
+  const highRejectOwners = Array.from(ownerRiskMap.entries())
+    .map(([userId, stat]) => ({
+      userId,
+      ownerLabel: stat.ownerLabel,
+      reviewed: stat.reviewed,
+      rejected: stat.rejected,
+      rejectRate: toRatioPercent(stat.rejected, stat.reviewed),
+    }))
+    .filter((item) => item.reviewed >= 8 && item.rejectRate >= 45)
+    .sort((a, b) => {
+      if (b.rejectRate !== a.rejectRate) return b.rejectRate - a.rejectRate;
+      return b.reviewed - a.reviewed;
+    })
+    .slice(0, 5);
+
+  const applicantRiskMap = new Map<
+    string,
+    { userLabel: string; applications: number; approved: number }
+  >();
+  for (const item of applicantWindowRows) {
+    const stat = applicantRiskMap.get(item.applicantId) ?? {
+      userLabel: getPersonLabel(item.applicant),
+      applications: 0,
+      approved: 0,
+    };
+    stat.applications += 1;
+    if (item.status === 'APPROVED') stat.approved += 1;
+    applicantRiskMap.set(item.applicantId, stat);
+  }
+  const suspiciousApplicants = Array.from(applicantRiskMap.entries())
+    .map(([userId, stat]) => ({
+      userId,
+      userLabel: stat.userLabel,
+      applications: stat.applications,
+      approved: stat.approved,
+      approveRate: toRatioPercent(stat.approved, stat.applications),
+    }))
+    .filter((item) => item.applications >= 6 && item.approveRate <= 25)
+    .sort((a, b) => {
+      if (b.applications !== a.applications) return b.applications - a.applications;
+      return a.approveRate - b.approveRate;
+    })
+    .slice(0, 5);
+
+  const alerts: AdminPanelAlert[] = [];
+  if (bonusRemaining <= 5) {
+    alerts.push({
+      level: 'critical',
+      message: `Лимит приветственного бонуса почти исчерпан (${bonusRemaining} слотов).`,
+    });
+  }
+  if (stalePendingCount >= 8) {
+    alerts.push({
+      level: 'warning',
+      message: `На проверке зависло ${stalePendingCount} заявок старше 24 часов.`,
+    });
+  }
+  if (reviewedApplications >= 12 && approvalRate < 55) {
+    alerts.push({
+      level: 'warning',
+      message: `Низкий апрув заявок за период: ${approvalRate}%.`,
+    });
+  }
+  if (lowBudgetCount >= 10) {
+    alerts.push({
+      level: 'info',
+      message: `У ${lowBudgetCount} активных кампаний бюджет на исходе.`,
+    });
+  }
+  if (highRejectOwners.length > 0) {
+    alerts.push({
+      level: 'warning',
+      message: `Обнаружены владельцы с повышенным reject rate (${highRejectOwners.length}).`,
+    });
+  }
+  if (alerts.length === 0) {
+    alerts.push({
+      level: 'info',
+      message: 'Сервис работает стабильно, критичных отклонений не обнаружено.',
+    });
+  }
+
   return {
-    newUsersToday,
+    period: {
+      preset: period.preset,
+      from: period.from.toISOString(),
+      to: period.to.toISOString(),
+      previousFrom: period.previousFrom.toISOString(),
+      previousTo: period.previousTo.toISOString(),
+      updatedAt: now.toISOString(),
+    },
+    overview: {
+      newUsers,
+      totalUsers,
+      activeUsers,
+      activeCampaigns,
+      pendingApplications,
+      reviewedApplications,
+      approvedApplications: approvedInPeriod,
+      rejectedApplications: rejectedInPeriod,
+      approvalRate,
+      pointsIssued: issuedPoints,
+      pointsSpent: spentPoints,
+      pointsNet: netPoints,
+      welcomeBonusGranted,
+      welcomeBonusLimit: FIRST_LOGIN_WELCOME_BONUS_LIMIT,
+      welcomeBonusRemaining: bonusRemaining,
+    },
+    trends: {
+      newUsers: toAdminTrend(newUsers, previousNewUsers),
+      pointsIssued: toAdminTrend(issuedPoints, previousIssuedPoints),
+      reviewedApplications: toAdminTrend(reviewedInPeriod, reviewedInPrevious),
+    },
+    campaigns: {
+      createdInPeriod: createdCampaignsInPeriod,
+      activeCount: activeCampaigns,
+      pausedCount: pausedCampaigns,
+      completedCount: completedCampaigns,
+      lowBudgetCount,
+      topCampaigns,
+    },
+    applications: {
+      pendingCount: pendingApplications,
+      stalePendingCount,
+      reviewedInPeriod,
+      avgReviewMinutes,
+      recentPending,
+      recentReviewed,
+    },
+    economy: {
+      issuedPoints,
+      spentPoints,
+      netPoints,
+      topCredits,
+      topDebits,
+    },
+    referrals: {
+      invitedInPeriod,
+      rewardsInPeriod: toPositiveInt(referralRewardsAggregate._sum.amount),
+      topReferrers,
+    },
+    risks: {
+      highRejectOwners,
+      suspiciousApplicants,
+    },
+    alerts,
+    // legacy fields
+    newUsersToday: newUsers,
     totalUsers,
-    bonusGranted,
+    bonusGranted: welcomeBonusGranted,
     bonusLimit: FIRST_LOGIN_WELCOME_BONUS_LIMIT,
-    bonusRemaining: remainingBonusSlots,
-    periodStart: from.toISOString(),
-    periodEnd: to.toISOString(),
+    bonusRemaining,
+    periodStart: period.from.toISOString(),
+    periodEnd: period.to.toISOString(),
     updatedAt: now.toISOString(),
   };
 };
 
 const formatAdminPanelStatsText = async (now = new Date()) => {
-  const stats = await getAdminPanelStats(now);
+  const stats = await getAdminPanelStats({ now, periodPreset: 'today' });
   const updatedAt = new Date(stats.updatedAt).toLocaleString('ru-RU', { hour12: false });
 
   return [
     'Админ-панель',
-    `Новых пользователей за сегодня: ${stats.newUsersToday}`,
-    `Пользователей всего: ${stats.totalUsers}`,
-    `Получили бонус +500: ${stats.bonusGranted}/${stats.bonusLimit}`,
-    `Осталось бонусов: ${stats.bonusRemaining}`,
+    `Новых пользователей: ${stats.overview.newUsers}`,
+    `Активных пользователей: ${stats.overview.activeUsers}`,
+    `Заявок на проверке: ${stats.applications.pendingCount}`,
+    `Апрув заявок: ${stats.overview.approvalRate}%`,
+    `Баллы: +${stats.overview.pointsIssued} / -${stats.overview.pointsSpent}`,
+    `Бонус +500: ${stats.overview.welcomeBonusGranted}/${stats.overview.welcomeBonusLimit}`,
     `Обновлено: ${updatedAt}`,
   ].join('\n');
 };
@@ -1410,6 +2227,11 @@ export const registerRoutes = (app: FastifyInstance) => {
 
   app.get('/admin/panel', async (request, reply) => {
     try {
+      const parsedQuery = adminPanelQuerySchema.safeParse(request.query ?? {});
+      if (!parsedQuery.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid query' });
+      }
+      const periodPreset = parsedQuery.data.period ?? 'today';
       await ensureDefaultBotPanelAccess();
       const user = await requireUser(request);
       const allowed = await hasBotPanelAccess({
@@ -1419,7 +2241,7 @@ export const registerRoutes = (app: FastifyInstance) => {
       if (!allowed) {
         return reply.code(403).send({ ok: false, error: 'forbidden' });
       }
-      const stats = await getAdminPanelStats();
+      const stats = await getAdminPanelStats({ periodPreset });
       return { ok: true, allowed: true, stats };
     } catch (error) {
       return sendRouteError(reply, error, 400);
