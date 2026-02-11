@@ -65,6 +65,16 @@ const SCREEN_STEPS = [
       await ensureHome(page, waitMs);
       await openBottomTab(page, 'Админ', waitMs);
       await page.waitForSelector('.admin-panel-card', { timeout: 10_000 });
+      const refreshButton = page.locator('.admin-refresh-button').first();
+      if (await refreshButton.isVisible().catch(() => false)) {
+        await refreshButton.click();
+      }
+      await page
+        .waitForSelector('.admin-panel-grid, .admin-health-card, .admin-panel-status.error', {
+          timeout: 10_000,
+        })
+        .catch(() => undefined);
+      await sleep(Math.max(waitMs, 420));
     },
   },
   {
@@ -1817,6 +1827,7 @@ async function collectAudit(page, screenId, safeBottomPx, safeTopPx) {
     const minSize = 44;
     const safeInset = Math.max(0, Number(bottomSafeInsetPx) || 0);
     const topSafeInset = Math.max(0, Number(topSafeInsetPx) || 0);
+    const clippingOverflowPattern = /(auto|scroll|hidden|clip)/;
     const interactiveSelector = [
       'button',
       'a[href]',
@@ -1829,6 +1840,62 @@ async function collectAudit(page, screenId, safeBottomPx, safeTopPx) {
     const tooSmall = [];
     const bottomRisk = [];
     const topRisk = [];
+    const getTargetText = (element) =>
+      (element.textContent || element.getAttribute('aria-label') || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 40) || '(без текста)';
+    const resolveVisibleRect = (element, rect) => {
+      let top = rect.top;
+      let right = rect.right;
+      let bottom = rect.bottom;
+      let left = rect.left;
+      let parent = element.parentElement;
+
+      while (parent) {
+        const parentStyle = window.getComputedStyle(parent);
+        const clipsY =
+          clippingOverflowPattern.test(parentStyle.overflowY) ||
+          clippingOverflowPattern.test(parentStyle.overflow);
+        const clipsX =
+          clippingOverflowPattern.test(parentStyle.overflowX) ||
+          clippingOverflowPattern.test(parentStyle.overflow);
+
+        if (clipsY || clipsX) {
+          const parentRect = parent.getBoundingClientRect();
+          if (clipsY) {
+            top = Math.max(top, parentRect.top);
+            bottom = Math.min(bottom, parentRect.bottom);
+          }
+          if (clipsX) {
+            left = Math.max(left, parentRect.left);
+            right = Math.min(right, parentRect.right);
+          }
+          if (right - left <= 1 || bottom - top <= 1) {
+            return null;
+          }
+        }
+        parent = parent.parentElement;
+      }
+
+      top = Math.max(top, 0);
+      left = Math.max(left, 0);
+      right = Math.min(right, window.innerWidth);
+      bottom = Math.min(bottom, window.innerHeight);
+
+      if (right - left <= 1 || bottom - top <= 1) {
+        return null;
+      }
+
+      return {
+        top,
+        right,
+        bottom,
+        left,
+        width: right - left,
+        height: bottom - top,
+      };
+    };
 
     document.querySelectorAll(interactiveSelector).forEach((element) => {
       const style = window.getComputedStyle(element);
@@ -1836,46 +1903,38 @@ async function collectAudit(page, screenId, safeBottomPx, safeTopPx) {
 
       const rect = element.getBoundingClientRect();
       if (rect.width <= 1 || rect.height <= 1) return;
-      if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) {
+      const visibleRect = resolveVisibleRect(element, rect);
+      if (!visibleRect) {
         return;
       }
 
       if (rect.width < minSize || rect.height < minSize) {
-        const text = (element.textContent || element.getAttribute('aria-label') || '')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 40);
+        const text = getTargetText(element);
         tooSmall.push({
           tag: element.tagName.toLowerCase(),
-          text: text || '(без текста)',
+          text,
           width: Number(rect.width.toFixed(1)),
           height: Number(rect.height.toFixed(1)),
         });
       }
 
-      if (topSafeInset > 0 && rect.top < topSafeInset && !element.closest('.tg-visual-chrome')) {
-        const text = (element.textContent || element.getAttribute('aria-label') || '')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 40);
+      if (topSafeInset > 0 && visibleRect.top < topSafeInset && !element.closest('.tg-visual-chrome')) {
+        const text = getTargetText(element);
         topRisk.push({
           tag: element.tagName.toLowerCase(),
-          text: text || '(без текста)',
-          top: Number(rect.top.toFixed(1)),
-          distanceFromTop: Number(rect.top.toFixed(1)),
+          text,
+          top: Number(visibleRect.top.toFixed(1)),
+          distanceFromTop: Number(visibleRect.top.toFixed(1)),
         });
       }
 
-      if (rect.bottom > window.innerHeight - safeInset && !element.closest('.bottom-nav')) {
-        const text = (element.textContent || element.getAttribute('aria-label') || '')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 40);
+      if (visibleRect.bottom > window.innerHeight - safeInset && !element.closest('.bottom-nav')) {
+        const text = getTargetText(element);
         bottomRisk.push({
           tag: element.tagName.toLowerCase(),
-          text: text || '(без текста)',
-          bottom: Number(rect.bottom.toFixed(1)),
-          distanceToBottom: Number((window.innerHeight - rect.bottom).toFixed(1)),
+          text,
+          bottom: Number(visibleRect.bottom.toFixed(1)),
+          distanceToBottom: Number((window.innerHeight - visibleRect.bottom).toFixed(1)),
         });
       }
     });

@@ -168,6 +168,14 @@ const ADMIN_PERIOD_OPTIONS: Array<{ id: AdminPeriodPreset; label: string }> = [
   { id: '7d', label: '7 дней' },
   { id: '30d', label: '30 дней' },
 ];
+type AdminSectionId = 'overview' | 'campaigns' | 'applications' | 'economy' | 'risks';
+const ADMIN_SECTION_OPTIONS: Array<{ id: AdminSectionId; label: string }> = [
+  { id: 'overview', label: 'Обзор' },
+  { id: 'campaigns', label: 'Кампании' },
+  { id: 'applications', label: 'Заявки' },
+  { id: 'economy', label: 'Экономика' },
+  { id: 'risks', label: 'Риски' },
+];
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
   if (direction === 'down') return 'Падение';
@@ -192,6 +200,11 @@ const formatCampaignStatusRu = (value: 'ACTIVE' | 'PAUSED' | 'COMPLETED') => {
 };
 const formatApplicationStatusRu = (value: 'APPROVED' | 'REJECTED') =>
   value === 'APPROVED' ? 'Одобрено' : 'Отклонено';
+const getHealthTone = (score: number) => {
+  if (score >= 90) return 'good';
+  if (score >= 75) return 'warn';
+  return 'critical';
+};
 
 const copyTextToClipboard = async (value: string) => {
   if (navigator.clipboard?.writeText) {
@@ -402,6 +415,7 @@ export default function App() {
   const [adminPanelError, setAdminPanelError] = useState('');
   const [adminPanelStats, setAdminPanelStats] = useState<AdminPanelStats | null>(null);
   const [adminPeriod, setAdminPeriod] = useState<AdminPeriodPreset>('today');
+  const [adminSection, setAdminSection] = useState<AdminSectionId>('overview');
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
@@ -2081,6 +2095,10 @@ export default function App() {
     if (nextPeriod === adminPeriod) return;
     setAdminPeriod(nextPeriod);
   };
+  const handleAdminSectionSelect = (nextSection: AdminSectionId) => {
+    if (nextSection === adminSection) return;
+    setAdminSection(nextSection);
+  };
   const adminSummaryNewUsers = adminOverview?.newUsers ?? adminPanelStats?.newUsersToday ?? 0;
   const adminSummaryTotalUsers = adminOverview?.totalUsers ?? adminPanelStats?.totalUsers ?? 0;
   const adminSummaryActiveUsers = adminOverview?.activeUsers ?? 0;
@@ -2110,6 +2128,109 @@ export default function App() {
   const adminReferrals = adminPanelStats?.referrals ?? null;
   const adminRisks = adminPanelStats?.risks ?? null;
   const adminAlerts = adminPanelStats?.alerts ?? [];
+  const adminHealth = useMemo(() => {
+    let score = 100;
+    if (adminSummaryBonusRemaining <= 5) score -= 16;
+    if (adminSummaryPendingApplications >= 20) score -= 12;
+    if ((adminApplications?.stalePendingCount ?? 0) >= 8) score -= 12;
+    if (adminSummaryApprovalRate < 55) score -= 14;
+    else if (adminSummaryApprovalRate < 65) score -= 8;
+    if ((adminCampaigns?.lowBudgetCount ?? 0) >= 10) score -= 8;
+    if ((adminRisks?.highRejectOwners?.length ?? 0) > 0) score -= 10;
+    if ((adminRisks?.suspiciousApplicants?.length ?? 0) > 0) score -= 10;
+    const criticalCount = adminAlerts.filter((item) => item.level === 'critical').length;
+    const warningCount = adminAlerts.filter((item) => item.level === 'warning').length;
+    score -= Math.min(16, criticalCount * 8 + warningCount * 4);
+    const normalized = Math.max(0, Math.min(100, Math.round(score)));
+    const tone = getHealthTone(normalized);
+    const label =
+      tone === 'good' ? 'Сервис стабилен' : tone === 'warn' ? 'Нужен контроль' : 'Требует вмешательства';
+    return { score: normalized, tone, label };
+  }, [
+    adminAlerts,
+    adminApplications?.stalePendingCount,
+    adminCampaigns?.lowBudgetCount,
+    adminRisks?.highRejectOwners?.length,
+    adminRisks?.suspiciousApplicants?.length,
+    adminSummaryApprovalRate,
+    adminSummaryBonusRemaining,
+    adminSummaryPendingApplications,
+  ]);
+  const adminPriorityActions = useMemo(() => {
+    const actions: Array<{
+      id: string;
+      title: string;
+      subtitle: string;
+      section: AdminSectionId;
+      tone: 'good' | 'warn' | 'critical';
+    }> = [];
+
+    if ((adminApplications?.stalePendingCount ?? 0) > 0) {
+      actions.push({
+        id: 'stale',
+        title: `Разобрать зависшие заявки: ${formatNumberRu(adminApplications?.stalePendingCount ?? 0)}`,
+        subtitle: 'Откройте модуль заявок и снимите backlog старше 24ч.',
+        section: 'applications',
+        tone: (adminApplications?.stalePendingCount ?? 0) >= 8 ? 'critical' : 'warn',
+      });
+    }
+    if ((adminCampaigns?.lowBudgetCount ?? 0) > 0) {
+      actions.push({
+        id: 'budget',
+        title: `Проверить кампании с низким бюджетом: ${formatNumberRu(adminCampaigns?.lowBudgetCount ?? 0)}`,
+        subtitle: 'Откройте модуль кампаний и найдите задачи с риском остановки.',
+        section: 'campaigns',
+        tone: (adminCampaigns?.lowBudgetCount ?? 0) >= 10 ? 'warn' : 'good',
+      });
+    }
+    if ((adminRisks?.suspiciousApplicants?.length ?? 0) > 0) {
+      actions.push({
+        id: 'suspicious',
+        title: `Проверить подозрительных аппликантов: ${formatNumberRu(
+          adminRisks?.suspiciousApplicants?.length ?? 0
+        )}`,
+        subtitle: 'Откройте риски и проверьте низкий approve rate.',
+        section: 'risks',
+        tone: 'critical',
+      });
+    }
+    if ((adminRisks?.highRejectOwners?.length ?? 0) > 0) {
+      actions.push({
+        id: 'owners',
+        title: `Проверить owners с высоким reject rate: ${formatNumberRu(
+          adminRisks?.highRejectOwners?.length ?? 0
+        )}`,
+        subtitle: 'Откройте риски и сравните причины отклонений.',
+        section: 'risks',
+        tone: 'warn',
+      });
+    }
+    if (adminSummaryPointsNet < 0) {
+      actions.push({
+        id: 'economy',
+        title: 'Проверьте отрицательный net по баллам',
+        subtitle: 'Откройте экономику и оцените причины перерасхода.',
+        section: 'economy',
+        tone: 'warn',
+      });
+    }
+    if (actions.length === 0) {
+      actions.push({
+        id: 'stable',
+        title: 'Критичных задач не обнаружено',
+        subtitle: 'Проверьте обзор и держите периодический мониторинг.',
+        section: 'overview',
+        tone: 'good',
+      });
+    }
+    return actions.slice(0, 3);
+  }, [
+    adminApplications?.stalePendingCount,
+    adminCampaigns?.lowBudgetCount,
+    adminRisks?.highRejectOwners?.length,
+    adminRisks?.suspiciousApplicants?.length,
+    adminSummaryPointsNet,
+  ]);
   const contentClassName = [
     'content',
     activeTab === 'home' ? 'home-content' : '',
@@ -2756,6 +2877,14 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div className={`admin-health-card ${adminHealth.tone}`}>
+                    <div className="admin-health-head">
+                      <span>Индекс состояния сервиса</span>
+                      <strong>{adminHealth.score}/100</strong>
+                    </div>
+                    <div className="admin-health-sub">{adminHealth.label}</div>
+                  </div>
+
                   <div className="admin-progress">
                     <div className="admin-progress-track" aria-hidden="true">
                       <span style={{ width: `${adminBonusProgress}%` }} />
@@ -2767,46 +2896,16 @@ export default function App() {
                     </div>
                   </div>
 
-                  {adminTrends && (
-                    <div className="admin-trend-grid">
-                      <div className={`admin-trend-card ${adminTrends.newUsers.direction}`}>
-                        <div className="admin-trend-label">Новые пользователи</div>
-                        <div className="admin-trend-value">
-                          {getTrendDirectionSign(adminTrends.newUsers.direction)}{' '}
-                          {formatSignedPercentRu(adminTrends.newUsers.deltaPct)}
-                        </div>
-                        <div className="admin-trend-sub">
-                          {getTrendDirectionLabel(adminTrends.newUsers.direction)} к прошлому периоду
-                        </div>
-                      </div>
-                      <div className={`admin-trend-card ${adminTrends.pointsIssued.direction}`}>
-                        <div className="admin-trend-label">Эмиссия баллов</div>
-                        <div className="admin-trend-value">
-                          {getTrendDirectionSign(adminTrends.pointsIssued.direction)}{' '}
-                          {formatSignedPercentRu(adminTrends.pointsIssued.deltaPct)}
-                        </div>
-                        <div className="admin-trend-sub">
-                          {getTrendDirectionLabel(adminTrends.pointsIssued.direction)} к прошлому периоду
-                        </div>
-                      </div>
-                      <div className={`admin-trend-card ${adminTrends.reviewedApplications.direction}`}>
-                        <div className="admin-trend-label">Проверки заявок</div>
-                        <div className="admin-trend-value">
-                          {getTrendDirectionSign(adminTrends.reviewedApplications.direction)}{' '}
-                          {formatSignedPercentRu(adminTrends.reviewedApplications.deltaPct)}
-                        </div>
-                        <div className="admin-trend-sub">
-                          {getTrendDirectionLabel(adminTrends.reviewedApplications.direction)} к прошлому периоду
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="admin-panel-foot">
                     <span>Обновлено • период: {adminPeriod}</span>
                     <strong>{adminUpdatedAtLabel}</strong>
                   </div>
                 </>
+              )}
+              {!adminPanelLoading && !adminPanelError && !adminPanelStats && (
+                <div className="admin-panel-status">
+                  Нет данных за период. Нажмите «Обновить», чтобы загрузить аналитику.
+                </div>
               )}
 
               <button
@@ -2823,254 +2922,389 @@ export default function App() {
 
             {!adminPanelLoading && !adminPanelError && adminPanelStats && (
               <>
-                <section className="admin-section-card">
+                <section className="admin-section-card admin-actions-card">
                   <div className="admin-section-head">
-                    <div className="admin-section-title">Кампании</div>
-                    <div className="admin-section-sub">Фокус на бюджет и конверсию</div>
+                    <div className="admin-section-title">Приоритеты сейчас</div>
+                    <div className="admin-section-sub">Выберите действие и перейдите в нужный модуль</div>
                   </div>
-                  <div className="admin-mini-grid">
-                    <div className="admin-mini-item">
-                      <span>Создано за период</span>
-                      <strong>{formatNumberRu(adminCampaigns?.createdInPeriod ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Активные / Пауза / Завершены</span>
-                      <strong>
-                        {formatNumberRu(adminCampaigns?.activeCount ?? 0)} /{' '}
-                        {formatNumberRu(adminCampaigns?.pausedCount ?? 0)} /{' '}
-                        {formatNumberRu(adminCampaigns?.completedCount ?? 0)}
-                      </strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Бюджет на исходе</span>
-                      <strong>{formatNumberRu(adminCampaigns?.lowBudgetCount ?? 0)}</strong>
-                    </div>
-                  </div>
-                  {(adminCampaigns?.topCampaigns?.length ?? 0) > 0 ? (
-                    <div className="admin-entity-list">
-                      {adminCampaigns?.topCampaigns.map((campaign) => (
-                        <div className="admin-entity-row" key={campaign.id}>
-                          <div className="admin-entity-main">
-                            <div className="admin-entity-title">{campaign.groupTitle}</div>
-                            <div className="admin-entity-sub">
-                              {campaign.ownerLabel} • {formatCampaignTypeRu(campaign.actionType)} •{' '}
-                              {formatCampaignStatusRu(campaign.status)}
-                            </div>
-                          </div>
-                          <div className="admin-entity-meta">
-                            <strong>{formatNumberRu(campaign.spentBudget)}</strong>
-                            <span>
-                              из {formatNumberRu(campaign.totalBudget)} • апрув{' '}
-                              {formatPercentRu(campaign.approvalRate)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="admin-empty">Нет данных по кампаниям за выбранный период.</div>
-                  )}
-                </section>
-
-                <section className="admin-section-card">
-                  <div className="admin-section-head">
-                    <div className="admin-section-title">Заявки</div>
-                    <div className="admin-section-sub">Очередь, скорость проверки и последние решения</div>
-                  </div>
-                  <div className="admin-mini-grid">
-                    <div className="admin-mini-item">
-                      <span>Pending / Stale &gt;24ч</span>
-                      <strong>
-                        {formatNumberRu(adminApplications?.pendingCount ?? 0)} /{' '}
-                        {formatNumberRu(adminApplications?.stalePendingCount ?? 0)}
-                      </strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Проверено за период</span>
-                      <strong>{formatNumberRu(adminApplications?.reviewedInPeriod ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Среднее время проверки</span>
-                      <strong>{formatNumberRu(adminApplications?.avgReviewMinutes ?? 0)} мин</strong>
-                    </div>
-                  </div>
-                  <div className="admin-split-grid">
-                    <div className="admin-split-block">
-                      <div className="admin-split-title">Старые pending</div>
-                      {(adminApplications?.recentPending?.length ?? 0) > 0 ? (
-                        <div className="admin-entity-list compact">
-                          {adminApplications?.recentPending.map((item) => (
-                            <div className="admin-entity-row compact" key={item.id}>
-                              <div className="admin-entity-main">
-                                <div className="admin-entity-title">{item.campaignLabel}</div>
-                                <div className="admin-entity-sub">
-                                  {item.applicantLabel} • {item.ownerLabel}
-                                </div>
-                              </div>
-                              <div className="admin-entity-meta">
-                                <span>{formatDateTimeRu(item.createdAt)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="admin-empty">Очередь пустая.</div>
-                      )}
-                    </div>
-                    <div className="admin-split-block">
-                      <div className="admin-split-title">Последние решения</div>
-                      {(adminApplications?.recentReviewed?.length ?? 0) > 0 ? (
-                        <div className="admin-entity-list compact">
-                          {adminApplications?.recentReviewed.map((item) => (
-                            <div className="admin-entity-row compact" key={item.id}>
-                              <div className="admin-entity-main">
-                                <div className="admin-entity-title">
-                                  {item.campaignLabel} • {formatApplicationStatusRu(item.status)}
-                                </div>
-                                <div className="admin-entity-sub">{item.applicantLabel}</div>
-                              </div>
-                              <div className="admin-entity-meta">
-                                <span>{formatDateTimeRu(item.reviewedAt)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="admin-empty">Нет проверок за выбранный период.</div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="admin-section-card">
-                  <div className="admin-section-head">
-                    <div className="admin-section-title">Экономика</div>
-                    <div className="admin-section-sub">Движение баллов и крупные операции</div>
-                  </div>
-                  <div className="admin-mini-grid">
-                    <div className="admin-mini-item">
-                      <span>Начислено</span>
-                      <strong>+{formatNumberRu(adminEconomy?.issuedPoints ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Списано</span>
-                      <strong>-{formatNumberRu(adminEconomy?.spentPoints ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Итог периода</span>
-                      <strong>{formatSigned(adminEconomy?.netPoints ?? 0)}</strong>
-                    </div>
-                  </div>
-                  <div className="admin-split-grid">
-                    <div className="admin-split-block">
-                      <div className="admin-split-title">Топ начислений</div>
-                      {(adminEconomy?.topCredits?.length ?? 0) > 0 ? (
-                        <div className="admin-entity-list compact">
-                          {adminEconomy?.topCredits.map((item) => (
-                            <div className="admin-entity-row compact" key={item.id}>
-                              <div className="admin-entity-main">
-                                <div className="admin-entity-title">{item.userLabel}</div>
-                                <div className="admin-entity-sub">{item.reason}</div>
-                              </div>
-                              <div className="admin-entity-meta">
-                                <strong>+{formatNumberRu(item.amount)}</strong>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="admin-empty">Нет начислений.</div>
-                      )}
-                    </div>
-                    <div className="admin-split-block">
-                      <div className="admin-split-title">Топ списаний</div>
-                      {(adminEconomy?.topDebits?.length ?? 0) > 0 ? (
-                        <div className="admin-entity-list compact">
-                          {adminEconomy?.topDebits.map((item) => (
-                            <div className="admin-entity-row compact" key={item.id}>
-                              <div className="admin-entity-main">
-                                <div className="admin-entity-title">{item.userLabel}</div>
-                                <div className="admin-entity-sub">{item.reason}</div>
-                              </div>
-                              <div className="admin-entity-meta">
-                                <strong>-{formatNumberRu(item.amount)}</strong>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="admin-empty">Нет списаний.</div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="admin-section-card">
-                  <div className="admin-section-head">
-                    <div className="admin-section-title">Рефералка и риски</div>
-                    <div className="admin-section-sub">Лидеры приглашений и сигналы качества</div>
-                  </div>
-                  <div className="admin-mini-grid">
-                    <div className="admin-mini-item">
-                      <span>Инвайтов за период</span>
-                      <strong>{formatNumberRu(adminReferrals?.invitedInPeriod ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Выплаты по рефералке</span>
-                      <strong>{formatNumberRu(adminReferrals?.rewardsInPeriod ?? 0)}</strong>
-                    </div>
-                    <div className="admin-mini-item">
-                      <span>Подозрительных аппликантов</span>
-                      <strong>{formatNumberRu(adminRisks?.suspiciousApplicants?.length ?? 0)}</strong>
-                    </div>
-                  </div>
-
-                  {(adminReferrals?.topReferrers?.length ?? 0) > 0 && (
-                    <div className="admin-entity-list">
-                      {adminReferrals?.topReferrers.map((item) => (
-                        <div className="admin-entity-row compact" key={item.userId}>
-                          <div className="admin-entity-main">
-                            <div className="admin-entity-title">{item.userLabel}</div>
-                            <div className="admin-entity-sub">Инвайтов: {formatNumberRu(item.invited)}</div>
-                          </div>
-                          <div className="admin-entity-meta">
-                            <strong>{formatNumberRu(item.rewards)}</strong>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="admin-alert-list">
-                    {adminAlerts.map((alert, index) => (
-                      <div className={`admin-alert ${getAlertToneClass(alert.level)}`} key={`alert-${index}`}>
-                        <strong>{alert.level.toUpperCase()}</strong>
-                        <span>{alert.message}</span>
-                      </div>
+                  <div className="admin-action-list">
+                    {adminPriorityActions.map((action) => (
+                      <button
+                        key={action.id}
+                        className={`admin-action-item ${action.tone}`}
+                        type="button"
+                        onClick={() => handleAdminSectionSelect(action.section)}
+                      >
+                        <strong>{action.title}</strong>
+                        <span>{action.subtitle}</span>
+                      </button>
                     ))}
                   </div>
+                </section>
 
-                  {(adminRisks?.highRejectOwners?.length ?? 0) > 0 && (
-                    <div className="admin-risk-block">
-                      <div className="admin-split-title">Высокий reject rate владельцев</div>
-                      <div className="admin-entity-list compact">
-                        {adminRisks?.highRejectOwners.map((item) => (
-                          <div className="admin-entity-row compact" key={item.userId}>
+                <div className="admin-module-switch" role="tablist" aria-label="Разделы админки">
+                  {ADMIN_SECTION_OPTIONS.map((section) => (
+                    <button
+                      key={section.id}
+                      className={`admin-module-button ${adminSection === section.id ? 'active' : ''}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={adminSection === section.id}
+                      onClick={() => handleAdminSectionSelect(section.id)}
+                    >
+                      {section.label}
+                    </button>
+                  ))}
+                </div>
+
+                {adminSection === 'overview' && (
+                  <section className="admin-section-card">
+                    <div className="admin-section-head">
+                      <div className="admin-section-title">Обзор по рискам и динамике</div>
+                      <div className="admin-section-sub">Ключевые сигналы по всей системе на одном экране</div>
+                    </div>
+                    <div className="admin-mini-grid">
+                      <div className="admin-mini-item">
+                        <span>Кампании с низким бюджетом</span>
+                        <strong>{formatNumberRu(adminCampaigns?.lowBudgetCount ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Зависшие заявки &gt;24ч</span>
+                        <strong>{formatNumberRu(adminApplications?.stalePendingCount ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Net баллов за период</span>
+                        <strong>{formatSigned(adminSummaryPointsNet)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Подозрительные аппликанты</span>
+                        <strong>{formatNumberRu(adminRisks?.suspiciousApplicants?.length ?? 0)}</strong>
+                      </div>
+                    </div>
+
+                    {adminTrends && (
+                      <div className="admin-trend-grid">
+                        <div className={`admin-trend-card ${adminTrends.newUsers.direction}`}>
+                          <div className="admin-trend-label">Новые пользователи</div>
+                          <div className="admin-trend-value">
+                            {getTrendDirectionSign(adminTrends.newUsers.direction)}{' '}
+                            {formatSignedPercentRu(adminTrends.newUsers.deltaPct)}
+                          </div>
+                          <div className="admin-trend-sub">
+                            {getTrendDirectionLabel(adminTrends.newUsers.direction)} к прошлому периоду
+                          </div>
+                        </div>
+                        <div className={`admin-trend-card ${adminTrends.pointsIssued.direction}`}>
+                          <div className="admin-trend-label">Эмиссия баллов</div>
+                          <div className="admin-trend-value">
+                            {getTrendDirectionSign(adminTrends.pointsIssued.direction)}{' '}
+                            {formatSignedPercentRu(adminTrends.pointsIssued.deltaPct)}
+                          </div>
+                          <div className="admin-trend-sub">
+                            {getTrendDirectionLabel(adminTrends.pointsIssued.direction)} к прошлому периоду
+                          </div>
+                        </div>
+                        <div className={`admin-trend-card ${adminTrends.reviewedApplications.direction}`}>
+                          <div className="admin-trend-label">Проверки заявок</div>
+                          <div className="admin-trend-value">
+                            {getTrendDirectionSign(adminTrends.reviewedApplications.direction)}{' '}
+                            {formatSignedPercentRu(adminTrends.reviewedApplications.deltaPct)}
+                          </div>
+                          <div className="admin-trend-sub">
+                            {getTrendDirectionLabel(adminTrends.reviewedApplications.direction)} к прошлому периоду
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="admin-alert-list">
+                      {adminAlerts.slice(0, 3).map((alert, index) => (
+                        <div className={`admin-alert ${getAlertToneClass(alert.level)}`} key={`overview-alert-${index}`}>
+                          <strong>{alert.level.toUpperCase()}</strong>
+                          <span>{alert.message}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(adminReferrals?.topReferrers?.length ?? 0) > 0 && (
+                      <div className="admin-risk-block">
+                        <div className="admin-split-title">Топ рефереры за период</div>
+                        <div className="admin-entity-list compact">
+                          {adminReferrals?.topReferrers.map((item) => (
+                            <div className="admin-entity-row compact" key={item.userId}>
+                              <div className="admin-entity-main">
+                                <div className="admin-entity-title">{item.userLabel}</div>
+                                <div className="admin-entity-sub">
+                                  Инвайтов: {formatNumberRu(item.invited)}
+                                </div>
+                              </div>
+                              <div className="admin-entity-meta">
+                                <strong>{formatNumberRu(item.rewards)}</strong>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {adminSection === 'campaigns' && (
+                  <section className="admin-section-card">
+                    <div className="admin-section-head">
+                      <div className="admin-section-title">Кампании</div>
+                      <div className="admin-section-sub">Фокус на бюджет и конверсию</div>
+                    </div>
+                    <div className="admin-mini-grid">
+                      <div className="admin-mini-item">
+                        <span>Создано за период</span>
+                        <strong>{formatNumberRu(adminCampaigns?.createdInPeriod ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Активные / Пауза / Завершены</span>
+                        <strong>
+                          {formatNumberRu(adminCampaigns?.activeCount ?? 0)} /{' '}
+                          {formatNumberRu(adminCampaigns?.pausedCount ?? 0)} /{' '}
+                          {formatNumberRu(adminCampaigns?.completedCount ?? 0)}
+                        </strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Бюджет на исходе</span>
+                        <strong>{formatNumberRu(adminCampaigns?.lowBudgetCount ?? 0)}</strong>
+                      </div>
+                    </div>
+                    {(adminCampaigns?.topCampaigns?.length ?? 0) > 0 ? (
+                      <div className="admin-entity-list">
+                        {adminCampaigns?.topCampaigns.map((campaign) => (
+                          <div className="admin-entity-row" key={campaign.id}>
                             <div className="admin-entity-main">
-                              <div className="admin-entity-title">{item.ownerLabel}</div>
+                              <div className="admin-entity-title">{campaign.groupTitle}</div>
                               <div className="admin-entity-sub">
-                                Reject: {formatNumberRu(item.rejected)} / {formatNumberRu(item.reviewed)}
+                                {campaign.ownerLabel} • {formatCampaignTypeRu(campaign.actionType)} •{' '}
+                                {formatCampaignStatusRu(campaign.status)}
                               </div>
                             </div>
                             <div className="admin-entity-meta">
-                              <strong>{formatPercentRu(item.rejectRate)}</strong>
+                              <strong>{formatNumberRu(campaign.spentBudget)}</strong>
+                              <span>
+                                из {formatNumberRu(campaign.totalBudget)} • апрув{' '}
+                                {formatPercentRu(campaign.approvalRate)}
+                              </span>
                             </div>
                           </div>
                         ))}
                       </div>
+                    ) : (
+                      <div className="admin-empty">Нет данных по кампаниям за выбранный период.</div>
+                    )}
+                  </section>
+                )}
+
+                {adminSection === 'applications' && (
+                  <section className="admin-section-card">
+                    <div className="admin-section-head">
+                      <div className="admin-section-title">Заявки</div>
+                      <div className="admin-section-sub">Очередь, скорость проверки и последние решения</div>
                     </div>
-                  )}
-                </section>
+                    <div className="admin-mini-grid">
+                      <div className="admin-mini-item">
+                        <span>Pending / Stale &gt;24ч</span>
+                        <strong>
+                          {formatNumberRu(adminApplications?.pendingCount ?? 0)} /{' '}
+                          {formatNumberRu(adminApplications?.stalePendingCount ?? 0)}
+                        </strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Проверено за период</span>
+                        <strong>{formatNumberRu(adminApplications?.reviewedInPeriod ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Среднее время проверки</span>
+                        <strong>{formatNumberRu(adminApplications?.avgReviewMinutes ?? 0)} мин</strong>
+                      </div>
+                    </div>
+                    <div className="admin-split-grid">
+                      <div className="admin-split-block">
+                        <div className="admin-split-title">Старые pending</div>
+                        {(adminApplications?.recentPending?.length ?? 0) > 0 ? (
+                          <div className="admin-entity-list compact">
+                            {adminApplications?.recentPending.map((item) => (
+                              <div className="admin-entity-row compact" key={item.id}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">{item.campaignLabel}</div>
+                                  <div className="admin-entity-sub">
+                                    {item.applicantLabel} • {item.ownerLabel}
+                                  </div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <span>{formatDateTimeRu(item.createdAt)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty">Очередь пустая.</div>
+                        )}
+                      </div>
+                      <div className="admin-split-block">
+                        <div className="admin-split-title">Последние решения</div>
+                        {(adminApplications?.recentReviewed?.length ?? 0) > 0 ? (
+                          <div className="admin-entity-list compact">
+                            {adminApplications?.recentReviewed.map((item) => (
+                              <div className="admin-entity-row compact" key={item.id}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">
+                                    {item.campaignLabel} • {formatApplicationStatusRu(item.status)}
+                                  </div>
+                                  <div className="admin-entity-sub">{item.applicantLabel}</div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <span>{formatDateTimeRu(item.reviewedAt)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty">Нет проверок за выбранный период.</div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {adminSection === 'economy' && (
+                  <section className="admin-section-card">
+                    <div className="admin-section-head">
+                      <div className="admin-section-title">Экономика</div>
+                      <div className="admin-section-sub">Движение баллов и крупные операции</div>
+                    </div>
+                    <div className="admin-mini-grid">
+                      <div className="admin-mini-item">
+                        <span>Начислено</span>
+                        <strong>+{formatNumberRu(adminEconomy?.issuedPoints ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Списано</span>
+                        <strong>-{formatNumberRu(adminEconomy?.spentPoints ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Итог периода</span>
+                        <strong>{formatSigned(adminEconomy?.netPoints ?? 0)}</strong>
+                      </div>
+                    </div>
+                    <div className="admin-split-grid">
+                      <div className="admin-split-block">
+                        <div className="admin-split-title">Топ начислений</div>
+                        {(adminEconomy?.topCredits?.length ?? 0) > 0 ? (
+                          <div className="admin-entity-list compact">
+                            {adminEconomy?.topCredits.map((item) => (
+                              <div className="admin-entity-row compact" key={item.id}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">{item.userLabel}</div>
+                                  <div className="admin-entity-sub">{item.reason}</div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <strong>+{formatNumberRu(item.amount)}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty">Нет начислений.</div>
+                        )}
+                      </div>
+                      <div className="admin-split-block">
+                        <div className="admin-split-title">Топ списаний</div>
+                        {(adminEconomy?.topDebits?.length ?? 0) > 0 ? (
+                          <div className="admin-entity-list compact">
+                            {adminEconomy?.topDebits.map((item) => (
+                              <div className="admin-entity-row compact" key={item.id}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">{item.userLabel}</div>
+                                  <div className="admin-entity-sub">{item.reason}</div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <strong>-{formatNumberRu(item.amount)}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty">Нет списаний.</div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {adminSection === 'risks' && (
+                  <section className="admin-section-card">
+                    <div className="admin-section-head">
+                      <div className="admin-section-title">Рефералка и риски</div>
+                      <div className="admin-section-sub">Лидеры приглашений и сигналы качества</div>
+                    </div>
+                    <div className="admin-mini-grid">
+                      <div className="admin-mini-item">
+                        <span>Инвайтов за период</span>
+                        <strong>{formatNumberRu(adminReferrals?.invitedInPeriod ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Выплаты по рефералке</span>
+                        <strong>{formatNumberRu(adminReferrals?.rewardsInPeriod ?? 0)}</strong>
+                      </div>
+                      <div className="admin-mini-item">
+                        <span>Подозрительных аппликантов</span>
+                        <strong>{formatNumberRu(adminRisks?.suspiciousApplicants?.length ?? 0)}</strong>
+                      </div>
+                    </div>
+
+                    {(adminReferrals?.topReferrers?.length ?? 0) > 0 && (
+                      <div className="admin-entity-list">
+                        {adminReferrals?.topReferrers.map((item) => (
+                          <div className="admin-entity-row compact" key={item.userId}>
+                            <div className="admin-entity-main">
+                              <div className="admin-entity-title">{item.userLabel}</div>
+                              <div className="admin-entity-sub">Инвайтов: {formatNumberRu(item.invited)}</div>
+                            </div>
+                            <div className="admin-entity-meta">
+                              <strong>{formatNumberRu(item.rewards)}</strong>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="admin-alert-list">
+                      {adminAlerts.map((alert, index) => (
+                        <div className={`admin-alert ${getAlertToneClass(alert.level)}`} key={`risk-alert-${index}`}>
+                          <strong>{alert.level.toUpperCase()}</strong>
+                          <span>{alert.message}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(adminRisks?.highRejectOwners?.length ?? 0) > 0 && (
+                      <div className="admin-risk-block">
+                        <div className="admin-split-title">Высокий reject rate владельцев</div>
+                        <div className="admin-entity-list compact">
+                          {adminRisks?.highRejectOwners.map((item) => (
+                            <div className="admin-entity-row compact" key={item.userId}>
+                              <div className="admin-entity-main">
+                                <div className="admin-entity-title">{item.ownerLabel}</div>
+                                <div className="admin-entity-sub">
+                                  Reject: {formatNumberRu(item.rejected)} / {formatNumberRu(item.reviewed)}
+                                </div>
+                              </div>
+                              <div className="admin-entity-meta">
+                                <strong>{formatPercentRu(item.rejectRate)}</strong>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
               </>
             )}
           </>

@@ -4446,6 +4446,50 @@ body::before {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admin-health-card {
+  border: 1px solid rgba(168, 222, 255, 0.28);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.admin-health-card.good {
+  border-color: rgba(148, 246, 206, 0.38);
+  background: linear-gradient(150deg, rgba(110, 231, 183, 0.14), rgba(111, 199, 255, 0.1));
+}
+
+.admin-health-card.warn {
+  border-color: rgba(255, 217, 156, 0.4);
+  background: linear-gradient(150deg, rgba(255, 191, 120, 0.16), rgba(129, 199, 255, 0.08));
+}
+
+.admin-health-card.critical {
+  border-color: rgba(255, 160, 160, 0.48);
+  background: linear-gradient(150deg, rgba(255, 122, 122, 0.16), rgba(120, 181, 255, 0.08));
+}
+
+.admin-health-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(214, 231, 247, 0.9);
+}
+
+.admin-health-head strong {
+  font-size: 16px;
+  color: #ebfbff;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-health-sub {
+  font-size: 12px;
+  color: rgba(201, 221, 240, 0.84);
+}
+
 .admin-trend-grid {
   display: grid;
   gap: 8px;
@@ -4664,6 +4708,70 @@ body::before {
 .admin-risk-block {
   display: grid;
   gap: 6px;
+}
+
+.admin-actions-card {
+  gap: 8px;
+}
+
+.admin-action-list {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-action-item {
+  min-height: 56px;
+  border-radius: 12px;
+  border: 1px solid rgba(163, 213, 255, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+  color: #eaf7ff;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+}
+
+.admin-action-item strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.admin-action-item span {
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(198, 219, 240, 0.84);
+}
+
+.admin-action-item.warn {
+  border-color: rgba(255, 214, 148, 0.42);
+  background: rgba(255, 188, 118, 0.1);
+}
+
+.admin-action-item.critical {
+  border-color: rgba(255, 157, 157, 0.5);
+  background: rgba(255, 135, 135, 0.12);
+}
+
+.admin-module-switch {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-module-button {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(165, 215, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(219, 236, 250, 0.9);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-module-button.active {
+  border-color: rgba(156, 235, 200, 0.64);
+  background: linear-gradient(135deg, rgba(129, 239, 198, 0.3), rgba(130, 204, 255, 0.2));
+  color: #eefffb;
 }
 
 .bonus-stats-grid {
@@ -7276,6 +7384,10 @@ body::before {
     font-size: 15px;
   }
 
+  .admin-health-head strong {
+    font-size: 15px;
+  }
+
   .admin-section-card {
     padding: 10px;
     border-radius: 16px;
@@ -7296,6 +7408,15 @@ body::before {
 
   .admin-entity-meta span {
     white-space: normal;
+  }
+
+  .admin-module-switch {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .admin-module-button {
+    font-size: 10px;
   }
 
   .bottom-nav.has-admin .nav-item span {
@@ -7339,6 +7460,10 @@ body::before {
 
   .admin-period-switch {
     grid-template-columns: 1fr;
+  }
+
+  .admin-module-switch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-stat-card {
