@@ -8143,7 +8143,7 @@ body::before {
 
 /* Container backgrounds: lock to home card surface */
 :root {
-  --home-theme-container-bg: linear-gradient(140deg, rgba(24, 28, 40, 0.8), rgba(16, 18, 28, 0.9));
+  --home-theme-container-bg: rgba(27, 30, 33, 0.96);
 }
 
 :is(
