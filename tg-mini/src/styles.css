@@ -6528,7 +6528,7 @@ body::before {
 }
 
 .content.promo-content {
-  padding: calc(var(--tg-safe-top) + 28px) 12px 8px;
+  padding: calc(var(--tg-safe-top) + 30px) 12px 8px;
   gap: 10px;
 }
 
@@ -6751,6 +6751,7 @@ body::before {
 
 .content.promo-content .promo-step-head {
   width: 100%;
+  min-height: 44px;
   border: 0;
   padding: 0;
   margin: 0;
@@ -6871,29 +6872,6 @@ body::before {
   font-size: 14px;
   font-weight: 700;
   color: #eeffff;
-}
-
-.content.promo-content .promo-step-switcher {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.content.promo-content .promo-step-switch {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(137, 208, 243, 0.28);
-  background: rgba(8, 18, 31, 0.74);
-  color: rgba(195, 225, 240, 0.84);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.content.promo-content .promo-step-switch.active {
-  background: linear-gradient(145deg, rgba(143, 243, 190, 0.34), rgba(142, 216, 255, 0.28));
-  border-color: rgba(176, 232, 255, 0.64);
-  color: #f2fffb;
 }
 
 .content.promo-content .promo-task-actions {
@@ -7275,7 +7253,7 @@ body::before {
   }
 
   .content.promo-content {
-    padding: calc(var(--tg-safe-top) + 24px) 10px 8px;
+    padding: calc(var(--tg-safe-top) + 26px) 10px 8px;
     gap: 8px;
   }
 
@@ -7337,11 +7315,6 @@ body::before {
   .content.promo-content .promo-launch-button {
     min-width: 132px;
     font-size: 12px;
-  }
-
-  .content.promo-content .promo-step-switch {
-    min-height: 32px;
-    font-size: 11px;
   }
 
   .content.promo-content .balance-header {
@@ -7422,7 +7395,7 @@ body::before {
 
 @media (max-width: 360px) {
   .content.promo-content {
-    padding: calc(var(--tg-safe-top) + 22px) 10px 8px;
+    padding: calc(var(--tg-safe-top) + 24px) 10px 8px;
     gap: 7px;
   }
 
@@ -7469,11 +7442,6 @@ body::before {
 
   .content.promo-content .promo-budget-item strong {
     font-size: 12px;
-  }
-
-  .content.promo-content .promo-step-switch {
-    min-height: 30px;
-    font-size: 11px;
   }
 
   .identity-actions .sub {

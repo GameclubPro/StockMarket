@@ -3676,36 +3676,6 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="promo-step-switcher" role="tablist" aria-label="Шаги запуска">
-                    <button
-                      className={`promo-step-switch ${promoComposerStep === 'project' ? 'active' : ''}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={promoComposerStep === 'project'}
-                      onClick={() => setPromoComposerStep('project')}
-                    >
-                      1
-                    </button>
-                    <button
-                      className={`promo-step-switch ${promoComposerStep === 'format' ? 'active' : ''}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={promoComposerStep === 'format'}
-                      onClick={() => setPromoComposerStep('format')}
-                    >
-                      2
-                    </button>
-                    <button
-                      className={`promo-step-switch ${promoComposerStep === 'budget' ? 'active' : ''}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={promoComposerStep === 'budget'}
-                      onClick={() => setPromoComposerStep('budget')}
-                    >
-                      3
-                    </button>
-                  </div>
-
                   <div className="task-form-actions promo-task-actions">
                     <div className="balance-pill">
                       Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
