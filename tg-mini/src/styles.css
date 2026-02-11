@@ -7440,13 +7440,13 @@ body::before {
 
 /* Home palette propagation to all non-home screens */
 :root {
-  --home-theme-surface-bg: linear-gradient(140deg, rgba(24, 28, 40, 0.82), rgba(16, 18, 28, 0.94));
-  --home-theme-surface-bg-strong: linear-gradient(160deg, rgba(22, 26, 38, 0.9), rgba(14, 16, 26, 0.97));
-  --home-theme-surface-border: rgba(255, 255, 255, 0.12);
-  --home-theme-surface-border-soft: rgba(255, 255, 255, 0.08);
-  --home-theme-surface-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
-  --home-theme-text-main: #e8e9f2;
-  --home-theme-text-muted: #9fa2b6;
+  --home-theme-surface-bg: rgba(27, 30, 33, 0.96);
+  --home-theme-surface-bg-strong: rgba(33, 36, 39, 0.92);
+  --home-theme-surface-border: rgba(160, 173, 185, 0.28);
+  --home-theme-surface-border-soft: rgba(160, 173, 185, 0.22);
+  --home-theme-surface-shadow: 0 14px 28px rgba(0, 0, 0, 0.36);
+  --home-theme-text-main: #e8ecea;
+  --home-theme-text-muted: #a4aea8;
   --home-theme-cta-bg: linear-gradient(145deg, #89d9a8 0%, #6fc894 56%, #59b07f 100%);
   --home-theme-cta-border: rgba(212, 249, 226, 0.76);
   --home-theme-cta-text: #0f2618;
@@ -7949,4 +7949,96 @@ body::before {
     rgba(143, 243, 190, 0.72),
     rgba(143, 243, 190, 0.08)
   ) !important;
+}
+
+/* Promo final pass: remove remaining blue-tinted legacy pieces */
+.content.promo-content :is(
+    .promo-step-card,
+    .promo-step-card.ready,
+    .promo-step-card.collapsed,
+    .promo-quick-actions,
+    .promo-project-chip,
+    .promo-step-summary,
+    .promo-budget-item,
+    .promo-mine-stat,
+    .link-picker,
+    .link-option,
+    .link-picker-refresh,
+    .link-picker-close,
+    .link-option-avatar
+  ) {
+  background: var(--home-theme-container-bg) !important;
+  border-color: var(--home-theme-surface-border) !important;
+  color: var(--home-theme-text-main) !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content :is(.promo-step-index, .promo-step-state) {
+  background: var(--home-theme-control-bg) !important;
+  border-color: var(--home-theme-control-border) !important;
+  color: var(--home-theme-control-text) !important;
+}
+
+.content.promo-content :is(.promo-step-title, .link-option-title) {
+  color: var(--home-theme-text-main) !important;
+}
+
+.content.promo-content :is(
+    .promo-mode-meta,
+    .promo-step-sub,
+    .task-form-helper,
+    .link-hint,
+    .range-hint,
+    .range-meta,
+    .promo-budget-item span,
+    .link-picker-title,
+    .link-picker-subtitle,
+    .link-option-handle
+  ) {
+  color: var(--home-theme-text-muted) !important;
+}
+
+.content.promo-content :is(.link-tool.highlight, .link-tool.highlight-blue, .link-tool.active) {
+  background: var(--home-theme-cta-bg) !important;
+  border-color: var(--home-theme-cta-border) !important;
+  color: var(--home-theme-cta-text) !important;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(245, 255, 250, 0.44) !important;
+}
+
+.content.promo-content :is(.field input, .price-stepper-button, .price-stepper-value) {
+  background: var(--home-theme-control-bg) !important;
+  border-color: var(--home-theme-control-border) !important;
+  color: var(--home-theme-control-text) !important;
+}
+
+.content.promo-content .field input:focus {
+  border-color: rgba(169, 226, 194, 0.58) !important;
+  box-shadow:
+    0 0 0 2px rgba(143, 243, 190, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.content.promo-content .range-input::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    90deg,
+    rgba(143, 243, 190, 0.56) 0,
+    rgba(143, 243, 190, 0.56) var(--range-progress, 0%),
+    rgba(255, 255, 255, 0.16) 0
+  ) !important;
+  border: 1px solid var(--home-theme-control-border) !important;
+}
+
+.content.promo-content .range-input::-moz-range-track {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid var(--home-theme-control-border) !important;
+}
+
+.content.promo-content .range-input::-moz-range-progress {
+  background: rgba(143, 243, 190, 0.56) !important;
+}
+
+.content.promo-content .promo-step-head:focus-visible {
+  outline: 2px solid rgba(143, 243, 190, 0.56) !important;
 }
