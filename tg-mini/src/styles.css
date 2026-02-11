@@ -4257,7 +4257,7 @@ body::before {
 }
 
 .content.admin-content {
-  padding: calc(var(--tg-safe-top) + 14px + var(--tg-screen-top-gap)) 12px 8px;
+  padding: calc(var(--tg-safe-top) + 22px + var(--tg-screen-top-gap)) 12px 8px;
   gap: 10px;
 }
 
@@ -7515,7 +7515,7 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-safe-top) + 10px + var(--tg-screen-top-gap)) 10px 12px;
+  padding: calc(var(--tg-safe-top) + 18px + var(--tg-screen-top-gap)) 10px 12px;
   gap: 10px;
 }
 
@@ -7742,7 +7742,7 @@ body::before {
 
 @media (max-width: 390px) {
   .content.admin-content {
-    padding: calc(var(--tg-safe-top) + 10px + var(--tg-screen-top-gap)) 9px 8px;
+    padding: calc(var(--tg-safe-top) + 18px + var(--tg-screen-top-gap)) 9px 8px;
     gap: 8px;
   }
 
@@ -7822,7 +7822,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 9px 12px;
+    padding: calc(var(--tg-safe-top) + 16px + var(--tg-screen-top-gap)) 9px 12px;
     gap: 9px;
   }
 
@@ -7849,7 +7849,7 @@ body::before {
 
 @media (max-width: 360px) {
   .content.admin-content {
-    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 8px 8px;
+    padding: calc(var(--tg-safe-top) + 16px + var(--tg-screen-top-gap)) 8px 8px;
   }
 
   .admin-panel-grid {
@@ -7877,7 +7877,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px + var(--tg-screen-top-gap)) 8px 12px;
+    padding: calc(var(--tg-safe-top) + 16px + var(--tg-screen-top-gap)) 8px 12px;
   }
 
   .content.referrals-content .referral-link-head {
