@@ -6464,9 +6464,9 @@ body::before {
     var(--tg-viewport-content-safe-area-inset-left, env(safe-area-inset-left, 0px))
   );
   --tg-safe-top-effective: max(var(--tg-safe-top), env(safe-area-inset-top, 0px));
-  --tg-safe-bottom-effective: max(var(--tg-safe-bottom), env(safe-area-inset-bottom, 0px), 8px);
+  --tg-safe-bottom-effective: max(var(--tg-safe-bottom), env(safe-area-inset-bottom, 0px), 18px);
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
-  --tg-top-ui-gap: 14px;
+  --tg-top-ui-gap: 18px;
 }
 
 html,
@@ -6484,8 +6484,8 @@ body::before {
 }
 
 #root {
-  height: var(--tg-app-height);
-  min-height: var(--tg-app-height);
+  min-height: 100dvh;
+  height: max(var(--tg-app-height), 100dvh);
   padding-left: var(--tg-safe-left);
   padding-right: var(--tg-safe-right);
   overflow: hidden;
@@ -6497,8 +6497,8 @@ body::before {
 }
 
 .bottom-nav {
-  padding: 10px 12px calc(14px + var(--tg-safe-bottom-effective));
-  min-height: calc(76px + var(--tg-safe-bottom-effective));
+  padding: 10px 12px calc(12px + var(--tg-safe-bottom-effective));
+  min-height: calc(74px + var(--tg-safe-bottom-effective));
   backdrop-filter: blur(14px);
 }
 
@@ -6528,7 +6528,7 @@ body::before {
 
 /* Home quality pass: tighter hierarchy, calmer glow, richer iconography */
 .content.home-content {
-  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + 8px) 12px 10px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + 14px) 12px 10px;
   gap: 10px;
   overflow-y: auto;
 }
