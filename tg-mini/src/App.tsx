@@ -432,6 +432,7 @@ export default function App() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
+  const [promoComposerStep, setPromoComposerStep] = useState<'project' | 'format' | 'budget'>('project');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPriceInput, setTaskPriceInput] = useState('10');
@@ -684,6 +685,27 @@ export default function App() {
   ]);
   const createButtonDisabled = createLoading || createCtaState.blocked;
   const createButtonLabel = createLoading ? 'Создание…' : createCtaState.label;
+  const selectedProjectLabel = selectedGroupTitle || 'Проект не выбран';
+  const isProjectSelected = Boolean(selectedGroupId);
+  const hasReactionLink = taskType === 'subscribe' || Boolean(reactionLink.trim());
+  const budgetRatio = useMemo(() => {
+    if (displayPoints <= 0) return 100;
+    const pct = Math.round((totalBudget / displayPoints) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }, [displayPoints, totalBudget]);
+  const budgetStateLabel = useMemo(() => {
+    if (displayPoints < totalBudget) return 'Нужно пополнение';
+    if (budgetRatio >= 85) return 'Почти весь баланс';
+    if (budgetRatio >= 55) return 'Средняя нагрузка';
+    return 'Комфортный бюджет';
+  }, [budgetRatio, displayPoints, totalBudget]);
+  const formatSummaryLabel =
+    taskType === 'subscribe'
+      ? 'Подписка'
+      : hasReactionLink
+        ? 'Реакция · ссылка задана'
+        : 'Реакция · нужна ссылка';
+  const budgetSummaryLabel = `${taskPriceValue} × ${taskCount} = ${totalBudget}`;
   const rangeProgress = useMemo(() => {
     const min = 1;
     const max = maxAffordableCount;
@@ -3316,259 +3338,404 @@ export default function App() {
         {activeTab === 'promo' && (
           <>
             <BalanceHeader />
-            <div className="segment center">
+            <div className="segment center promo-mode-switch">
               <button
-                className={`segment-button ${myTasksTab === 'place' ? 'active' : ''}`}
+                className={`segment-button promo-mode-button ${myTasksTab === 'place' ? 'active' : ''}`}
                 type="button"
                 onClick={() => setMyTasksTab('place')}
               >
-                Разместить
+                <span className="promo-mode-title">Разместить</span>
+                <span className="promo-mode-meta">новая кампания</span>
               </button>
               <button
-                className={`segment-button ${myTasksTab === 'mine' ? 'active' : ''}`}
+                className={`segment-button promo-mode-button ${myTasksTab === 'mine' ? 'active' : ''}`}
                 type="button"
                 onClick={() => setMyTasksTab('mine')}
               >
-                Мои размещенные
+                <span className="promo-mode-title">Мои размещенные</span>
+                <span className="promo-mode-meta">{myCampaigns.length} кампаний</span>
               </button>
             </div>
 
             {myTasksTab === 'place' && (
-              <div className="task-form-card">
-                <div className="task-form-head">
-                  <div>
-                    <div className="task-form-title">Разместить задание</div>
-                    <div className="task-form-sub">
-                      {taskType === 'subscribe'
-                        ? 'Цена и объем: запуск за минуту.'
-                        : 'Ссылка на пост и цена: запуск за минуту.'}
+              <div className="promo-redesign-shell">
+                <div className="promo-hero-card">
+                  <div className="promo-hero-copy">
+                    <div className="promo-hero-kicker">Продвижение</div>
+                    <div className="promo-hero-title">Быстрый запуск задания</div>
+                    <div className="promo-hero-sub">
+                      Запуск за минуту: проект, формат, бюджет.
                     </div>
-                    <div className="task-form-helper">
-                      {taskType === 'subscribe'
-                        ? 'Проверка вступлений автоматическая.'
-                        : 'Поддержка ссылок: t.me/username/123 и t.me/c/…/123.'}
+                  </div>
+                  <div className="promo-hero-progress" aria-live="polite">
+                    <div className="promo-hero-progress-row">
+                      <span>Готовность</span>
+                      <strong>
+                        {[isProjectSelected, hasReactionLink, !createCtaState.blocked].filter(Boolean).length}/3
+                      </strong>
+                    </div>
+                    <div className="promo-hero-track" aria-hidden="true">
+                      <span
+                        style={{
+                          width: `${
+                            Math.round(
+                              ([isProjectSelected, hasReactionLink, !createCtaState.blocked].filter(Boolean).length /
+                                3) *
+                                100
+                            )
+                          }%`,
+                        }}
+                      />
+                    </div>
+                    <div className="promo-hero-progress-row muted">
+                      <span>{selectedProjectLabel}</span>
+                      <span>{taskType === 'subscribe' ? 'Подписка' : 'Реакция'}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="task-form-body">
-                  {taskType === 'reaction' && (
-                    <label className="field">
-                      <span>Ссылка на пост</span>
-                      <input
-                        type="text"
-                        placeholder="https://t.me/username/123 или https://t.me/c/123456/789"
-                        value={reactionLink}
-                        onChange={(event) => setReactionLink(event.target.value)}
-                      />
-                      <div className="range-hint">Пост должен быть из выбранного проекта.</div>
-                    </label>
-                  )}
-                  <div className="link-tools">
-                    <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
-                      Подключить канал
-                    </button>
-                    <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
-                      Подключить группу
-                    </button>
+                <div className="task-form-card promo-task-card">
+                  <div
+                    className={`promo-step-card ${isProjectSelected ? 'ready' : ''} ${
+                      promoComposerStep === 'project' ? 'active' : 'collapsed'
+                    }`}
+                  >
                     <button
-                      className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
+                      className="promo-step-head"
                       type="button"
-                      aria-expanded={linkPickerOpen}
-                      aria-controls="quick-link-picker"
-                      onClick={() => {
-                        setLinkPickerOpen((prev) => !prev);
-                      }}
+                      onClick={() => setPromoComposerStep('project')}
                     >
-                      Мои проекты
+                      <span className="promo-step-index">1</span>
+                      <div className="promo-step-copy">
+                        <div className="promo-step-title">Проект</div>
+                        <div className="promo-step-sub">Подключите канал/группу и выберите проект.</div>
+                      </div>
+                      <span className="promo-step-state">{isProjectSelected ? 'Готово' : 'Нужно выбрать'}</span>
                     </button>
-                  </div>
-                  <div className="link-hint">
-                    Бот подключается как администратор.
-                  </div>
-                  {selectedGroupTitle && (
-                    <div className="link-hint">Выбрано: {selectedGroupTitle}</div>
-                  )}
-                  {linkPickerOpen && (
-                    <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
-                      <div className="link-picker-head">
-                        <span className="link-picker-title">Мои проекты</span>
-                        <div className="link-picker-actions">
-                          <button
-                            className="link-picker-refresh"
-                            type="button"
-                            aria-label="Обновить список групп"
-                            disabled={myGroupsLoading}
-                            onClick={() => void loadMyGroups()}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                              <path d="M21 12a9 9 0 11-2.6-6.4" />
-                              <path d="M21 3v7h-7" />
-                            </svg>
+                    {promoComposerStep === 'project' ? (
+                      <>
+                        <div className="link-tools promo-link-tools">
+                          <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
+                            Подключить канал
+                          </button>
+                          <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
+                            Подключить группу
                           </button>
                           <button
-                            className="link-picker-close"
+                            className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
                             type="button"
-                            aria-label="Свернуть список"
-                            onClick={() => setLinkPickerOpen(false)}
+                            aria-expanded={linkPickerOpen}
+                            aria-controls="quick-link-picker"
+                            onClick={() => {
+                              setLinkPickerOpen((prev) => !prev);
+                            }}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                              <path d="M6 6l12 12" />
-                              <path d="M18 6l-12 12" />
-                            </svg>
+                            Мои проекты
                           </button>
                         </div>
-                      </div>
-                      {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
-                      {!myGroupsLoading && myGroupsError && (
-                        <div className="link-picker-status error">{myGroupsError}</div>
-                      )}
-                      {!myGroupsLoading &&
-                        !myGroupsError &&
-                        myGroupsLoaded &&
-                        myGroups.length === 0 && (
-                          <div className="link-picker-status">Пока нет добавленных групп.</div>
+                        <div className="promo-project-chip">{selectedProjectLabel}</div>
+                        <div className="link-hint">Бот подключается как администратор.</div>
+                        {linkPickerOpen && (
+                          <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
+                            <div className="link-picker-head">
+                              <span className="link-picker-title">Мои проекты</span>
+                              <div className="link-picker-actions">
+                                <button
+                                  className="link-picker-refresh"
+                                  type="button"
+                                  aria-label="Обновить список групп"
+                                  disabled={myGroupsLoading}
+                                  onClick={() => void loadMyGroups()}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                    <path d="M21 12a9 9 0 11-2.6-6.4" />
+                                    <path d="M21 3v7h-7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  className="link-picker-close"
+                                  type="button"
+                                  aria-label="Свернуть список"
+                                  onClick={() => setLinkPickerOpen(false)}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                    <path d="M6 6l12 12" />
+                                    <path d="M18 6l-12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                            {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
+                            {!myGroupsLoading && myGroupsError && (
+                              <div className="link-picker-status error">{myGroupsError}</div>
+                            )}
+                            {!myGroupsLoading &&
+                              !myGroupsError &&
+                              myGroupsLoaded &&
+                              myGroups.length === 0 && (
+                                <div className="link-picker-status">Пока нет добавленных групп.</div>
+                              )}
+                            {!myGroupsLoading &&
+                              !myGroupsError &&
+                              myGroups.map((group) => {
+                                const avatarUrl = getGroupAvatarUrl(group);
+                                return (
+                                  <button
+                                    className="link-option"
+                                    key={group.id}
+                                    type="button"
+                                    onClick={() => handleQuickLinkSelect(group)}
+                                  >
+                                    <div className="link-option-avatar">
+                                      {avatarUrl ? (
+                                        <img
+                                          src={avatarUrl}
+                                          alt=""
+                                          loading="lazy"
+                                          onError={(event) => {
+                                            event.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      ) : null}
+                                      <span>{group.title?.[0] ?? 'Г'}</span>
+                                    </div>
+                                    <div className="link-option-body">
+                                      <span className="link-option-title">{group.title}</span>
+                                      <span className="link-option-handle">
+                                        {getGroupSecondaryLabel(group)}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                          </div>
                         )}
-                      {!myGroupsLoading &&
-                        !myGroupsError &&
-                        myGroups.map((group) => {
-                          const avatarUrl = getGroupAvatarUrl(group);
-                          return (
-                            <button
-                              className="link-option"
-                              key={group.id}
-                              type="button"
-                              onClick={() => handleQuickLinkSelect(group)}
-                            >
-                              <div className="link-option-avatar">
-                                {avatarUrl ? (
-                                  <img
-                                    src={avatarUrl}
-                                    alt=""
-                                    loading="lazy"
-                                    onError={(event) => {
-                                      event.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                ) : null}
-                                <span>{group.title?.[0] ?? 'Г'}</span>
-                              </div>
-                              <div className="link-option-body">
-                                <span className="link-option-title">{group.title}</span>
-                                <span className="link-option-handle">
-                                  {getGroupSecondaryLabel(group)}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-
-                    </div>
-                  )}
-                  <div className="choice-row">
-                    <button
-                      className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
-                      type="button"
-                      onClick={() => setTaskType('subscribe')}
-                    >
-                      Подписка
-                    </button>
-                    <button
-                      className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
-                      type="button"
-                      onClick={() => setTaskType('reaction')}
-                    >
-                      Реакция
-                    </button>
+                      </>
+                    ) : (
+                      <div className="promo-step-summary">{selectedProjectLabel}</div>
+                    )}
                   </div>
-                  <label className="field">
-                    <span>Цена за действие</span>
-                    <div className="price-stepper" role="group" aria-label="Управление ценой за действие">
-                      <div className="price-stepper-side">
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(-10)}
-                          disabled={taskPriceValue <= MIN_TASK_PRICE}
-                        >
-                          -10
-                        </button>
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(-1)}
-                          disabled={taskPriceValue <= MIN_TASK_PRICE}
-                        >
-                          -1
-                        </button>
-                      </div>
-                      <output
-                        className="price-stepper-value"
-                        aria-live="polite"
-                        aria-atomic="true"
-                      >
-                        {taskPriceValue}
-                      </output>
-                      <div className="price-stepper-side align-end">
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(1)}
-                          disabled={taskPriceValue >= MAX_TASK_PRICE}
-                        >
-                          +1
-                        </button>
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(10)}
-                          disabled={taskPriceValue >= MAX_TASK_PRICE}
-                        >
-                          +10
-                        </button>
-                      </div>
-                    </div>
-                    <div className="range-hint">
-                      Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
-                    </div>
-                  </label>
-                  <label className="field">
-                    <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
-                    <input
-                      className="range-input"
-                      type="range"
-                      min={1}
-                      max={maxAffordableCount}
-                      value={taskCount}
-                      style={{ '--range-progress': rangeProgress } as React.CSSProperties}
-                      onChange={(event) => setTaskCount(Number(event.target.value))}
-                    />
-                    <div className="range-meta">
-                      <span>{taskCount} действий</span>
-                      <span>Списание: {totalBudget} баллов</span>
-                    </div>
-                  </label>
-                </div>
 
-                <div className="task-form-actions">
-                  <div className="balance-pill">
-                    Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
-                  </div>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => void handleCreateCampaign()}
-                    disabled={createButtonDisabled}
+                  <div
+                    className={`promo-step-card ${hasReactionLink ? 'ready' : ''} ${
+                      promoComposerStep === 'format' ? 'active' : 'collapsed'
+                    }`}
                   >
-                    {createButtonLabel}
-                  </button>
+                    <button
+                      className="promo-step-head"
+                      type="button"
+                      onClick={() => setPromoComposerStep('format')}
+                    >
+                      <span className="promo-step-index">2</span>
+                      <div className="promo-step-copy">
+                        <div className="promo-step-title">Формат задания</div>
+                        <div className="promo-step-sub">Выберите действие, которое выполняют участники.</div>
+                      </div>
+                      <span className="promo-step-state">{taskType === 'subscribe' ? 'Подписка' : 'Реакция'}</span>
+                    </button>
+                    {promoComposerStep === 'format' ? (
+                      <>
+                        <div className="choice-row">
+                          <button
+                            className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTaskType('subscribe')}
+                          >
+                            Подписка
+                          </button>
+                          <button
+                            className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTaskType('reaction')}
+                          >
+                            Реакция
+                          </button>
+                        </div>
+                        {taskType === 'reaction' && (
+                          <label className="field">
+                            <span>Ссылка на пост</span>
+                            <input
+                              type="text"
+                              placeholder="https://t.me/username/123 или https://t.me/c/123456/789"
+                              value={reactionLink}
+                              onChange={(event) => setReactionLink(event.target.value)}
+                            />
+                            <div className="range-hint">Пост должен быть из выбранного проекта.</div>
+                          </label>
+                        )}
+                      </>
+                    ) : (
+                      <div className="promo-step-summary">{formatSummaryLabel}</div>
+                    )}
+                  </div>
+
+                  <div
+                    className={`promo-step-card ${!createCtaState.blocked ? 'ready' : ''} ${
+                      promoComposerStep === 'budget' ? 'active' : 'collapsed'
+                    }`}
+                  >
+                    <button
+                      className="promo-step-head"
+                      type="button"
+                      onClick={() => setPromoComposerStep('budget')}
+                    >
+                      <span className="promo-step-index">3</span>
+                      <div className="promo-step-copy">
+                        <div className="promo-step-title">Бюджет и объем</div>
+                        <div className="promo-step-sub">Управляйте ценой и количеством действий.</div>
+                      </div>
+                      <span className="promo-step-state">{budgetStateLabel}</span>
+                    </button>
+                    {promoComposerStep === 'budget' ? (
+                      <>
+                        <label className="field">
+                          <span>Цена за действие</span>
+                          <div className="price-stepper" role="group" aria-label="Управление ценой за действие">
+                            <div className="price-stepper-side">
+                              <button
+                                className="price-stepper-button"
+                                type="button"
+                                onClick={() => adjustTaskPrice(-10)}
+                                disabled={taskPriceValue <= MIN_TASK_PRICE}
+                              >
+                                -10
+                              </button>
+                              <button
+                                className="price-stepper-button"
+                                type="button"
+                                onClick={() => adjustTaskPrice(-1)}
+                                disabled={taskPriceValue <= MIN_TASK_PRICE}
+                              >
+                                -1
+                              </button>
+                            </div>
+                            <output
+                              className="price-stepper-value"
+                              aria-live="polite"
+                              aria-atomic="true"
+                            >
+                              {taskPriceValue}
+                            </output>
+                            <div className="price-stepper-side align-end">
+                              <button
+                                className="price-stepper-button"
+                                type="button"
+                                onClick={() => adjustTaskPrice(1)}
+                                disabled={taskPriceValue >= MAX_TASK_PRICE}
+                              >
+                                +1
+                              </button>
+                              <button
+                                className="price-stepper-button"
+                                type="button"
+                                onClick={() => adjustTaskPrice(10)}
+                                disabled={taskPriceValue >= MAX_TASK_PRICE}
+                              >
+                                +10
+                              </button>
+                            </div>
+                          </div>
+                          <div className="range-hint">
+                            Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
+                          </div>
+                        </label>
+                        <label className="field">
+                          <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
+                          <input
+                            className="range-input"
+                            type="range"
+                            min={1}
+                            max={maxAffordableCount}
+                            value={taskCount}
+                            style={{ '--range-progress': rangeProgress } as React.CSSProperties}
+                            onChange={(event) => setTaskCount(Number(event.target.value))}
+                          />
+                          <div className="range-meta">
+                            <span>{taskCount} действий</span>
+                            <span>Списание: {totalBudget} баллов</span>
+                          </div>
+                        </label>
+
+                        <div className="promo-budget-grid">
+                          <div className="promo-budget-item">
+                            <span>Цена</span>
+                            <strong>{taskPriceValue}</strong>
+                          </div>
+                          <div className="promo-budget-item">
+                            <span>Объем</span>
+                            <strong>{taskCount}</strong>
+                          </div>
+                          <div className="promo-budget-item">
+                            <span>Остаток</span>
+                            <strong>{Math.max(0, displayPoints - totalBudget)}</strong>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="promo-step-summary">{budgetSummaryLabel}</div>
+                    )}
+                  </div>
+
+                  <div className="promo-step-switcher" role="tablist" aria-label="Шаги запуска">
+                    <button
+                      className={`promo-step-switch ${promoComposerStep === 'project' ? 'active' : ''}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={promoComposerStep === 'project'}
+                      onClick={() => setPromoComposerStep('project')}
+                    >
+                      1
+                    </button>
+                    <button
+                      className={`promo-step-switch ${promoComposerStep === 'format' ? 'active' : ''}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={promoComposerStep === 'format'}
+                      onClick={() => setPromoComposerStep('format')}
+                    >
+                      2
+                    </button>
+                    <button
+                      className={`promo-step-switch ${promoComposerStep === 'budget' ? 'active' : ''}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={promoComposerStep === 'budget'}
+                      onClick={() => setPromoComposerStep('budget')}
+                    >
+                      3
+                    </button>
+                  </div>
+
+                  <div className="task-form-actions promo-task-actions">
+                    <div className="balance-pill">
+                      Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
+                    </div>
+                    <button
+                      className="primary-button promo-launch-button"
+                      type="button"
+                      onClick={() => void handleCreateCampaign()}
+                      disabled={createButtonDisabled}
+                    >
+                      {createLoading ? 'Создание…' : !createCtaState.blocked ? 'Запустить кампанию' : createButtonLabel}
+                    </button>
+                  </div>
+                  {createError && <div className="form-status error">{createError}</div>}
                 </div>
-                {createError && <div className="form-status error">{createError}</div>}
-              </div>
             )}
 
             {myTasksTab === 'mine' && (
-              <div className="task-list">
+              <div className="promo-mine-shell">
+                <div className="promo-mine-overview">
+                  <div className="promo-mine-stat">
+                    <span>Кампаний</span>
+                    <strong>{myCampaigns.length}</strong>
+                  </div>
+                  <div className="promo-mine-stat">
+                    <span>Загрузка</span>
+                    <strong>{myCampaignsLoading ? 'Да' : 'Нет'}</strong>
+                  </div>
+                </div>
+              <div className="task-list promo-mine-list">
                 {myCampaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
                 {!myCampaignsLoading && myCampaignsError && (
                   <div className="task-form-placeholder error">{myCampaignsError}</div>
@@ -3584,7 +3751,7 @@ export default function App() {
                     )}`;
                     const ownerStatus = getOwnerCampaignStatusMeta(campaign);
                     return (
-                      <div className="task-card" key={campaign.id}>
+                      <div className="task-card promo-mine-card" key={campaign.id}>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -3624,7 +3791,8 @@ export default function App() {
                       </div>
                     );
                   })}
-              </div>
+                  </div>
+                </div>
             )}
 
           </>
