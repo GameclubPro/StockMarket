@@ -2259,6 +2259,7 @@ export default function App() {
     activeTab === 'home' ? 'home-content' : '',
     activeTab === 'promo' ? 'promo-content' : '',
     activeTab === 'tasks' ? 'tasks-content' : '',
+    activeTab === 'wheel' ? 'wheel-content' : '',
     activeTab === 'referrals' ? 'referrals-content' : '',
     activeTab === 'admin' ? 'admin-content' : '',
   ]

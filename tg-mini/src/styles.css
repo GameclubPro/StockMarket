@@ -6543,6 +6543,11 @@ body::before {
   gap: 10px;
 }
 
+.content.wheel-content {
+  padding: calc(var(--tg-safe-top-effective) + 34px + var(--tg-screen-top-gap)) 12px 12px;
+  gap: 12px;
+}
+
 .content.promo-content .balance-header {
   margin-top: 0;
   margin-bottom: 2px;
@@ -6890,7 +6895,7 @@ body::before {
 }
 
 .content.tasks-content {
-  padding: calc(var(--tg-safe-top) + 14px + var(--tg-screen-top-gap)) 12px 8px;
+  padding: calc(var(--tg-safe-top-effective) + 28px + var(--tg-screen-top-gap)) 12px 8px;
   gap: 10px;
 }
 
