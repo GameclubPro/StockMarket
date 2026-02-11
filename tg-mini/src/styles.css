@@ -8140,3 +8140,64 @@ body::before {
     0 10px 22px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(245, 255, 250, 0.44);
 }
+
+/* Container backgrounds: lock to home card surface */
+:root {
+  --home-theme-container-bg: linear-gradient(140deg, rgba(24, 28, 40, 0.8), rgba(16, 18, 28, 0.9));
+}
+
+:is(
+    .content.promo-content,
+    .content.tasks-content,
+    .content.wheel-content,
+    .content.referrals-content,
+    .content.admin-content
+  )
+  :is(
+    .balance-header,
+    .segment,
+    .task-form-card,
+    .promo-quick-actions,
+    .promo-step-card,
+    .promo-mine-overview,
+    .task-card,
+    .tasks-overview,
+    .tasks-overview-item,
+    .wheel-card,
+    .wheel-rules,
+    .wheel-info-popover,
+    .referral-hero,
+    .referral-link-block,
+    .referral-item,
+    .referral-empty-state,
+    .referral-info-popover,
+    .referral-stat,
+    .referral-info-item,
+    .admin-panel-card,
+    .admin-section-card,
+    .admin-stat-card,
+    .admin-health-card,
+    .admin-mini-item,
+    .admin-trend-card,
+    .admin-entity-row,
+    .admin-alert,
+    .admin-action-item,
+    .admin-panel-status,
+    .admin-empty
+  ) {
+  background: var(--home-theme-container-bg) !important;
+  border-color: var(--home-theme-surface-border) !important;
+}
+
+.content.promo-content .promo-step-card::before,
+.content.promo-content .promo-step-card::after,
+.content.wheel-content .wheel-card::before,
+.content.wheel-content .wheel-card::after,
+.content.referrals-content .referral-hero::before,
+.content.referrals-content .referral-hero::after,
+.content.admin-content .admin-panel-card::before,
+.content.admin-content .admin-panel-card::after,
+.content.admin-content .admin-section-card::before,
+.content.admin-content .admin-section-card::after {
+  opacity: 0 !important;
+}
