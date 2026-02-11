@@ -2117,6 +2117,8 @@ export default function App() {
   const adminSummaryPointsNet = adminOverview?.pointsNet ?? adminSummaryPointsIssued - adminSummaryPointsSpent;
   const adminSummaryBonusGranted =
     adminOverview?.welcomeBonusGranted ?? adminPanelStats?.bonusGranted ?? 0;
+  const adminSummaryBonusAmount =
+    adminOverview?.welcomeBonusAmount ?? adminPanelStats?.bonusAmount ?? 100;
   const adminSummaryBonusLimit = adminOverview?.welcomeBonusLimit ?? adminPanelStats?.bonusLimit ?? 0;
   const adminSummaryBonusRemaining =
     adminOverview?.welcomeBonusRemaining ?? adminPanelStats?.bonusRemaining ?? 0;
@@ -2890,7 +2892,8 @@ export default function App() {
                       <span style={{ width: `${adminBonusProgress}%` }} />
                     </div>
                     <div className="admin-progress-meta">
-                      Бонус +500 выдан: <strong>{formatNumberRu(adminSummaryBonusGranted)}</strong> из{' '}
+                      Бонус +{formatNumberRu(adminSummaryBonusAmount)} выдан:{' '}
+                      <strong>{formatNumberRu(adminSummaryBonusGranted)}</strong> из{' '}
                       <strong>{formatNumberRu(adminSummaryBonusLimit)}</strong> • осталось{' '}
                       <strong>{formatNumberRu(adminSummaryBonusRemaining)}</strong> ({adminBonusProgress}%)
                     </div>

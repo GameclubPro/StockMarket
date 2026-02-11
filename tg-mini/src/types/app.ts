@@ -102,6 +102,7 @@ export type AdminPanelStats = {
     pointsIssued: number;
     pointsSpent: number;
     pointsNet: number;
+    welcomeBonusAmount: number;
     welcomeBonusGranted: number;
     welcomeBonusLimit: number;
     welcomeBonusRemaining: number;
@@ -224,6 +225,7 @@ export type AdminPanelStats = {
   // legacy fields
   newUsersToday: number;
   totalUsers: number;
+  bonusAmount: number;
   bonusGranted: number;
   bonusLimit: number;
   bonusRemaining: number;

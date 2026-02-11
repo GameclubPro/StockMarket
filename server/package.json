@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:clear": "node scripts/clear-user-data.mjs",
+    "db:clear:all": "node scripts/clear-db.mjs",
     "webhook:set": "node scripts/set-webhook.mjs",
     "balance:backfill": "node scripts/backfill-start-balance.mjs",
     "total:backfill": "node scripts/backfill-total-earned.mjs"

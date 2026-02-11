@@ -100,9 +100,14 @@ const REFERRAL_MILESTONES = [
 const REFERRAL_JOIN_MILESTONE = REFERRAL_MILESTONES[0];
 const REFERRAL_CODE_BYTES = 5;
 const REFERRAL_CODE_ATTEMPTS = 6;
-const FIRST_LOGIN_WELCOME_BONUS_AMOUNT = 500;
+const FIRST_LOGIN_WELCOME_BONUS_AMOUNT = 100;
 const FIRST_LOGIN_WELCOME_BONUS_LIMIT = 50;
-const FIRST_LOGIN_WELCOME_BONUS_REASON = 'system_welcome_bonus_500_first50';
+const FIRST_LOGIN_WELCOME_BONUS_REASON = 'system_welcome_bonus_first50';
+const FIRST_LOGIN_WELCOME_BONUS_LEGACY_REASON = 'system_welcome_bonus_500_first50';
+const FIRST_LOGIN_WELCOME_BONUS_REASON_FILTER = [
+  FIRST_LOGIN_WELCOME_BONUS_REASON,
+  FIRST_LOGIN_WELCOME_BONUS_LEGACY_REASON,
+];
 const FIRST_LOGIN_WELCOME_BONUS_LOCK_KEY = 'jr_welcome_bonus_500_first50';
 const FIRST_LOGIN_WELCOME_BONUS_LOCK_TIMEOUT_SEC = 10;
 const BOT_PANEL_ALLOWED_COMMANDS = new Set(['/admin', '/stats', '/panel']);
@@ -148,6 +153,7 @@ type AdminPanelStats = {
     pointsIssued: number;
     pointsSpent: number;
     pointsNet: number;
+    welcomeBonusAmount: number;
     welcomeBonusGranted: number;
     welcomeBonusLimit: number;
     welcomeBonusRemaining: number;
@@ -249,6 +255,7 @@ type AdminPanelStats = {
   // legacy fields for backward compatibility
   newUsersToday: number;
   totalUsers: number;
+  bonusAmount: number;
   bonusGranted: number;
   bonusLimit: number;
   bonusRemaining: number;
@@ -449,14 +456,14 @@ const grantFirstLoginWelcomeBonusIfEligible = async (tx: Prisma.TransactionClien
     const alreadyGranted = await tx.ledgerEntry.findFirst({
       where: {
         userId: user.id,
-        reason: FIRST_LOGIN_WELCOME_BONUS_REASON,
+        reason: { in: FIRST_LOGIN_WELCOME_BONUS_REASON_FILTER },
       },
       select: { id: true },
     });
     if (alreadyGranted) return user;
 
     const grantedCount = await tx.ledgerEntry.count({
-      where: { reason: FIRST_LOGIN_WELCOME_BONUS_REASON },
+      where: { reason: { in: FIRST_LOGIN_WELCOME_BONUS_REASON_FILTER } },
     });
     if (grantedCount >= FIRST_LOGIN_WELCOME_BONUS_LIMIT) return user;
 
@@ -742,7 +749,7 @@ const getAdminPanelStats = async (options?: {
       },
     }),
     prisma.ledgerEntry.count({
-      where: { reason: FIRST_LOGIN_WELCOME_BONUS_REASON },
+      where: { reason: { in: FIRST_LOGIN_WELCOME_BONUS_REASON_FILTER } },
     }),
     prisma.ledgerEntry.aggregate({
       where: {
@@ -1235,6 +1242,7 @@ const getAdminPanelStats = async (options?: {
       pointsIssued: issuedPoints,
       pointsSpent: spentPoints,
       pointsNet: netPoints,
+      welcomeBonusAmount: FIRST_LOGIN_WELCOME_BONUS_AMOUNT,
       welcomeBonusGranted,
       welcomeBonusLimit: FIRST_LOGIN_WELCOME_BONUS_LIMIT,
       welcomeBonusRemaining: bonusRemaining,
@@ -1280,6 +1288,7 @@ const getAdminPanelStats = async (options?: {
     // legacy fields
     newUsersToday: newUsers,
     totalUsers,
+    bonusAmount: FIRST_LOGIN_WELCOME_BONUS_AMOUNT,
     bonusGranted: welcomeBonusGranted,
     bonusLimit: FIRST_LOGIN_WELCOME_BONUS_LIMIT,
     bonusRemaining,
@@ -1300,7 +1309,7 @@ const formatAdminPanelStatsText = async (now = new Date()) => {
     `Заявок на проверке: ${stats.applications.pendingCount}`,
     `Апрув заявок: ${stats.overview.approvalRate}%`,
     `Баллы: +${stats.overview.pointsIssued} / -${stats.overview.pointsSpent}`,
-    `Бонус +500: ${stats.overview.welcomeBonusGranted}/${stats.overview.welcomeBonusLimit}`,
+    `Бонус +${stats.overview.welcomeBonusAmount}: ${stats.overview.welcomeBonusGranted}/${stats.overview.welcomeBonusLimit}`,
     `Обновлено: ${updatedAt}`,
   ].join('\n');
 };
