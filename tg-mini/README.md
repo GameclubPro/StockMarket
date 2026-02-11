@@ -75,7 +75,10 @@ npm run emulator:tg-2026-fullscreen:promo
 
 Что есть в эмуляторе:
 - Реальный fullscreen-профиль Telegram Mini App по умолчанию (fullscreen lock, не fullsize).
-- Живые `viewport/safe-area/fullscreen` события и обновляемый Telegram chrome.
+- Профили устройств 2026: `android-2026` и `ios-2026` (`--tgProfile`).
+- Живые `viewport/safe-area/fullscreen` события + bridge-совместимость (`TelegramWebviewProxy`, `window.external.notify`, `receiveEvent`).
+- Ошибки fullscreen по спецификации Telegram: `UNSUPPORTED`, `ALREADY_FULLSCREEN`, `ALREADY_EXITED_FULLSCREEN`.
+- Обновляемый Telegram chrome c системной строкой и fullscreen-контролами.
 - Overlay-панель с текущими метриками viewport/safe-area и быстрыми действиями (`Fullscreen`, `MainButton`).
 
 Полезные опции:
@@ -83,4 +86,7 @@ npm run emulator:tg-2026-fullscreen:promo
 npm run emulator:miniapp -- --openScreen home
 npm run emulator:miniapp -- --headless --noEmulatorOverlay
 npm run emulator:miniapp -- --allowNonFullscreen --tgMode compact
+npm run emulator:miniapp -- --tgProfile ios-2026 --tgPlatform ios
+npm run emulator:miniapp -- --tgStatusBarPx 30 --tgFullscreenControlsPx 46
+npm run emulator:miniapp -- --tgStatusBarPx 24 --tgFullscreenControlsPx 38   # Android fullscreen match
 ```

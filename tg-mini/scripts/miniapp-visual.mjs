@@ -18,24 +18,52 @@ const DEFAULT_SAFE_BOTTOM_PX = 16;
 const DEFAULT_SAFE_TOP_PX = 0;
 const DEFAULT_MISMATCH_THRESHOLD_PCT = 0.25;
 const DEFAULT_TG_TOP_BAR_PX = 48;
-const DEFAULT_TG_STATUS_BAR_PX = 28;
-const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 44;
+const DEFAULT_TG_STATUS_BAR_PX = 24;
+const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 38;
 const DEFAULT_TG_MAIN_BUTTON_PX = 0;
 const DEFAULT_TG_MAIN_BUTTON_GAP_PX = 12;
 const DEFAULT_TG_MODE = 'fullscreen';
 const DEFAULT_TG_WEBAPP_VERSION = '9.3';
+const DEFAULT_TG_PLATFORM = 'android';
+const DEFAULT_TG_PROFILE = 'android-2026';
+const DEFAULT_DEVICE_SCALE_FACTOR = 3;
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 Telegram-Android/11.8';
 const SUPPORTED_TG_MODES = new Set(['fullscreen', 'compact']);
+const SUPPORTED_TG_PLATFORMS = new Set(['android', 'ios', 'weba', 'webk', 'tdesktop']);
 const SUPPORTED_MODES = new Set(['screenshot', 'scan', 'compare', 'emulator']);
 const DEFAULT_OPEN_SCREEN = 'home';
 const FIXTURE_NOW_MS = Date.parse('2026-01-15T12:00:00.000Z');
 const APP_READY_SELECTOR = '.profile-card';
 
+const TELEGRAM_DEVICE_PROFILES = {
+  'android-2026': {
+    tgPlatform: 'android',
+    tgTopBarPx: 48,
+    tgStatusBarPx: 24,
+    tgFullscreenControlsPx: 38,
+    safeBottomFloorPx: 18,
+    deviceScaleFactor: 3,
+    userAgent: DEFAULT_USER_AGENT,
+  },
+  'ios-2026': {
+    tgPlatform: 'ios',
+    tgTopBarPx: 50,
+    tgStatusBarPx: 24,
+    tgFullscreenControlsPx: 44,
+    safeBottomFloorPx: 34,
+    deviceScaleFactor: 3,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1 Telegram-iOS/11.8',
+  },
+};
+
 const TELEGRAM_MOCK_THEME_PARAMS = JSON.stringify({
   bg_color: '#0c0c14',
   text_color: '#e8e9f2',
   hint_color: '#9fa2b6',
-  button_color: '#8ad2ff',
-  button_text_color: '#001018',
+  button_color: '#2481cc',
+  button_text_color: '#ffffff',
   secondary_bg_color: '#10101b',
   header_bg_color: '#10101b',
 });
@@ -129,16 +157,21 @@ const usage = `
   --height <px>      Высота viewport (default: ${DEFAULT_HEIGHT})
   --outDir <path>    Папка для скриншотов (screenshot mode)
   --outFile <path>   Файл отчета (scan/compare mode)
+  --screens <ids>    Список экранов через запятую (home,promo,tasks,...) для screenshot/scan
   --baseUrl <url>    Готовый URL приложения, если dev-сервер уже запущен
   --port <number>    Порт локального dev-сервера (default: ${DEFAULT_PORT})
   --waitMs <number>  Пауза после переходов (default: ${DEFAULT_WAIT_MS})
   --safeTopPx <n>    Верхняя safe-area зона риска в px (scan mode, default: динамически)
   --safeBottomPx <n> Нижняя safe-area зона риска в px (scan mode, default: ${DEFAULT_SAFE_BOTTOM_PX})
+  --tgProfile <id>   Профиль Telegram Mini App: ${Object.keys(TELEGRAM_DEVICE_PROFILES).join('|')} (default: ${DEFAULT_TG_PROFILE})
+  --tgPlatform <id>  Telegram platform launch param (android|ios|webk|weba|tdesktop)
   --tgMode <mode>    Режим Telegram viewport: fullscreen|compact (default: ${DEFAULT_TG_MODE})
   --tgWebAppVersion <v> Версия Telegram WebApp API (default: ${DEFAULT_TG_WEBAPP_VERSION})
   --tgStatusBarPx <n> Высота системного status-bar в fullscreen в px (default: ${DEFAULT_TG_STATUS_BAR_PX})
   --tgFullscreenControlsPx <n> Высота верхних fullscreen-контролов в px (default: ${DEFAULT_TG_FULLSCREEN_CONTROLS_PX})
   --tgTopBarPx <n>   Высота Telegram верхнего chrome в px (default: ${DEFAULT_TG_TOP_BAR_PX})
+  --deviceScaleFactor <n> DPR устройства для рендера (default: ${DEFAULT_DEVICE_SCALE_FACTOR})
+  --userAgent <ua>   User-Agent для mobile контекста
   --tgMainButtonPx <n> Высота Telegram Main Button в px (default: ${DEFAULT_TG_MAIN_BUTTON_PX})
   --tgMainButtonGapPx <n> Отступ Main Button снизу в px (default: ${DEFAULT_TG_MAIN_BUTTON_GAP_PX})
   --noTelegramChrome Отключить визуальную эмуляцию Telegram chrome
@@ -150,6 +183,7 @@ const usage = `
   --headful          Запуск Chromium с UI
   --headless         Принудительно headless (полезно для mode=emulator)
   --noMockApi        Отключить API-моки и использовать реальный backend
+  --noMockAdminAccess Отключить admin-доступ в Telegram моках
   --openScreen <id>  Экран при запуске emulator: ${SCREEN_STEPS.map((step) => step.id).join('|')} (default: ${DEFAULT_OPEN_SCREEN})
   --allowNonFullscreen Разрешить compact в emulator (по умолчанию fullscreen lock)
   --noEmulatorOverlay Отключить overlay-панель эмулятора (mode=emulator)
@@ -219,6 +253,36 @@ function toScreenId(value, fallback = DEFAULT_OPEN_SCREEN) {
   return fallback;
 }
 
+function toScreenIds(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return SCREEN_STEPS.map((step) => step.id);
+  }
+  const parsed = value
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .filter((id, index, list) => list.indexOf(id) === index)
+    .filter((id) => SCREEN_ID_SET.has(id));
+  if (parsed.length === 0) {
+    return SCREEN_STEPS.map((step) => step.id);
+  }
+  return parsed;
+}
+
+function toTelegramProfile(value, fallback = DEFAULT_TG_PROFILE) {
+  const normalized = toStringValue(value, fallback).toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(TELEGRAM_DEVICE_PROFILES, normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+function toTelegramPlatform(value, fallback = DEFAULT_TG_PLATFORM) {
+  const normalized = toStringValue(value, fallback).toLowerCase();
+  if (SUPPORTED_TG_PLATFORMS.has(normalized)) return normalized;
+  return fallback;
+}
+
 function resolvePath(value, fallback) {
   return path.resolve(process.cwd(), value ?? fallback);
 }
@@ -229,19 +293,36 @@ function parseConfig(mode, rawArgs) {
   const waitMs = toInt(rawArgs.waitMs, DEFAULT_WAIT_MS);
   const port = toInt(rawArgs.port, DEFAULT_PORT);
   const allowNonFullscreen = toBooleanFlag(rawArgs.allowNonFullscreen);
+  const tgProfile = toTelegramProfile(rawArgs.tgProfile, DEFAULT_TG_PROFILE);
+  const tgProfileConfig = TELEGRAM_DEVICE_PROFILES[tgProfile];
   const requestedTgMode = toTelegramMode(rawArgs.tgMode, DEFAULT_TG_MODE);
   const tgMode =
     mode === 'emulator' && !allowNonFullscreen
       ? 'fullscreen'
       : requestedTgMode;
+  const tgPlatform = toTelegramPlatform(
+    rawArgs.tgPlatform,
+    tgProfileConfig?.tgPlatform ?? DEFAULT_TG_PLATFORM
+  );
   const tgWebAppVersion = toStringValue(rawArgs.tgWebAppVersion, DEFAULT_TG_WEBAPP_VERSION);
   const telegramChrome = !toBooleanFlag(rawArgs.noTelegramChrome);
-  const tgTopBarPx = toNonNegativeInt(rawArgs.tgTopBarPx, DEFAULT_TG_TOP_BAR_PX);
-  const tgStatusBarPx = toNonNegativeInt(rawArgs.tgStatusBarPx, DEFAULT_TG_STATUS_BAR_PX);
+  const tgTopBarPx = toNonNegativeInt(
+    rawArgs.tgTopBarPx,
+    tgProfileConfig?.tgTopBarPx ?? DEFAULT_TG_TOP_BAR_PX
+  );
+  const tgStatusBarPx = toNonNegativeInt(
+    rawArgs.tgStatusBarPx,
+    tgProfileConfig?.tgStatusBarPx ?? DEFAULT_TG_STATUS_BAR_PX
+  );
   const tgFullscreenControlsPx = toNonNegativeInt(
     rawArgs.tgFullscreenControlsPx,
-    DEFAULT_TG_FULLSCREEN_CONTROLS_PX
+    tgProfileConfig?.tgFullscreenControlsPx ?? DEFAULT_TG_FULLSCREEN_CONTROLS_PX
   );
+  const deviceScaleFactor = Math.max(
+    1,
+    toFloat(rawArgs.deviceScaleFactor, tgProfileConfig?.deviceScaleFactor ?? DEFAULT_DEVICE_SCALE_FACTOR)
+  );
+  const userAgent = toStringValue(rawArgs.userAgent, tgProfileConfig?.userAgent ?? DEFAULT_USER_AGENT);
   const tgMainButtonPx = toNonNegativeInt(rawArgs.tgMainButtonPx, DEFAULT_TG_MAIN_BUTTON_PX);
   const tgMainButtonGapPx = toNonNegativeInt(rawArgs.tgMainButtonGapPx, DEFAULT_TG_MAIN_BUTTON_GAP_PX);
   const topRiskInsetByMode =
@@ -250,6 +331,7 @@ function parseConfig(mode, rawArgs) {
     ? Math.max(DEFAULT_SAFE_TOP_PX, topRiskInsetByMode)
     : DEFAULT_SAFE_TOP_PX;
   const safeBottomDefault = Math.max(
+    tgProfileConfig?.safeBottomFloorPx ?? DEFAULT_SAFE_BOTTOM_PX,
     DEFAULT_SAFE_BOTTOM_PX,
     telegramChrome && tgMainButtonPx > 0 ? tgMainButtonPx + tgMainButtonGapPx : 0
   );
@@ -265,6 +347,7 @@ function parseConfig(mode, rawArgs) {
   const mockAdminAccess = !toBooleanFlag(rawArgs.noMockAdminAccess);
   const emulatorOverlay = !toBooleanFlag(rawArgs.noEmulatorOverlay);
   const openScreen = toScreenId(rawArgs.openScreen, DEFAULT_OPEN_SCREEN);
+  const screenIds = toScreenIds(rawArgs.screens);
   const outDirDefault = `.logs/design-after-${width}x${height}`;
   const outFileDefault =
     mode === 'compare'
@@ -282,11 +365,15 @@ function parseConfig(mode, rawArgs) {
     port,
     safeTopPx,
     safeBottomPx,
+    tgProfile,
+    tgPlatform,
     tgMode,
     tgWebAppVersion,
     tgTopBarPx,
     tgStatusBarPx,
     tgFullscreenControlsPx,
+    deviceScaleFactor,
+    userAgent,
     tgMainButtonPx,
     tgMainButtonGapPx,
     telegramChrome,
@@ -298,6 +385,7 @@ function parseConfig(mode, rawArgs) {
     allowNonFullscreen,
     emulatorOverlay,
     openScreen,
+    screenIds,
     baseUrl: typeof rawArgs.baseUrl === 'string' ? rawArgs.baseUrl : '',
     outDir: resolvePath(rawArgs.outDir, outDirDefault),
     outFile: resolvePath(rawArgs.outFile, outFileDefault),
@@ -309,7 +397,7 @@ function parseConfig(mode, rawArgs) {
 
 function buildTelegramMockQuery(config) {
   const params = new URLSearchParams({
-    tgWebAppPlatform: 'android',
+    tgWebAppPlatform: config.tgPlatform,
     tgWebAppVersion: config.tgWebAppVersion,
     tgWebAppThemeParams: TELEGRAM_MOCK_THEME_PARAMS,
     tgWebAppData: buildTelegramMockInitData(config.mockAdminAccess),
@@ -1039,6 +1127,7 @@ async function installTelegramMocks(page, config) {
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
     const enforceFullscreen = Boolean(params?.enforceFullscreen);
     const webAppVersion = typeof params?.tgWebAppVersion === 'string' ? params.tgWebAppVersion : '9.3';
+    const tgPlatform = typeof params?.tgPlatform === 'string' ? params.tgPlatform : 'android';
     const buildInitData = (isAdmin) =>
       isAdmin
         ? 'query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A100001%2C%22first_name%22%3A%22Тест%22%2C%22last_name%22%3A%22Пользователь%22%2C%22username%22%3A%22Nitchim%22%7D&auth_date=1710000000&hash=dev_hash'
@@ -1105,6 +1194,64 @@ async function installTelegramMocks(page, config) {
       handlers.delete(callback);
     };
 
+    const WEBAPP_TO_BRIDGE_EVENT = {
+      viewportChanged: 'viewport_changed',
+      fullscreenChanged: 'fullscreen_changed',
+      fullscreenFailed: 'fullscreen_failed',
+      safeAreaChanged: 'safe_area_changed',
+      contentSafeAreaChanged: 'content_safe_area_changed',
+      themeChanged: 'theme_changed',
+      mainButtonClicked: 'main_button_pressed',
+      secondaryButtonClicked: 'secondary_button_pressed',
+      backButtonClicked: 'back_button_pressed',
+      settingsButtonClicked: 'settings_button_pressed',
+      popupClosed: 'popup_closed',
+      scanQrPopupClosed: 'scan_qr_popup_closed',
+      qrTextReceived: 'qr_text_received',
+      clipboardTextReceived: 'clipboard_text_received',
+      writeAccessRequested: 'write_access_requested',
+      phoneRequested: 'phone_requested',
+      invoiceClosed: 'invoice_closed',
+      customMethodInvoked: 'custom_method_invoked',
+      visibilityChanged: 'visibility_changed',
+      activated: 'activated',
+      deactivated: 'deactivated',
+    };
+
+    const emitBridgeEvent = (bridgeEventType, payload = {}) => {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const telegramWebView = window.Telegram?.WebView;
+      if (typeof telegramWebView?.receiveEvent === 'function') {
+        try {
+          telegramWebView.receiveEvent(bridgeEventType, data);
+        } catch {
+          // noop
+        }
+      }
+      if (typeof window.TelegramGameProxy_receiveEvent === 'function') {
+        try {
+          window.TelegramGameProxy_receiveEvent(bridgeEventType, data);
+        } catch {
+          // noop
+        }
+      }
+      if (typeof window.TelegramGameProxy?.receiveEvent === 'function') {
+        try {
+          window.TelegramGameProxy.receiveEvent(bridgeEventType, data);
+        } catch {
+          // noop
+        }
+      }
+    };
+
+    const emitClientEvent = (webAppEventType, payload = {}) => {
+      emitEvent(webAppEventType, payload);
+      const bridgeEventType = WEBAPP_TO_BRIDGE_EVENT[webAppEventType];
+      if (bridgeEventType) {
+        emitBridgeEvent(bridgeEventType, payload);
+      }
+    };
+
     const fireBooleanCallback = (callback, value) => {
       if (typeof callback === 'function') {
         try {
@@ -1143,6 +1290,9 @@ async function installTelegramMocks(page, config) {
       isVisible: mainButtonPx > 0,
       isActive: true,
       isProgressVisible: false,
+      color: '#2481cc',
+      textColor: '#ffffff',
+      hasShineEffect: false,
       text: 'Продолжить',
       show: () => {
         mainButton.isVisible = true;
@@ -1180,6 +1330,21 @@ async function installTelegramMocks(page, config) {
           if (typeof nextParams.text === 'string') mainButton.text = nextParams.text;
           if (typeof nextParams.is_visible === 'boolean') {
             mainButton.isVisible = nextParams.is_visible;
+          }
+          if (typeof nextParams.is_active === 'boolean') {
+            mainButton.isActive = nextParams.is_active;
+          }
+          if (typeof nextParams.is_progress_visible === 'boolean') {
+            mainButton.isProgressVisible = nextParams.is_progress_visible;
+          }
+          if (typeof nextParams.color === 'string' && nextParams.color.trim()) {
+            mainButton.color = nextParams.color.trim();
+          }
+          if (typeof nextParams.text_color === 'string' && nextParams.text_color.trim()) {
+            mainButton.textColor = nextParams.text_color.trim();
+          }
+          if (typeof nextParams.has_shine_effect === 'boolean') {
+            mainButton.hasShineEffect = nextParams.has_shine_effect;
           }
         }
         updateInsets(true);
@@ -1265,24 +1430,24 @@ async function installTelegramMocks(page, config) {
       root.style.setProperty('--tg-viewport-content-safe-area-inset-left', '0px');
 
       if (emitChanges) {
-        emitEvent('viewportChanged', {
+        emitClientEvent('viewportChanged', {
           height: viewportHeight,
           is_expanded: webApp.isExpanded,
           is_state_stable: true,
         });
-        emitEvent('fullscreenChanged', {
+        emitClientEvent('fullscreenChanged', {
           is_fullscreen: webApp.isFullscreen,
         });
-        emitEvent('safeAreaChanged', { ...webApp.safeAreaInset });
-        emitEvent('contentSafeAreaChanged', { ...webApp.contentSafeAreaInset });
+        emitClientEvent('safeAreaChanged', { ...webApp.safeAreaInset });
+        emitClientEvent('contentSafeAreaChanged', { ...webApp.contentSafeAreaInset });
       }
     };
 
-    const setMode = (nextMode, emitChanges = true) => {
+    const setMode = (nextMode, emitChanges = true, failureError = 'UNSUPPORTED') => {
       const normalized = normalizeMode(nextMode);
       if (enforceFullscreen && normalized !== 'fullscreen') {
-        emitEvent('fullscreenFailed', {
-          error: 'fullscreen_locked',
+        emitClientEvent('fullscreenFailed', {
+          error: failureError,
           attempted_mode: normalized,
         });
         if (emitChanges) {
@@ -1291,9 +1456,10 @@ async function installTelegramMocks(page, config) {
         return false;
       }
 
+      const changed = modeState.value !== normalized;
       modeState.value = normalized;
       updateInsets(emitChanges);
-      return true;
+      return changed;
     };
 
     webApp = {
@@ -1303,7 +1469,7 @@ async function installTelegramMocks(page, config) {
       viewportStableHeight: window.innerHeight,
       safeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
       contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
-      platform: 'android',
+      platform: tgPlatform,
       version: webAppVersion,
       isVersionAtLeast,
       isActive: document.visibilityState !== 'hidden',
@@ -1312,8 +1478,8 @@ async function installTelegramMocks(page, config) {
         bg_color: '#0c0c14',
         text_color: '#e8e9f2',
         hint_color: '#9fa2b6',
-        button_color: '#8ad2ff',
-        button_text_color: '#001018',
+        button_color: '#2481cc',
+        button_text_color: '#ffffff',
         secondary_bg_color: '#10101b',
         header_bg_color: '#10101b',
       },
@@ -1332,11 +1498,19 @@ async function installTelegramMocks(page, config) {
         setMode('fullscreen', true);
       },
       requestFullscreen: () => {
+        if (modeState.value === 'fullscreen') {
+          emitClientEvent('fullscreenFailed', { error: 'ALREADY_FULLSCREEN' });
+          return Promise.resolve(false);
+        }
         const changed = setMode('fullscreen', true);
         return Promise.resolve(changed);
       },
       exitFullscreen: () => {
-        const changed = setMode('compact', true);
+        if (modeState.value !== 'fullscreen') {
+          emitClientEvent('fullscreenFailed', { error: 'ALREADY_EXITED_FULLSCREEN' });
+          return Promise.resolve(false);
+        }
+        const changed = setMode('compact', true, 'UNSUPPORTED');
         return Promise.resolve(changed);
       },
       openLink: () => {},
@@ -1450,6 +1624,171 @@ async function installTelegramMocks(page, config) {
       },
     };
 
+    const parseWebEventData = (rawValue) => {
+      if (rawValue === null || rawValue === undefined) return {};
+      if (typeof rawValue === 'object') return rawValue;
+      if (typeof rawValue !== 'string') return {};
+      try {
+        const parsed = JSON.parse(rawValue);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch {
+        return {};
+      }
+    };
+
+    const emitThemeSnapshot = () => {
+      emitClientEvent('themeChanged', {
+        theme_params: { ...webApp.themeParams },
+      });
+    };
+
+    const emitViewportSnapshot = () => {
+      emitClientEvent('viewportChanged', {
+        height: webApp.viewportHeight,
+        is_expanded: webApp.isExpanded,
+        is_state_stable: true,
+      });
+      emitClientEvent('fullscreenChanged', {
+        is_fullscreen: webApp.isFullscreen,
+      });
+    };
+
+    const emitSafeAreaSnapshot = () => {
+      emitClientEvent('safeAreaChanged', { ...webApp.safeAreaInset });
+      emitClientEvent('contentSafeAreaChanged', { ...webApp.contentSafeAreaInset });
+    };
+
+    const applySecondaryButtonParams = (nextParams) => {
+      if (!nextParams || typeof nextParams !== 'object') return;
+      if (typeof nextParams.text === 'string') secondaryButton.text = nextParams.text;
+      if (typeof nextParams.is_visible === 'boolean') {
+        secondaryButton.isVisible = nextParams.is_visible;
+      }
+      if (typeof nextParams.is_active === 'boolean') {
+        secondaryButton.isActive = nextParams.is_active;
+      }
+      if (typeof nextParams.is_progress_visible === 'boolean') {
+        secondaryButton.isProgressVisible = nextParams.is_progress_visible;
+      }
+      if (typeof nextParams.position === 'string' && nextParams.position.trim()) {
+        secondaryButton.position = nextParams.position;
+      }
+    };
+
+    webApp.BackButton.show = () => {
+      webApp.BackButton.isVisible = true;
+    };
+    webApp.BackButton.hide = () => {
+      webApp.BackButton.isVisible = false;
+    };
+    webApp.SettingsButton.show = () => {
+      webApp.SettingsButton.isVisible = true;
+    };
+    webApp.SettingsButton.hide = () => {
+      webApp.SettingsButton.isVisible = false;
+    };
+
+    const handleWebAppMethod = (eventType, rawEventData) => {
+      const eventData = parseWebEventData(rawEventData);
+      switch (eventType) {
+        case 'web_app_ready':
+          return;
+        case 'web_app_expand':
+          webApp.expand();
+          return;
+        case 'web_app_request_viewport':
+          emitViewportSnapshot();
+          return;
+        case 'web_app_request_theme':
+          emitThemeSnapshot();
+          return;
+        case 'web_app_request_safe_area':
+          emitSafeAreaSnapshot();
+          return;
+        case 'web_app_request_content_safe_area':
+          emitSafeAreaSnapshot();
+          return;
+        case 'web_app_request_fullscreen':
+          void webApp.requestFullscreen();
+          return;
+        case 'web_app_exit_fullscreen':
+          void webApp.exitFullscreen();
+          return;
+        case 'web_app_setup_main_button':
+          mainButton.setParams(eventData);
+          return;
+        case 'web_app_setup_secondary_button':
+          applySecondaryButtonParams(eventData);
+          return;
+        case 'web_app_setup_back_button':
+          if (typeof eventData.is_visible === 'boolean') {
+            webApp.BackButton.isVisible = eventData.is_visible;
+          }
+          return;
+        case 'web_app_setup_settings_button':
+          if (typeof eventData.is_visible === 'boolean') {
+            webApp.SettingsButton.isVisible = eventData.is_visible;
+          }
+          return;
+        case 'web_app_close':
+          webApp.close();
+          return;
+        default:
+          return;
+      }
+    };
+
+    const bridgePostEvent = (eventType, eventData) => {
+      if (!eventType || typeof eventType !== 'string') return;
+      handleWebAppMethod(eventType, eventData);
+    };
+
+    Object.defineProperty(window, 'TelegramWebviewProxy', {
+      configurable: true,
+      writable: true,
+      value: {
+        postEvent: bridgePostEvent,
+      },
+    });
+
+    const originalExternal =
+      window.external && typeof window.external === 'object' ? window.external : {};
+    const externalNotify = (payload) => {
+      const parsed = parseWebEventData(payload);
+      const eventType =
+        typeof parsed.eventType === 'string' && parsed.eventType ? parsed.eventType : '';
+      if (!eventType) return;
+      handleWebAppMethod(eventType, parsed.eventData);
+    };
+    try {
+      Object.defineProperty(window, 'external', {
+        configurable: true,
+        writable: true,
+        value: {
+          ...originalExternal,
+          notify: externalNotify,
+        },
+      });
+    } catch {
+      try {
+        originalExternal.notify = externalNotify;
+      } catch {
+        // noop
+      }
+    }
+
+    window.addEventListener(
+      'message',
+      (event) => {
+        const parsed = parseWebEventData(event?.data);
+        const eventType =
+          typeof parsed.eventType === 'string' && parsed.eventType ? parsed.eventType : '';
+        if (!eventType || !eventType.startsWith('web_app_')) return;
+        handleWebAppMethod(eventType, parsed.eventData);
+      },
+      { passive: true }
+    );
+
     updateInsets(false);
     window.addEventListener('resize', () => updateInsets(true), { passive: true });
     document.addEventListener(
@@ -1457,17 +1796,27 @@ async function installTelegramMocks(page, config) {
       () => {
         if (!webApp) return;
         webApp.isActive = document.visibilityState !== 'hidden';
-        emitEvent(webApp.isActive ? 'activated' : 'deactivated');
+        emitClientEvent('visibilityChanged', {
+          is_visible: webApp.isActive,
+        });
+        emitClientEvent(webApp.isActive ? 'activated' : 'deactivated');
       },
       { passive: true }
     );
     Object.defineProperty(window, 'Telegram', {
       configurable: true,
       writable: true,
-      value: { WebApp: webApp },
+      value: {
+        WebApp: webApp,
+        WebView: {
+          postEvent: bridgePostEvent,
+          receiveEvent: () => {},
+        },
+      },
     });
   }, {
     tgMode: config.tgMode,
+    tgPlatform: config.tgPlatform,
     tgWebAppVersion: config.tgWebAppVersion,
     tgTopBarPx: config.tgTopBarPx,
     tgStatusBarPx: config.tgStatusBarPx,
@@ -1686,6 +2035,20 @@ async function installTelegramChrome(page, config) {
         const btn = document.createElement('div');
         btn.className = 'tg-visual-chrome-main-button';
         btn.style.height = `${mainButtonPx}px`;
+        if (typeof webApp?.MainButton?.color === 'string' && webApp.MainButton.color.trim()) {
+          btn.style.background = webApp.MainButton.color.trim();
+        }
+        if (
+          typeof webApp?.MainButton?.textColor === 'string' &&
+          webApp.MainButton.textColor.trim()
+        ) {
+          btn.style.color = webApp.MainButton.textColor.trim();
+        }
+        if (webApp?.MainButton?.hasShineEffect) {
+          btn.style.boxShadow = '0 10px 22px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.64)';
+        } else {
+          btn.style.boxShadow = '0 10px 22px rgba(0, 0, 0, 0.32)';
+        }
         btn.textContent = String(webApp?.MainButton?.text || 'Main Button');
         wrap.appendChild(btn);
         document.body.appendChild(wrap);
@@ -1855,11 +2218,11 @@ async function openScreenById(page, waitMs, screenId) {
   await sleep(Math.max(waitMs, 400));
 }
 
-async function runFlow(page, waitMs, onScreen) {
-  for (const step of SCREEN_STEPS) {
-    await openScreenById(page, waitMs, step.id);
+async function runFlow(page, waitMs, screenIds, onScreen) {
+  for (const screenId of screenIds) {
+    await openScreenById(page, waitMs, screenId);
     await sleep(Math.max(waitMs, 900));
-    await onScreen(step.id);
+    await onScreen(screenId);
   }
 }
 
@@ -1879,7 +2242,7 @@ async function runScreenshotMode(page, config) {
     await fs.mkdir(config.outDir, { recursive: true });
   }
 
-  await runFlow(page, config.waitMs, async (screenId) => {
+  await runFlow(page, config.waitMs, config.screenIds, async (screenId) => {
     const file = path.join(config.outDir, buildScreenFileName(screenId, config.width, config.height));
     await page.screenshot({ path: file });
     console.log(`[screenshot] ${screenId} -> ${file}`);
@@ -2059,7 +2422,7 @@ async function runScanMode(page, config) {
     },
     screens: {},
     summary: {
-      totalScreens: SCREEN_STEPS.length,
+      totalScreens: config.screenIds.length,
       screensWithOverflow: 0,
       screensWithTapTargetIssues: 0,
       screensWithTopSafeAreaRisks: 0,
@@ -2070,7 +2433,7 @@ async function runScanMode(page, config) {
     },
   };
 
-  await runFlow(page, config.waitMs, async (screenId) => {
+  await runFlow(page, config.waitMs, config.screenIds, async (screenId) => {
     const audit = await collectAudit(page, screenId, config.safeBottomPx, config.safeTopPx);
     report.screens[screenId] = audit;
     if (audit.horizontalOverflowPx > 0) report.summary.screensWithOverflow += 1;
@@ -2458,6 +2821,9 @@ async function runEmulatorMode(runtime, config) {
       config.mode === 'emulator' && !config.allowNonFullscreen ? ' (fullscreen lock)' : ''
     }`
   );
+  console.log(
+    `[emulator] Профиль: ${config.tgProfile} | platform=${config.tgPlatform} | WebApp API=${config.tgWebAppVersion}`
+  );
   console.log(`[emulator] Экран: ${config.openScreen}`);
   console.log('[emulator] Остановить: Ctrl+C');
 
@@ -2501,10 +2867,9 @@ async function createRuntime(config) {
     viewport: { width: config.width, height: config.height },
     isMobile: true,
     hasTouch: true,
-    deviceScaleFactor: 3,
+    deviceScaleFactor: config.deviceScaleFactor,
     locale: 'ru-RU',
-    userAgent:
-      'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36',
+    userAgent: config.userAgent,
   });
   const page = await context.newPage();
 
