@@ -3579,7 +3579,28 @@ export default function App() {
                         )}
                       </>
                     ) : (
-                      <div className="promo-step-summary">{formatSummaryLabel}</div>
+                      <>
+                        <div className="choice-row promo-choice-inline">
+                          <button
+                            className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setTaskType('subscribe')}
+                          >
+                            Подписка
+                          </button>
+                          <button
+                            className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => {
+                              setTaskType('reaction');
+                              setPromoComposerStep('format');
+                            }}
+                          >
+                            Реакция
+                          </button>
+                        </div>
+                        <div className="promo-step-summary">{formatSummaryLabel}</div>
+                      </>
                     )}
                   </div>
 

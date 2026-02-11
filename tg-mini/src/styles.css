@@ -6833,6 +6833,16 @@ body::before {
   align-items: center;
 }
 
+.content.promo-content .promo-choice-inline {
+  gap: 7px;
+}
+
+.content.promo-content .promo-choice-inline .choice-pill {
+  min-height: 38px;
+  padding: 7px 12px;
+  font-size: 11px;
+}
+
 .content.promo-content .promo-link-tools {
   gap: 6px;
 }
@@ -7324,6 +7334,12 @@ body::before {
     min-height: 28px;
     padding: 7px 9px;
     font-size: 11px;
+  }
+
+  .content.promo-content .promo-choice-inline .choice-pill {
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 10px;
   }
 
   .content.promo-content .promo-step-state {
