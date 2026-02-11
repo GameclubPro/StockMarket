@@ -7894,3 +7894,165 @@ body::before {
     font-size: 11px;
   }
 }
+
+/* Home palette propagation to all non-home screens */
+:root {
+  --home-theme-surface-bg: linear-gradient(140deg, rgba(24, 28, 40, 0.82), rgba(16, 18, 28, 0.94));
+  --home-theme-surface-bg-strong: linear-gradient(160deg, rgba(22, 26, 38, 0.9), rgba(14, 16, 26, 0.97));
+  --home-theme-surface-border: rgba(255, 255, 255, 0.12);
+  --home-theme-surface-border-soft: rgba(255, 255, 255, 0.08);
+  --home-theme-surface-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
+  --home-theme-text-main: #e8e9f2;
+  --home-theme-text-muted: #9fa2b6;
+  --home-theme-cta-bg: linear-gradient(145deg, #89d9a8 0%, #6fc894 56%, #59b07f 100%);
+  --home-theme-cta-border: rgba(212, 249, 226, 0.76);
+  --home-theme-cta-text: #0f2618;
+}
+
+:is(
+    .content.promo-content,
+    .content.tasks-content,
+    .content.wheel-content,
+    .content.referrals-content,
+    .content.admin-content
+  ) {
+  color: var(--home-theme-text-main);
+}
+
+:is(
+    .content.promo-content .balance-header,
+    .content.tasks-content .balance-header,
+    .content.promo-content .segment,
+    .content.tasks-content .segment,
+    .content.promo-content .promo-quick-actions,
+    .content.promo-content .task-form-card,
+    .content.promo-content .promo-step-card,
+    .content.promo-content .promo-mine-overview,
+    .content.promo-content .promo-mine-card,
+    .content.tasks-content .tasks-overview,
+    .content.tasks-content .task-card,
+    .content.wheel-content .wheel-card,
+    .content.referrals-content .referral-hero,
+    .content.referrals-content .referral-link-block,
+    .content.referrals-content .referral-item,
+    .content.referrals-content .referral-empty-state,
+    .content.referrals-content .referral-info-popover,
+    .content.admin-content .admin-panel-card,
+    .content.admin-content .admin-section-card,
+    .content.admin-content .admin-stat-card,
+    .content.admin-content .admin-health-card,
+    .content.admin-content .admin-mini-item,
+    .content.admin-content .admin-trend-card,
+    .content.admin-content .admin-entity-row,
+    .content.admin-content .admin-action-item,
+    .content.admin-content .admin-empty,
+    .content.admin-content .admin-panel-status
+  ) {
+  background: var(--home-theme-surface-bg);
+  border-color: var(--home-theme-surface-border);
+  box-shadow: var(--home-theme-surface-shadow);
+}
+
+:is(
+    .content.promo-content .segment-button,
+    .content.tasks-content .filter-toggle-button,
+    .content.tasks-content .filter-chip,
+    .content.promo-content .choice-pill,
+    .content.promo-content .link-tool,
+    .content.promo-content .price-stepper-button,
+    .content.promo-content .price-stepper-value,
+    .content.promo-content .link-picker-refresh,
+    .content.promo-content .link-picker-close,
+    .content.tasks-content .open-button,
+    .content.wheel-content .icon-button,
+    .content.wheel-content .wheel-info-button,
+    .content.referrals-content .icon-button,
+    .content.referrals-content .referral-copy-link,
+    .content.referrals-content .referral-empty-action,
+    .content.admin-content .icon-button,
+    .content.admin-content .admin-period-button,
+    .content.admin-content .admin-module-button,
+    .content.admin-content .admin-refresh-button
+  ) {
+  background: var(--home-theme-surface-bg-strong);
+  border-color: var(--home-theme-surface-border);
+  color: var(--home-theme-text-main);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+}
+
+:is(
+    .content.promo-content .segment-button.active,
+    .content.tasks-content .filter-toggle-button.active,
+    .content.tasks-content .filter-chip.active,
+    .content.promo-content .choice-pill.active,
+    .content.promo-content .link-tool.active,
+    .content.tasks-content .open-button.confirm,
+    .content.wheel-content .wheel-cta,
+    .content.referrals-content .referral-share,
+    .content.admin-content .admin-period-button.active,
+    .content.admin-content .admin-module-button.active,
+    .content.admin-content .admin-refresh-button
+  ) {
+  background: var(--home-theme-cta-bg);
+  border-color: var(--home-theme-cta-border);
+  color: var(--home-theme-cta-text);
+}
+
+:is(
+    .content.promo-content .promo-mode-meta,
+    .content.promo-content .promo-step-sub,
+    .content.promo-content .range-hint,
+    .content.promo-content .range-meta,
+    .content.promo-content .task-form-sub,
+    .content.tasks-content .tasks-overview-label,
+    .content.tasks-content .tasks-overview-hint,
+    .content.tasks-content .task-handle,
+    .content.wheel-content .wheel-sub,
+    .content.wheel-content .wheel-timer,
+    .content.referrals-content .referral-hero-sub,
+    .content.referrals-content .referral-stat-label,
+    .content.referrals-content .referral-stat-sub,
+    .content.referrals-content .referral-item-sub,
+    .content.referrals-content .referral-item-meta-label,
+    .content.referrals-content .referral-progress-scale,
+    .content.referrals-content .referral-share-sub,
+    .content.admin-content .admin-panel-sub,
+    .content.admin-content .admin-section-sub,
+    .content.admin-content .admin-stat-label,
+    .content.admin-content .admin-stat-sub,
+    .content.admin-content .admin-entity-sub,
+    .content.admin-content .admin-trend-label,
+    .content.admin-content .admin-trend-sub
+  ) {
+  color: var(--home-theme-text-muted);
+}
+
+.content.wheel-content .wheel-card::before,
+.content.wheel-content .wheel-card::after {
+  opacity: 0.44;
+}
+
+.content.admin-content .admin-alert {
+  background: linear-gradient(160deg, rgba(23, 26, 38, 0.9), rgba(15, 18, 28, 0.94));
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.content.admin-content .admin-alert.warning {
+  background: linear-gradient(160deg, rgba(58, 44, 25, 0.86), rgba(26, 23, 18, 0.94));
+  border-color: rgba(255, 208, 145, 0.42);
+}
+
+.content.admin-content .admin-alert.critical {
+  background: linear-gradient(160deg, rgba(59, 30, 30, 0.88), rgba(28, 18, 21, 0.95));
+  border-color: rgba(255, 153, 153, 0.48);
+}
+
+.content.admin-content .admin-action-item.warn {
+  background: linear-gradient(160deg, rgba(63, 49, 29, 0.84), rgba(31, 23, 16, 0.94));
+  border-color: rgba(255, 214, 148, 0.42);
+}
+
+.content.admin-content .admin-action-item.critical {
+  background: linear-gradient(160deg, rgba(64, 33, 33, 0.86), rgba(30, 19, 22, 0.95));
+  border-color: rgba(255, 157, 157, 0.48);
+}
