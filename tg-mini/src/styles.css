@@ -6756,8 +6756,8 @@ body::before {
 }
 
 .content.promo-content .promo-choice-inline .choice-pill {
-  min-height: 38px;
-  padding: 7px 12px;
+  min-height: 44px;
+  padding: 8px 12px;
   font-size: 11px;
 }
 
@@ -7246,8 +7246,8 @@ body::before {
   }
 
   .content.promo-content .promo-choice-inline .choice-pill {
-    min-height: 36px;
-    padding: 7px 10px;
+    min-height: 44px;
+    padding: 8px 10px;
     font-size: 10px;
   }
 
