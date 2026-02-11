@@ -18,12 +18,13 @@ const DEFAULT_SAFE_BOTTOM_PX = 16;
 const DEFAULT_SAFE_TOP_PX = 0;
 const DEFAULT_MISMATCH_THRESHOLD_PCT = 0.25;
 const DEFAULT_TG_TOP_BAR_PX = 48;
-const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 34;
+const DEFAULT_TG_STATUS_BAR_PX = 28;
+const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 44;
 const DEFAULT_TG_MAIN_BUTTON_PX = 0;
 const DEFAULT_TG_MAIN_BUTTON_GAP_PX = 12;
 const DEFAULT_TG_MODE = 'fullscreen';
 const DEFAULT_TG_WEBAPP_VERSION = '9.3';
-const SUPPORTED_TG_MODES = new Set(['fullscreen', 'fullsize', 'compact']);
+const SUPPORTED_TG_MODES = new Set(['fullscreen', 'compact']);
 const SUPPORTED_MODES = new Set(['screenshot', 'scan', 'compare', 'emulator']);
 const DEFAULT_OPEN_SCREEN = 'home';
 const FIXTURE_NOW_MS = Date.parse('2026-01-15T12:00:00.000Z');
@@ -133,8 +134,9 @@ const usage = `
   --waitMs <number>  Пауза после переходов (default: ${DEFAULT_WAIT_MS})
   --safeTopPx <n>    Верхняя safe-area зона риска в px (scan mode, default: динамически)
   --safeBottomPx <n> Нижняя safe-area зона риска в px (scan mode, default: ${DEFAULT_SAFE_BOTTOM_PX})
-  --tgMode <mode>    Режим Telegram viewport: fullscreen|fullsize|compact (default: ${DEFAULT_TG_MODE})
+  --tgMode <mode>    Режим Telegram viewport: fullscreen|compact (default: ${DEFAULT_TG_MODE})
   --tgWebAppVersion <v> Версия Telegram WebApp API (default: ${DEFAULT_TG_WEBAPP_VERSION})
+  --tgStatusBarPx <n> Высота системного status-bar в fullscreen в px (default: ${DEFAULT_TG_STATUS_BAR_PX})
   --tgFullscreenControlsPx <n> Высота верхних fullscreen-контролов в px (default: ${DEFAULT_TG_FULLSCREEN_CONTROLS_PX})
   --tgTopBarPx <n>   Высота Telegram верхнего chrome в px (default: ${DEFAULT_TG_TOP_BAR_PX})
   --tgMainButtonPx <n> Высота Telegram Main Button в px (default: ${DEFAULT_TG_MAIN_BUTTON_PX})
@@ -149,7 +151,7 @@ const usage = `
   --headless         Принудительно headless (полезно для mode=emulator)
   --noMockApi        Отключить API-моки и использовать реальный backend
   --openScreen <id>  Экран при запуске emulator: ${SCREEN_STEPS.map((step) => step.id).join('|')} (default: ${DEFAULT_OPEN_SCREEN})
-  --allowNonFullscreen Разрешить fullsize/compact в emulator (по умолчанию fullscreen lock)
+  --allowNonFullscreen Разрешить compact в emulator (по умолчанию fullscreen lock)
   --noEmulatorOverlay Отключить overlay-панель эмулятора (mode=emulator)
 `;
 
@@ -235,6 +237,7 @@ function parseConfig(mode, rawArgs) {
   const tgWebAppVersion = toStringValue(rawArgs.tgWebAppVersion, DEFAULT_TG_WEBAPP_VERSION);
   const telegramChrome = !toBooleanFlag(rawArgs.noTelegramChrome);
   const tgTopBarPx = toNonNegativeInt(rawArgs.tgTopBarPx, DEFAULT_TG_TOP_BAR_PX);
+  const tgStatusBarPx = toNonNegativeInt(rawArgs.tgStatusBarPx, DEFAULT_TG_STATUS_BAR_PX);
   const tgFullscreenControlsPx = toNonNegativeInt(
     rawArgs.tgFullscreenControlsPx,
     DEFAULT_TG_FULLSCREEN_CONTROLS_PX
@@ -242,7 +245,7 @@ function parseConfig(mode, rawArgs) {
   const tgMainButtonPx = toNonNegativeInt(rawArgs.tgMainButtonPx, DEFAULT_TG_MAIN_BUTTON_PX);
   const tgMainButtonGapPx = toNonNegativeInt(rawArgs.tgMainButtonGapPx, DEFAULT_TG_MAIN_BUTTON_GAP_PX);
   const topRiskInsetByMode =
-    tgMode === 'fullscreen' ? tgFullscreenControlsPx : tgTopBarPx;
+    tgMode === 'fullscreen' ? tgStatusBarPx + tgFullscreenControlsPx : tgTopBarPx;
   const safeTopDefault = telegramChrome
     ? Math.max(DEFAULT_SAFE_TOP_PX, topRiskInsetByMode)
     : DEFAULT_SAFE_TOP_PX;
@@ -282,6 +285,7 @@ function parseConfig(mode, rawArgs) {
     tgMode,
     tgWebAppVersion,
     tgTopBarPx,
+    tgStatusBarPx,
     tgFullscreenControlsPx,
     tgMainButtonPx,
     tgMainButtonGapPx,
@@ -1021,7 +1025,7 @@ async function installTelegramMocks(page, config) {
   await page.addInitScript((params) => {
     const normalizeMode = (value) => {
       const mode = typeof value === 'string' ? value.toLowerCase() : '';
-      if (mode === 'fullscreen' || mode === 'fullsize' || mode === 'compact') {
+      if (mode === 'fullscreen' || mode === 'compact') {
         return mode;
       }
       return 'fullscreen';
@@ -1029,6 +1033,7 @@ async function installTelegramMocks(page, config) {
 
     const modeState = { value: normalizeMode(params?.tgMode) };
     const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const statusBarPx = Math.max(0, Number(params?.tgStatusBarPx) || 0);
     const fullscreenControlsPx = Math.max(0, Number(params?.tgFullscreenControlsPx) || 0);
     const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
@@ -1130,7 +1135,8 @@ async function installTelegramMocks(page, config) {
       return true;
     };
 
-    const getTopInsetPx = () => (modeState.value === 'fullscreen' ? fullscreenControlsPx : topBarPx);
+    const getTopInsetPx = () =>
+      modeState.value === 'fullscreen' ? statusBarPx + fullscreenControlsPx : topBarPx;
     const getViewportTopOffsetPx = () => (modeState.value === 'fullscreen' ? 0 : topBarPx);
 
     const mainButton = {
@@ -1323,22 +1329,14 @@ async function installTelegramMocks(page, config) {
       ready: () => {},
       close: () => {},
       expand: () => {
-        if (enforceFullscreen) {
-          setMode('fullscreen', true);
-          return;
-        }
-        if (modeState.value === 'compact') {
-          setMode('fullsize', true);
-          return;
-        }
-        updateInsets(true);
+        setMode('fullscreen', true);
       },
       requestFullscreen: () => {
         const changed = setMode('fullscreen', true);
         return Promise.resolve(changed);
       },
       exitFullscreen: () => {
-        const changed = setMode('fullsize', true);
+        const changed = setMode('compact', true);
         return Promise.resolve(changed);
       },
       openLink: () => {},
@@ -1472,6 +1470,7 @@ async function installTelegramMocks(page, config) {
     tgMode: config.tgMode,
     tgWebAppVersion: config.tgWebAppVersion,
     tgTopBarPx: config.tgTopBarPx,
+    tgStatusBarPx: config.tgStatusBarPx,
     tgFullscreenControlsPx: config.tgFullscreenControlsPx,
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
@@ -1500,36 +1499,85 @@ async function installTelegramChrome(page, config) {
         align-items: center;
         justify-content: space-between;
         padding: 0 12px;
-        background:
-          linear-gradient(180deg, rgba(14, 20, 28, 0.96), rgba(10, 15, 22, 0.92));
-        border-bottom: 1px solid rgba(210, 232, 250, 0.14);
-        color: rgba(229, 244, 255, 0.92);
+        background: rgba(12, 15, 21, 0.96);
+        border-bottom: 1px solid rgba(208, 224, 238, 0.16);
+        color: rgba(229, 237, 246, 0.92);
         font-size: 13px;
         font-weight: 600;
-        letter-spacing: 0.2px;
+        letter-spacing: 0.1px;
       }
 
       .tg-visual-chrome-top-fullscreen {
+        display: block;
+        padding: 0;
         background:
-          linear-gradient(180deg, rgba(8, 14, 21, 0.58), rgba(8, 14, 21, 0));
-        border-bottom: none;
-        color: rgba(233, 246, 255, 0.88);
+          linear-gradient(180deg, rgba(7, 9, 14, 0.99) 0%, rgba(9, 11, 17, 0.95) 74%, rgba(9, 11, 17, 0.86) 100%);
+        border-bottom: 1px solid rgba(201, 219, 236, 0.16);
+        color: rgba(233, 241, 249, 0.92);
+      }
+
+      .tg-visual-system-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        color: rgba(227, 236, 246, 0.78);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1px;
+      }
+
+      .tg-visual-system-icons {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        opacity: 0.86;
+      }
+
+      .tg-visual-fullscreen-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px 0 12px;
       }
 
       .tg-visual-top-side {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 8px;
       }
 
       .tg-visual-back {
-        width: 18px;
-        height: 18px;
+        width: 20px;
+        height: 20px;
         border-radius: 50%;
-        border: 1px solid rgba(219, 241, 255, 0.26);
+        border: 1px solid rgba(214, 229, 245, 0.3);
         display: grid;
         place-items: center;
-        font-size: 10px;
+        font-size: 11px;
+      }
+
+      .tg-visual-close-icon {
+        font-size: 18px;
+        line-height: 1;
+        color: rgba(236, 243, 250, 0.92);
+      }
+
+      .tg-visual-close-text {
+        font-size: 14px;
+        font-weight: 600;
+        color: rgba(240, 246, 252, 0.92);
+      }
+
+      .tg-visual-header-action {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        line-height: 1;
+        color: rgba(236, 243, 250, 0.9);
       }
 
       .tg-visual-chrome-main-button-wrap {
@@ -1560,9 +1608,11 @@ async function installTelegramChrome(page, config) {
   await page.evaluate((params) => {
     const fallbackMode = typeof params?.tgMode === 'string' ? params.tgMode : 'fullscreen';
     const topBarPx = Math.max(0, Number(params?.tgTopBarPx) || 0);
+    const statusBarPx = Math.max(0, Number(params?.tgStatusBarPx) || 0);
     const fullscreenControlsPx = Math.max(0, Number(params?.tgFullscreenControlsPx) || 0);
     const mainButtonPx = Math.max(0, Number(params?.tgMainButtonPx) || 0);
     const mainButtonGapPx = Math.max(0, Number(params?.tgMainButtonGapPx) || 0);
+    const fixtureNowMs = Number(params?.fixtureNowMs) || 0;
 
     const getWebApp = () => window.Telegram?.WebApp;
     const getMode = () => {
@@ -1572,7 +1622,7 @@ async function installTelegramChrome(page, config) {
         return webApp.__emulator.getMode();
       }
       if (webApp.isFullscreen) return 'fullscreen';
-      return webApp.isExpanded ? 'fullsize' : 'compact';
+      return 'compact';
     };
 
     const removeChrome = () => {
@@ -1586,7 +1636,7 @@ async function installTelegramChrome(page, config) {
       const webApp = getWebApp();
       const mainButtonVisible = Boolean(webApp?.MainButton?.isVisible);
 
-      if ((mode === 'fullsize' || mode === 'compact') && topBarPx > 0) {
+      if (mode === 'compact' && topBarPx > 0) {
         const top = document.createElement('div');
         top.className = 'tg-visual-chrome tg-visual-chrome-top';
         top.style.height = `${topBarPx}px`;
@@ -1602,16 +1652,28 @@ async function installTelegramChrome(page, config) {
         document.body.appendChild(top);
       }
 
-      if (mode === 'fullscreen' && fullscreenControlsPx > 0) {
+      if (mode === 'fullscreen' && statusBarPx + fullscreenControlsPx > 0) {
+        const totalHeight = statusBarPx + fullscreenControlsPx;
+        const timeSource = fixtureNowMs > 0 ? new Date(fixtureNowMs) : new Date();
+        const hours = String(timeSource.getHours()).padStart(2, '0');
+        const minutes = String(timeSource.getMinutes()).padStart(2, '0');
         const top = document.createElement('div');
         top.className = 'tg-visual-chrome tg-visual-chrome-top tg-visual-chrome-top-fullscreen';
-        top.style.height = `${fullscreenControlsPx}px`;
+        top.style.height = `${totalHeight}px`;
         top.innerHTML = `
-          <div class="tg-visual-top-side">
-            <span class="tg-visual-back">◀</span>
+          <div class="tg-visual-system-row" style="height: ${statusBarPx}px;">
+            <span>${hours}:${minutes}</span>
+            <span class="tg-visual-system-icons">◉ ◌ ⚡</span>
           </div>
-          <div class="tg-visual-top-side">
-            <span>⋮</span>
+          <div class="tg-visual-fullscreen-row" style="height: ${fullscreenControlsPx}px;">
+            <div class="tg-visual-top-side">
+              <span class="tg-visual-close-icon">✕</span>
+              <span class="tg-visual-close-text">Закрыть</span>
+            </div>
+            <div class="tg-visual-top-side">
+              <span class="tg-visual-header-action">⌄</span>
+              <span class="tg-visual-header-action">⋮</span>
+            </div>
           </div>
         `;
         document.body.appendChild(top);
@@ -1663,9 +1725,11 @@ async function installTelegramChrome(page, config) {
   }, {
     tgMode: config.tgMode,
     tgTopBarPx: config.tgTopBarPx,
+    tgStatusBarPx: config.tgStatusBarPx,
     tgFullscreenControlsPx: config.tgFullscreenControlsPx,
     tgMainButtonPx: config.tgMainButtonPx,
     tgMainButtonGapPx: config.tgMainButtonGapPx,
+    fixtureNowMs: FIXTURE_NOW_MS,
   });
 }
 
@@ -2331,17 +2395,6 @@ async function installEmulatorOverlay(page, config) {
     actions.appendChild(fullscreenButton);
     actions.appendChild(mainButtonToggle);
 
-    if (params?.allowNonFullscreen) {
-      const fullsizeButton = document.createElement('button');
-      fullsizeButton.type = 'button';
-      fullsizeButton.className = 'tg-emulator-overlay-btn tg-emulator-overlay-btn-secondary';
-      fullsizeButton.textContent = 'Fullsize';
-      fullsizeButton.addEventListener('click', () => {
-        window.Telegram?.WebApp?.__emulator?.setMode?.('fullsize');
-      });
-      actions.appendChild(fullsizeButton);
-    }
-
     root.appendChild(head);
     root.appendChild(grid);
     root.appendChild(actions);
@@ -2350,7 +2403,7 @@ async function installEmulatorOverlay(page, config) {
     const refresh = () => {
       const webApp = window.Telegram?.WebApp;
       const mode = webApp?.__emulator?.getMode?.() ||
-        (webApp?.isFullscreen ? 'fullscreen' : webApp?.isExpanded ? 'fullsize' : 'compact');
+        (webApp?.isFullscreen ? 'fullscreen' : 'compact');
       const safeTop = Number(webApp?.safeAreaInset?.top || 0);
       const safeBottom = Number(webApp?.safeAreaInset?.bottom || 0);
       const viewportH = Number(webApp?.viewportHeight || window.innerHeight);
@@ -2496,6 +2549,11 @@ async function main() {
   }
 
   const rawArgs = parseArgs(process.argv.slice(3));
+  const requestedModeRaw = String(rawArgs.tgMode || '').trim().toLowerCase();
+  if (requestedModeRaw === 'fullsize') {
+    console.error('[emulator] Режим "fullsize" удален. Используйте "--tgMode fullscreen".');
+    process.exit(1);
+  }
   const config = parseConfig(mode, rawArgs);
 
   if (
