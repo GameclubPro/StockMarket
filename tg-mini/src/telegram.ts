@@ -32,6 +32,8 @@ const initViewportFullscreen = () => {
 
     root.style.setProperty('--tg-top-reserved', `${roundedTop}px`);
     root.style.setProperty('--tg-bottom-reserved', `${roundedBottom}px`);
+    root.style.setProperty('--tg-safe-top-actual', `${roundedTop}px`);
+    root.style.setProperty('--tg-safe-bottom-actual', `${roundedBottom}px`);
 
     // Backward-compatible vars for existing styles/tools.
     root.style.setProperty('--tg-header-overlay-offset', '0px');
