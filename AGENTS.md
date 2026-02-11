@@ -97,11 +97,15 @@
 6. Если найдены регрессии/дефекты, применить исправления в этой же итерации (если нет блокера).
 7. Если итог ниже 90/100, обязательна еще минимум одна итерация улучшений (если пользователь явно не остановил работу).
 
+Важно:
+- Для этого проекта скриншоты делать только в режиме Telegram Mini App 2026 `fullscreen`.
+- Режим `fullsize` не использовать для дизайн-скриншотов, если пользователь явно не попросил иное.
+
 Рекомендуемые команды:
 ```bash
-npm run screenshot:design-redesign -- --width 360 --height 780 --outDir .logs/design-baseline-360
-npm run screenshot:design-redesign -- --width 390 --height 844 --outDir .logs/design-baseline-390
-npm run screenshot:design-redesign -- --width 430 --height 932 --outDir .logs/design-baseline-430
+npm run screenshot:tg-2026-fullscreen -- --width 360 --height 780 --outDir .logs/design-baseline-360
+npm run screenshot:tg-2026-fullscreen -- --width 390 --height 844 --outDir .logs/design-baseline-390
+npm run screenshot:tg-2026-fullscreen -- --width 430 --height 932 --outDir .logs/design-baseline-430
 ```
 
 Аналогично для `after` с отдельными директориями.

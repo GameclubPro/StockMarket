@@ -6506,13 +6506,12 @@ body::before {
 .metric-plus,
 .sub,
 .daily-bonus-cta {
-  background: linear-gradient(145deg, #d7d5d1 0%, #bdbab4 56%, #aaa7a1 100%);
-  border: 1px solid rgba(243, 241, 236, 0.84);
-  color: #141413;
+  background: linear-gradient(145deg, #89d9a8 0%, #6fc894 56%, #59b07f 100%);
+  border: 1px solid rgba(212, 249, 226, 0.76);
+  color: #0f2618;
   box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    inset 0 -10px 16px rgba(56, 55, 52, 0.2);
+    0 8px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(245, 255, 250, 0.44);
 }
 
 .primary-button:hover,
@@ -6521,7 +6520,7 @@ body::before {
 .open-button.confirm:hover,
 .sub:hover,
 .daily-bonus-cta:hover {
-  border-color: rgba(248, 246, 241, 0.96);
+  border-color: rgba(226, 255, 237, 0.9);
 }
 
 /* Home quality pass: tighter hierarchy, calmer glow, richer iconography */
@@ -6911,11 +6910,11 @@ body::before {
 .profile-card {
   padding: 14px;
   border-radius: 22px;
-  border-color: rgba(185, 185, 182, 0.26);
-  background: rgba(31, 31, 30, 0.96);
+  border-color: rgba(162, 174, 184, 0.28);
+  background: rgba(27, 30, 33, 0.96);
   box-shadow:
     0 16px 30px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(243, 242, 239, 0.08);
+    inset 0 1px 0 rgba(238, 246, 251, 0.08);
 }
 
 .profile-head {
@@ -6947,9 +6946,9 @@ body::before {
 .stats {
   gap: 10px;
   padding: 11px 12px;
-  border-color: rgba(179, 179, 175, 0.22);
-  background: rgba(38, 38, 37, 0.84);
-  box-shadow: inset 0 1px 0 rgba(245, 244, 241, 0.06);
+  border-color: rgba(155, 168, 179, 0.22);
+  background: rgba(33, 36, 39, 0.86);
+  box-shadow: inset 0 1px 0 rgba(239, 247, 252, 0.06);
 }
 
 .stat-main {
@@ -6964,9 +6963,9 @@ body::before {
   display: grid;
   place-items: center;
   color: rgba(223, 255, 238, 0.92);
-  background: rgba(158, 158, 156, 0.22);
-  border: 1px solid rgba(187, 186, 182, 0.28);
-  box-shadow: inset 0 1px 0 rgba(244, 243, 240, 0.14);
+  background: rgba(114, 132, 145, 0.22);
+  border: 1px solid rgba(154, 176, 190, 0.28);
+  box-shadow: inset 0 1px 0 rgba(240, 248, 253, 0.14);
 }
 
 .stat-chip svg {
@@ -6977,11 +6976,11 @@ body::before {
 .daily-bonus-card {
   padding: 10px;
   border-radius: 22px;
-  border-color: rgba(185, 185, 182, 0.26);
-  background: rgba(29, 29, 28, 0.97);
+  border-color: rgba(160, 173, 185, 0.28);
+  background: rgba(24, 28, 32, 0.97);
   box-shadow:
     0 18px 34px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(242, 241, 238, 0.1);
+    inset 0 1px 0 rgba(236, 245, 251, 0.1);
 }
 
 .daily-bonus-card::before {
@@ -6995,8 +6994,8 @@ body::before {
 .daily-bonus-top {
   border-radius: 15px;
   padding: 9px 10px;
-  border: 1px solid rgba(180, 179, 175, 0.18);
-  background: rgba(44, 44, 43, 0.42);
+  border: 1px solid rgba(152, 166, 178, 0.2);
+  background: rgba(37, 41, 45, 0.44);
 }
 
 .daily-bonus-kicker {
@@ -7047,9 +7046,8 @@ body::before {
   gap: 8px;
   font-size: 14px;
   box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(248, 255, 255, 0.72),
-    inset 0 -10px 16px rgba(49, 119, 98, 0.2);
+    0 6px 12px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(245, 255, 250, 0.42);
 }
 
 .cta-icon {
@@ -7071,11 +7069,11 @@ body::before {
 .invite-card {
   border-radius: 18px;
   padding: 10px 12px;
-  border-color: rgba(185, 185, 182, 0.26);
-  background: rgba(31, 31, 30, 0.96);
+  border-color: rgba(160, 173, 185, 0.26);
+  background: rgba(27, 30, 33, 0.96);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(242, 241, 238, 0.06);
+    inset 0 1px 0 rgba(236, 245, 251, 0.06);
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 8px;
 }
@@ -7084,8 +7082,8 @@ body::before {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(158, 157, 154, 0.2);
-  border: 1px solid rgba(186, 184, 179, 0.28);
+  background: rgba(113, 132, 146, 0.2);
+  border: 1px solid rgba(154, 176, 190, 0.28);
   color: #dff8ee;
   display: grid;
   place-items: center;
@@ -7196,7 +7194,7 @@ body::before {
   .identity-actions {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
 
