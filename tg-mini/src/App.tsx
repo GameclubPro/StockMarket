@@ -3721,6 +3721,7 @@ export default function App() {
                   </div>
                   {createError && <div className="form-status error">{createError}</div>}
                 </div>
+              </div>
             )}
 
             {myTasksTab === 'mine' && (
