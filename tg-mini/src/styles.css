@@ -7504,7 +7504,7 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-safe-top) + 10px) 10px 8px;
+  padding: calc(var(--tg-safe-top) + 10px) 10px 12px;
   gap: 10px;
 }
 
@@ -7811,7 +7811,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px) 9px 8px;
+    padding: calc(var(--tg-safe-top) + 8px) 9px 12px;
     gap: 9px;
   }
 
@@ -7866,7 +7866,7 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 8px) 8px 8px;
+    padding: calc(var(--tg-safe-top) + 8px) 8px 12px;
   }
 
   .content.referrals-content .referral-link-head {
