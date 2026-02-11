@@ -432,7 +432,7 @@ export default function App() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
-  const [promoComposerStep, setPromoComposerStep] = useState<'project' | 'format' | 'budget'>('project');
+  const [promoComposerStep, setPromoComposerStep] = useState<'project' | 'format' | 'budget'>('budget');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPriceInput, setTaskPriceInput] = useState('10');
@@ -637,10 +637,9 @@ export default function App() {
   const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
   const maxAffordableCount = useMemo(() => {
     if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 1;
-    const byBalance = Math.floor(displayPoints / taskPriceValue);
     const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPriceValue);
-    return Math.max(1, Math.min(MAX_TASK_COUNT, byBalance, byBudget));
-  }, [displayPoints, taskPriceValue]);
+    return Math.max(1, Math.min(MAX_TASK_COUNT, byBudget));
+  }, [taskPriceValue]);
   const minPayoutPreview = useMemo(() => {
     if (!parsedTaskPrice || parsedTaskPrice <= 0) return 0;
     return calculateBasePayout(parsedTaskPrice);
