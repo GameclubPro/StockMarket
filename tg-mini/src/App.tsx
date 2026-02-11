@@ -3358,41 +3358,6 @@ export default function App() {
 
             {myTasksTab === 'place' && (
               <div className="promo-redesign-shell">
-                <div className="promo-hero-card">
-                  <div className="promo-hero-copy">
-                    <div className="promo-hero-kicker">Продвижение</div>
-                    <div className="promo-hero-title">Быстрый запуск задания</div>
-                    <div className="promo-hero-sub">
-                      Запуск за минуту: проект, формат, бюджет.
-                    </div>
-                  </div>
-                  <div className="promo-hero-progress" aria-live="polite">
-                    <div className="promo-hero-progress-row">
-                      <span>Готовность</span>
-                      <strong>
-                        {[isProjectSelected, hasReactionLink, !createCtaState.blocked].filter(Boolean).length}/3
-                      </strong>
-                    </div>
-                    <div className="promo-hero-track" aria-hidden="true">
-                      <span
-                        style={{
-                          width: `${
-                            Math.round(
-                              ([isProjectSelected, hasReactionLink, !createCtaState.blocked].filter(Boolean).length /
-                                3) *
-                                100
-                            )
-                          }%`,
-                        }}
-                      />
-                    </div>
-                    <div className="promo-hero-progress-row muted">
-                      <span>{selectedProjectLabel}</span>
-                      <span>{taskType === 'subscribe' ? 'Подписка' : 'Реакция'}</span>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="promo-quick-actions">
                   <div className="balance-pill">
                     Баланс: {displayPoints} {formatPointsLabel(displayPoints)}

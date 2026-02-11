@@ -6651,88 +6651,6 @@ body::before {
   gap: 10px;
 }
 
-.content.promo-content .promo-hero-card {
-  border-radius: 18px;
-  padding: 12px;
-  border: 1px solid rgba(148, 218, 255, 0.34);
-  background:
-    radial-gradient(130% 80% at 14% -20%, rgba(146, 219, 255, 0.2), transparent 58%),
-    linear-gradient(164deg, rgba(10, 22, 34, 0.94), rgba(6, 14, 24, 0.98));
-  box-shadow:
-    0 14px 24px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(221, 247, 255, 0.14);
-  display: grid;
-  gap: 10px;
-}
-
-.content.promo-content .promo-hero-copy {
-  display: grid;
-  gap: 4px;
-}
-
-.content.promo-content .promo-hero-kicker {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(171, 228, 255, 0.9);
-}
-
-.content.promo-content .promo-hero-title {
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #effbff;
-}
-
-.content.promo-content .promo-hero-sub {
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(198, 223, 236, 0.88);
-}
-
-.content.promo-content .promo-hero-progress {
-  display: grid;
-  gap: 7px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(141, 214, 255, 0.28);
-  background: rgba(9, 21, 34, 0.72);
-}
-
-.content.promo-content .promo-hero-progress-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 11px;
-  color: rgba(207, 232, 245, 0.9);
-}
-
-.content.promo-content .promo-hero-progress-row strong {
-  font-size: 12px;
-  color: #effdff;
-}
-
-.content.promo-content .promo-hero-progress-row.muted {
-  color: rgba(174, 205, 220, 0.78);
-}
-
-.content.promo-content .promo-hero-track {
-  height: 8px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(141, 214, 255, 0.24);
-}
-
-.content.promo-content .promo-hero-track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, rgba(143, 243, 190, 0.96), rgba(142, 216, 255, 0.9));
-}
-
 .content.promo-content .promo-task-card {
   margin-top: 0;
   gap: 10px;
@@ -7302,15 +7220,6 @@ body::before {
     font-size: 9px;
   }
 
-  .content.promo-content .promo-hero-card {
-    padding: 10px;
-    gap: 8px;
-  }
-
-  .content.promo-content .promo-hero-title {
-    font-size: 15px;
-  }
-
   .content.promo-content .promo-step-card {
     padding: 9px;
     gap: 7px;
@@ -7446,19 +7355,6 @@ body::before {
   .content.promo-content .promo-mode-switch {
     height: 52px;
     padding: 3px;
-  }
-
-  .content.promo-content .promo-hero-card {
-    padding: 9px;
-    gap: 7px;
-  }
-
-  .content.promo-content .promo-hero-title {
-    font-size: 14px;
-  }
-
-  .content.promo-content .promo-hero-sub {
-    font-size: 11px;
   }
 
   .content.promo-content .promo-task-card {
