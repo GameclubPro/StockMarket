@@ -6461,7 +6461,7 @@ body {
 }
 
 body {
-  background: #0d0c0b;
+  background: #0d0d0c;
 }
 
 body::before {
@@ -6900,11 +6900,11 @@ body::before {
 .profile-card {
   padding: 14px;
   border-radius: 22px;
-  border-color: rgba(187, 178, 166, 0.3);
-  background: rgba(33, 30, 28, 0.96);
+  border-color: rgba(186, 184, 179, 0.28);
+  background: rgba(32, 32, 31, 0.96);
   box-shadow:
     0 16px 30px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(244, 236, 227, 0.08);
+    inset 0 1px 0 rgba(244, 242, 238, 0.08);
 }
 
 .profile-head {
@@ -6936,9 +6936,9 @@ body::before {
 .stats {
   gap: 10px;
   padding: 11px 12px;
-  border-color: rgba(180, 170, 157, 0.26);
-  background: rgba(44, 39, 35, 0.84);
-  box-shadow: inset 0 1px 0 rgba(246, 238, 230, 0.06);
+  border-color: rgba(180, 178, 173, 0.24);
+  background: rgba(40, 40, 39, 0.84);
+  box-shadow: inset 0 1px 0 rgba(246, 244, 240, 0.06);
 }
 
 .stat-main {
@@ -6953,9 +6953,9 @@ body::before {
   display: grid;
   place-items: center;
   color: rgba(223, 255, 238, 0.92);
-  background: rgba(173, 160, 144, 0.24);
-  border: 1px solid rgba(196, 182, 166, 0.34);
-  box-shadow: inset 0 1px 0 rgba(245, 238, 229, 0.14);
+  background: rgba(160, 160, 158, 0.22);
+  border: 1px solid rgba(190, 188, 183, 0.3);
+  box-shadow: inset 0 1px 0 rgba(245, 244, 241, 0.14);
 }
 
 .stat-chip svg {
@@ -6966,11 +6966,11 @@ body::before {
 .daily-bonus-card {
   padding: 10px;
   border-radius: 22px;
-  border-color: rgba(187, 178, 166, 0.3);
-  background: rgba(30, 27, 25, 0.97);
+  border-color: rgba(186, 184, 179, 0.28);
+  background: rgba(30, 30, 29, 0.97);
   box-shadow:
     0 18px 34px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(242, 234, 224, 0.1);
+    inset 0 1px 0 rgba(242, 240, 236, 0.1);
 }
 
 .daily-bonus-card::before {
@@ -6984,8 +6984,8 @@ body::before {
 .daily-bonus-top {
   border-radius: 15px;
   padding: 9px 10px;
-  border: 1px solid rgba(183, 171, 156, 0.2);
-  background: rgba(50, 44, 39, 0.44);
+  border: 1px solid rgba(182, 179, 174, 0.18);
+  background: rgba(46, 46, 45, 0.42);
 }
 
 .daily-bonus-kicker {
@@ -7060,11 +7060,11 @@ body::before {
 .invite-card {
   border-radius: 18px;
   padding: 10px 12px;
-  border-color: rgba(186, 176, 164, 0.3);
-  background: rgba(33, 30, 28, 0.96);
+  border-color: rgba(186, 184, 179, 0.28);
+  background: rgba(32, 32, 31, 0.96);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(242, 234, 225, 0.06);
+    inset 0 1px 0 rgba(242, 240, 236, 0.06);
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 8px;
 }
@@ -7073,8 +7073,8 @@ body::before {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(168, 157, 143, 0.22);
-  border: 1px solid rgba(194, 180, 164, 0.34);
+  background: rgba(162, 160, 156, 0.2);
+  border: 1px solid rgba(189, 185, 179, 0.3);
   color: #dff8ee;
   display: grid;
   place-items: center;
