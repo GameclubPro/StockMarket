@@ -138,6 +138,8 @@ body::before {
 .avatar-ring {
   width: 74px;
   height: 74px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 auto;
   border-radius: 50%;
   padding: 3px;
   background: conic-gradient(from 120deg, #6fe1ff, #7b7bff, #ff8bd3, #6fe1ff);
@@ -147,6 +149,7 @@ body::before {
 .avatar {
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #ffffff 0%, #b5c2ff 35%, #2b2f44 80%);
   border: 2px solid rgba(0, 0, 0, 0.4);
