@@ -6461,19 +6461,12 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(1260px 860px at -10% -16%, rgba(118, 197, 255, 0.3) 0%, transparent 58%),
-    radial-gradient(980px 700px at 108% -6%, rgba(121, 237, 192, 0.26) 0%, transparent 64%),
-    radial-gradient(960px 640px at 50% 112%, rgba(72, 142, 255, 0.2) 0%, transparent 62%),
-    linear-gradient(180deg, #071321 0%, #040a13 100%);
+  background: #0d0c0b;
 }
 
 body::before {
-  background:
-    radial-gradient(2px 2px at 20% 30%, rgba(179, 244, 255, 0.18) 0%, transparent 62%),
-    radial-gradient(1px 1px at 70% 60%, rgba(172, 236, 215, 0.18) 0%, transparent 62%),
-    radial-gradient(1px 1px at 40% 80%, rgba(157, 212, 255, 0.16) 0%, transparent 62%);
-  opacity: 0.38;
+  background: none;
+  opacity: 0;
 }
 
 #root {
@@ -6907,11 +6900,11 @@ body::before {
 .profile-card {
   padding: 14px;
   border-radius: 22px;
-  border-color: rgba(171, 186, 203, 0.34);
-  background: rgba(32, 40, 50, 0.96);
+  border-color: rgba(187, 178, 166, 0.3);
+  background: rgba(33, 30, 28, 0.96);
   box-shadow:
-    0 16px 30px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(238, 245, 255, 0.08);
+    0 16px 30px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(244, 236, 227, 0.08);
 }
 
 .profile-head {
@@ -6943,9 +6936,9 @@ body::before {
 .stats {
   gap: 10px;
   padding: 11px 12px;
-  border-color: rgba(175, 191, 210, 0.3);
-  background: rgba(40, 49, 60, 0.82);
-  box-shadow: inset 0 1px 0 rgba(241, 247, 255, 0.06);
+  border-color: rgba(180, 170, 157, 0.26);
+  background: rgba(44, 39, 35, 0.84);
+  box-shadow: inset 0 1px 0 rgba(246, 238, 230, 0.06);
 }
 
 .stat-main {
@@ -6960,9 +6953,9 @@ body::before {
   display: grid;
   place-items: center;
   color: rgba(223, 255, 238, 0.92);
-  background: rgba(156, 184, 209, 0.26);
-  border: 1px solid rgba(183, 206, 228, 0.38);
-  box-shadow: inset 0 1px 0 rgba(242, 248, 255, 0.18);
+  background: rgba(173, 160, 144, 0.24);
+  border: 1px solid rgba(196, 182, 166, 0.34);
+  box-shadow: inset 0 1px 0 rgba(245, 238, 229, 0.14);
 }
 
 .stat-chip svg {
@@ -6973,11 +6966,11 @@ body::before {
 .daily-bonus-card {
   padding: 10px;
   border-radius: 22px;
-  border-color: rgba(171, 186, 203, 0.34);
-  background: rgba(31, 39, 48, 0.97);
+  border-color: rgba(187, 178, 166, 0.3);
+  background: rgba(30, 27, 25, 0.97);
   box-shadow:
-    0 18px 34px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(232, 241, 252, 0.1);
+    0 18px 34px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(242, 234, 224, 0.1);
 }
 
 .daily-bonus-card::before {
@@ -6991,8 +6984,8 @@ body::before {
 .daily-bonus-top {
   border-radius: 15px;
   padding: 9px 10px;
-  border: 1px solid rgba(174, 192, 213, 0.2);
-  background: rgba(45, 56, 68, 0.42);
+  border: 1px solid rgba(183, 171, 156, 0.2);
+  background: rgba(50, 44, 39, 0.44);
 }
 
 .daily-bonus-kicker {
@@ -7067,11 +7060,11 @@ body::before {
 .invite-card {
   border-radius: 18px;
   padding: 10px 12px;
-  border-color: rgba(171, 186, 203, 0.32);
-  background: rgba(32, 40, 50, 0.96);
+  border-color: rgba(186, 176, 164, 0.3);
+  background: rgba(33, 30, 28, 0.96);
   box-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(236, 245, 255, 0.06);
+    0 14px 28px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(242, 234, 225, 0.06);
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 8px;
 }
@@ -7080,8 +7073,8 @@ body::before {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(153, 183, 209, 0.24);
-  border: 1px solid rgba(181, 206, 230, 0.36);
+  background: rgba(168, 157, 143, 0.22);
+  border: 1px solid rgba(194, 180, 164, 0.34);
   color: #dff8ee;
   display: grid;
   place-items: center;
