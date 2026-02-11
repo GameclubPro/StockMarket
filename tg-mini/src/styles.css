@@ -8056,3 +8056,87 @@ body::before {
   background: linear-gradient(160deg, rgba(64, 33, 33, 0.86), rgba(30, 19, 22, 0.95));
   border-color: rgba(255, 157, 157, 0.48);
 }
+
+/* Hard lock: make all non-home screens inherit home visual language */
+:is(
+    .content.promo-content,
+    .content.tasks-content,
+    .content.wheel-content,
+    .content.referrals-content,
+    .content.admin-content
+  ) :is(
+    .referral-stat,
+    .referral-info-item,
+    .referral-info-step,
+    .referral-goal-block,
+    .referral-goal-head,
+    .referral-milestone,
+    .referral-copy-link,
+    .referral-empty-action,
+    .admin-alert,
+    .admin-action-item,
+    .admin-period-button,
+    .admin-module-button,
+    .admin-refresh-button,
+    .admin-health-card,
+    .admin-mini-item,
+    .admin-entity-row,
+    .admin-trend-card,
+    .admin-stat-card,
+    .tasks-overview-item,
+    .open-button.secondary,
+    .open-button.action,
+    .link-option,
+    .choice-pill,
+    .price-stepper-button,
+    .price-stepper-value,
+    .wheel-rules,
+    .wheel-info-popover,
+    .wheel-reward-chip,
+    .wheel-timer
+  ) {
+  background: var(--home-theme-surface-bg-strong);
+  border-color: var(--home-theme-surface-border);
+  color: var(--home-theme-text-main);
+}
+
+.content.referrals-content .referral-hero::before,
+.content.referrals-content .referral-hero::after,
+.content.wheel-content .wheel-card::before,
+.content.wheel-content .wheel-card::after,
+.content.admin-content .admin-panel-card::before,
+.content.admin-content .admin-section-card::before {
+  opacity: 0 !important;
+}
+
+.content.admin-content .admin-alert.warning,
+.content.admin-content .admin-alert.critical,
+.content.admin-content .admin-action-item.warn,
+.content.admin-content .admin-action-item.critical {
+  background: var(--home-theme-surface-bg-strong);
+  border-color: var(--home-theme-surface-border);
+}
+
+.content.wheel-content .wheel-reward-chip.base,
+.content.wheel-content .wheel-reward-chip.mid,
+.content.wheel-content .wheel-reward-chip.high,
+.content.wheel-content .wheel-reward-chip.jackpot {
+  background: rgba(124, 255, 178, 0.16);
+  border-color: rgba(124, 255, 178, 0.34);
+  color: #dff9ea;
+}
+
+.content.tasks-content .filter-toggle-indicator {
+  background: var(--home-theme-cta-bg);
+  border: 1px solid var(--home-theme-cta-border);
+}
+
+.content.tasks-content .filter-chip.active,
+.content.promo-content .choice-pill.active,
+.content.promo-content .segment-button.active,
+.content.admin-content .admin-period-button.active,
+.content.admin-content .admin-module-button.active {
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(245, 255, 250, 0.44);
+}
