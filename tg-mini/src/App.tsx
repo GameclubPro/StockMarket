@@ -3394,6 +3394,21 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="promo-quick-actions">
+                  <div className="balance-pill">
+                    Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
+                  </div>
+                  <button
+                    className="primary-button promo-launch-button"
+                    type="button"
+                    onClick={() => void handleCreateCampaign()}
+                    disabled={createButtonDisabled}
+                  >
+                    {createLoading ? 'Создание…' : !createCtaState.blocked ? 'Запустить кампанию' : createButtonLabel}
+                  </button>
+                </div>
+                {createError && <div className="form-status error promo-create-error">{createError}</div>}
+
                 <div className="task-form-card promo-task-card">
                   <div
                     className={`promo-step-card ${isProjectSelected ? 'ready' : ''} ${
@@ -3676,20 +3691,6 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="task-form-actions promo-task-actions">
-                    <div className="balance-pill">
-                      Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
-                    </div>
-                    <button
-                      className="primary-button promo-launch-button"
-                      type="button"
-                      onClick={() => void handleCreateCampaign()}
-                      disabled={createButtonDisabled}
-                    >
-                      {createLoading ? 'Создание…' : !createCtaState.blocked ? 'Запустить кампанию' : createButtonLabel}
-                    </button>
-                  </div>
-                  {createError && <div className="form-status error">{createError}</div>}
                 </div>
               </div>
             )}

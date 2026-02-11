@@ -6537,6 +6537,14 @@ body::before {
   margin-bottom: 2px;
 }
 
+.content.promo-content .metric-card.compact {
+  padding-right: 10px;
+}
+
+.content.promo-content .metric-plus {
+  display: none;
+}
+
 .content.promo-content .segment.center {
   margin-top: 6px;
 }
@@ -6878,12 +6886,27 @@ body::before {
   align-items: stretch;
 }
 
+.content.promo-content .promo-quick-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 14px;
+  border: 1px solid rgba(143, 212, 246, 0.28);
+  background: rgba(8, 19, 31, 0.82);
+  padding: 8px;
+}
+
 .content.promo-content .promo-launch-button {
   min-width: 148px;
   min-height: 46px;
   border-radius: 13px;
   font-size: 13px;
   font-weight: 700;
+}
+
+.content.promo-content .promo-create-error {
+  margin-top: -2px;
 }
 
 .content.promo-content .promo-mine-shell {
@@ -7317,6 +7340,11 @@ body::before {
     font-size: 12px;
   }
 
+  .content.promo-content .promo-quick-actions {
+    padding: 7px;
+    gap: 7px;
+  }
+
   .content.promo-content .balance-header {
     margin: 0 -10px 2px;
     padding: 7px 10px;
@@ -7395,7 +7423,7 @@ body::before {
 
 @media (max-width: 360px) {
   .content.promo-content {
-    padding: calc(var(--tg-safe-top) + 24px) 10px 8px;
+    padding: calc(var(--tg-safe-top) + 26px) 10px 8px;
     gap: 7px;
   }
 
@@ -7442,6 +7470,22 @@ body::before {
 
   .content.promo-content .promo-budget-item strong {
     font-size: 12px;
+  }
+
+  .content.promo-content .promo-quick-actions {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .content.promo-content .promo-quick-actions .balance-pill {
+    padding: 7px 8px;
+    font-size: 10px;
+  }
+
+  .content.promo-content .promo-launch-button {
+    min-width: 122px;
+    min-height: 42px;
+    font-size: 11px;
   }
 
   .identity-actions .sub {
