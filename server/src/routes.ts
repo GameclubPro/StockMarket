@@ -58,6 +58,18 @@ const campaignQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
+const CAMPAIGN_REPORT_REASON_VALUES = [
+  'SPAM_SCAM',
+  'FAKE_TASK',
+  'BROKEN_LINK',
+  'PROHIBITED_CONTENT',
+  'OTHER',
+] as const;
+type CampaignReportReason = (typeof CAMPAIGN_REPORT_REASON_VALUES)[number];
+const campaignReportSchema = z.object({
+  reason: z.enum(CAMPAIGN_REPORT_REASON_VALUES),
+});
+
 const adminPanelQuerySchema = z.object({
   period: z.enum(['today', '7d', '30d']).optional(),
 });
@@ -116,6 +128,14 @@ const BOT_PANEL_DEFAULT_ADMIN_USERNAMES = ['@Nitchim'];
 const ADMIN_PERIOD_DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_STALE_PENDING_MS = 24 * 60 * 60 * 1000;
 const ADMIN_LOW_BUDGET_MULTIPLIER = 3;
+const ADMIN_REPORT_ALERT_THRESHOLD = 6;
+const CAMPAIGN_REPORT_REASON_LABELS: Record<CampaignReportReason, string> = {
+  SPAM_SCAM: 'Спам или скам',
+  FAKE_TASK: 'Фейковое/обманчивое задание',
+  BROKEN_LINK: 'Ссылка не работает',
+  PROHIBITED_CONTENT: 'Запрещенный контент',
+  OTHER: 'Другое',
+};
 let botPanelSeedPromise: Promise<void> | null = null;
 let botPanelStoragePromise: Promise<void> | null = null;
 type AdminPanelPeriodPreset = 'today' | '7d' | '30d';
@@ -250,6 +270,24 @@ type AdminPanelStats = {
       approved: number;
       approveRate: number;
     }>;
+    reports: {
+      totalInPeriod: number;
+      byReason: Array<{
+        reason: CampaignReportReason;
+        reasonLabel: string;
+        count: number;
+      }>;
+      recent: Array<{
+        id: string;
+        campaignId: string;
+        reason: CampaignReportReason;
+        reasonLabel: string;
+        reporterLabel: string;
+        groupTitle: string;
+        actionType: 'SUBSCRIBE' | 'REACTION';
+        createdAt: string;
+      }>;
+    };
   };
   alerts: AdminPanelAlert[];
   // legacy fields for backward compatibility
@@ -646,6 +684,9 @@ const getPersonLabel = (payload?: {
   return 'Без имени';
 };
 
+const getCampaignReportReasonLabel = (reason: CampaignReportReason) =>
+  CAMPAIGN_REPORT_REASON_LABELS[reason] ?? CAMPAIGN_REPORT_REASON_LABELS.OTHER;
+
 const getAdminPanelStats = async (options?: {
   now?: Date;
   periodPreset?: AdminPanelPeriodPreset;
@@ -688,6 +729,9 @@ const getAdminPanelStats = async (options?: {
     topReferrerRewardRows,
     reviewedOwnerRows,
     applicantWindowRows,
+    reportCountInPeriod,
+    reportByReasonRows,
+    recentReportRows,
   ] = await Promise.all([
     prisma.user.count({
       where: {
@@ -936,6 +980,38 @@ const getAdminPanelStats = async (options?: {
       take: 5000,
       orderBy: { createdAt: 'desc' },
     }),
+    prisma.campaignReport.count({
+      where: {
+        reportedAt: { gte: period.from, lt: period.to },
+      },
+    }),
+    prisma.campaignReport.groupBy({
+      by: ['reason'],
+      where: {
+        reportedAt: { gte: period.from, lt: period.to },
+      },
+      _count: { _all: true },
+    }),
+    prisma.campaignReport.findMany({
+      where: {
+        reportedAt: { gte: period.from, lt: period.to },
+      },
+      orderBy: { reportedAt: 'desc' },
+      take: 8,
+      select: {
+        id: true,
+        campaignId: true,
+        reason: true,
+        reportedAt: true,
+        reporter: { select: { username: true, firstName: true, lastName: true } },
+        campaign: {
+          select: {
+            actionType: true,
+            group: { select: { title: true } },
+          },
+        },
+      },
+    }),
   ]);
 
   const activeUserIds = new Set<string>();
@@ -1182,6 +1258,30 @@ const getAdminPanelStats = async (options?: {
     })
     .slice(0, 5);
 
+  const reportByReasonMap = new Map<CampaignReportReason, number>();
+  for (const row of reportByReasonRows) {
+    const reason = row.reason as CampaignReportReason;
+    reportByReasonMap.set(reason, row._count._all);
+  }
+  const reportByReason = CAMPAIGN_REPORT_REASON_VALUES.map((reason) => ({
+    reason,
+    reasonLabel: getCampaignReportReasonLabel(reason),
+    count: reportByReasonMap.get(reason) ?? 0,
+  })).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.reasonLabel.localeCompare(b.reasonLabel, 'ru');
+  });
+  const recentReports = recentReportRows.map((item) => ({
+    id: item.id,
+    campaignId: item.campaignId,
+    reason: item.reason as CampaignReportReason,
+    reasonLabel: getCampaignReportReasonLabel(item.reason as CampaignReportReason),
+    reporterLabel: getPersonLabel(item.reporter),
+    groupTitle: item.campaign.group.title,
+    actionType: item.campaign.actionType,
+    createdAt: item.reportedAt.toISOString(),
+  }));
+
   const alerts: AdminPanelAlert[] = [];
   if (bonusRemaining <= 5) {
     alerts.push({
@@ -1211,6 +1311,12 @@ const getAdminPanelStats = async (options?: {
     alerts.push({
       level: 'warning',
       message: `Обнаружены владельцы с повышенным reject rate (${highRejectOwners.length}).`,
+    });
+  }
+  if (reportCountInPeriod >= ADMIN_REPORT_ALERT_THRESHOLD) {
+    alerts.push({
+      level: 'warning',
+      message: `Поступило ${reportCountInPeriod} жалоб по заданиям за период.`,
     });
   }
   if (alerts.length === 0) {
@@ -1283,6 +1389,11 @@ const getAdminPanelStats = async (options?: {
     risks: {
       highRejectOwners,
       suspiciousApplicants,
+      reports: {
+        totalInPeriod: reportCountInPeriod,
+        byReason: reportByReason,
+        recent: recentReports,
+      },
     },
     alerts,
     // legacy fields
@@ -2515,6 +2626,11 @@ export const registerRoutes = (app: FastifyInstance) => {
         status: 'ACTIVE',
         remainingBudget: { gt: 0 },
         ownerId: viewer ? { not: viewer.id } : undefined,
+        hiddenByUsers: viewer
+          ? {
+              none: { userId: viewer.id },
+            }
+          : undefined,
         group: category ? { category } : undefined,
         actionType: actionType
           ? actionType === 'subscribe'
@@ -2545,6 +2661,97 @@ export const registerRoutes = (app: FastifyInstance) => {
       return { ok: true, campaigns };
     } catch (error) {
       return sendRouteError(reply, error, 401);
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/campaigns/:id/hide', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const campaignId = request.params.id;
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { id: true },
+      });
+      if (!campaign) return reply.code(404).send({ ok: false, error: 'campaign not found' });
+
+      await prisma.hiddenCampaign.upsert({
+        where: {
+          userId_campaignId: {
+            userId: user.id,
+            campaignId,
+          },
+        },
+        update: {
+          createdAt: new Date(),
+        },
+        create: {
+          userId: user.id,
+          campaignId,
+        },
+      });
+
+      return { ok: true, hidden: true };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/campaigns/:id/report', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const parsed = campaignReportSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
+
+      const campaignId = request.params.id;
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { id: true, ownerId: true },
+      });
+      if (!campaign) return reply.code(404).send({ ok: false, error: 'campaign not found' });
+      if (campaign.ownerId === user.id) {
+        return reply.code(400).send({ ok: false, error: 'cannot report own campaign' });
+      }
+
+      const reportedAt = new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.campaignReport.upsert({
+          where: {
+            campaignId_reporterId: {
+              campaignId,
+              reporterId: user.id,
+            },
+          },
+          update: {
+            reason: parsed.data.reason,
+            reportedAt,
+          },
+          create: {
+            campaignId,
+            reporterId: user.id,
+            reason: parsed.data.reason,
+            reportedAt,
+          },
+        });
+        await tx.hiddenCampaign.upsert({
+          where: {
+            userId_campaignId: {
+              userId: user.id,
+              campaignId,
+            },
+          },
+          update: {
+            createdAt: reportedAt,
+          },
+          create: {
+            userId: user.id,
+            campaignId,
+          },
+        });
+      });
+
+      return { ok: true, reported: true, hidden: true };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -2703,6 +2910,13 @@ export const registerRoutes = (app: FastifyInstance) => {
       if (campaign.ownerId === user.id) {
         return reply.code(400).send({ ok: false, error: 'cannot apply own campaign' });
       }
+      const isHidden = await prisma.hiddenCampaign.findUnique({
+        where: { userId_campaignId: { userId: user.id, campaignId } },
+        select: { campaignId: true },
+      });
+      if (isHidden) {
+        return reply.code(409).send({ ok: false, error: 'Задание скрыто. Обновите список.' });
+      }
       if (campaign.status !== 'ACTIVE' || campaign.remainingBudget < campaign.rewardPoints) {
         return reply
           .code(409)
@@ -2821,7 +3035,16 @@ export const registerRoutes = (app: FastifyInstance) => {
     try {
       const user = await requireUser(request);
       const applications = await prisma.application.findMany({
-        where: { applicantId: user.id },
+        where: {
+          applicantId: user.id,
+          campaign: {
+            hiddenByUsers: {
+              none: {
+                userId: user.id,
+              },
+            },
+          },
+        },
         include: { campaign: { include: { group: true, owner: true } } },
         orderBy: { createdAt: 'desc' },
       });

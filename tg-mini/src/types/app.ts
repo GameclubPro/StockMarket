@@ -31,6 +31,13 @@ export type CampaignDto = {
   owner?: UserDto;
 };
 
+export type CampaignReportReason =
+  | 'SPAM_SCAM'
+  | 'FAKE_TASK'
+  | 'BROKEN_LINK'
+  | 'PROHIBITED_CONTENT'
+  | 'OTHER';
+
 export type ApplicationDto = {
   id: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
@@ -217,6 +224,24 @@ export type AdminPanelStats = {
       approved: number;
       approveRate: number;
     }>;
+    reports: {
+      totalInPeriod: number;
+      byReason: Array<{
+        reason: CampaignReportReason;
+        reasonLabel: string;
+        count: number;
+      }>;
+      recent: Array<{
+        id: string;
+        campaignId: string;
+        reason: CampaignReportReason;
+        reasonLabel: string;
+        reporterLabel: string;
+        groupTitle: string;
+        actionType: 'SUBSCRIBE' | 'REACTION';
+        createdAt: string;
+      }>;
+    };
   };
   alerts: Array<{
     level: 'info' | 'warning' | 'critical';

@@ -2,6 +2,7 @@ import type {
   AdminPanelStats,
   ApplicationDto,
   CampaignDto,
+  CampaignReportReason,
   DailyBonusSpin,
   DailyBonusStatus,
   GroupDto,
@@ -18,6 +19,7 @@ export type {
   AdminPanelStats,
   ApplicationDto,
   CampaignDto,
+  CampaignReportReason,
   DailyBonusSpin,
   DailyBonusStatus,
   GroupDto,
@@ -155,6 +157,20 @@ export const createCampaign = async (payload: {
 export const applyCampaign = async (id: string) => {
   const data = await request(`/api/campaigns/${id}/apply`, { method: 'POST' });
   return data as { ok: boolean; application?: ApplicationDto; campaign?: CampaignDto; balance?: number };
+};
+
+export const hideCampaign = async (id: string) => {
+  const data = await request(`/api/campaigns/${id}/hide`, { method: 'POST' });
+  return data as { ok: boolean; hidden?: boolean };
+};
+
+export const reportCampaign = async (id: string, reason: CampaignReportReason) => {
+  const data = await request(`/api/campaigns/${id}/report`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  return data as { ok: boolean; reported?: boolean; hidden?: boolean };
 };
 
 export const fetchMyApplications = async () => {

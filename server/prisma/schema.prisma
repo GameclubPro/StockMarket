@@ -18,6 +18,14 @@ enum CampaignType {
   REACTION
 }
 
+enum CampaignReportReason {
+  SPAM_SCAM
+  FAKE_TASK
+  BROKEN_LINK
+  PROHIBITED_CONTENT
+  OTHER
+}
+
 enum ApplicationStatus {
   PENDING
   APPROVED
@@ -61,6 +69,8 @@ model User {
   groups       Group[]
   groupAdmins  GroupAdmin[]
   campaigns    Campaign[]
+  hiddenCampaigns HiddenCampaign[]
+  campaignReports CampaignReport[]
   applications Application[]
   ledger       LedgerEntry[]
   referrals    Referral[] @relation("ReferralReferrer")
@@ -111,9 +121,41 @@ model Campaign {
 
   applications    Application[]
   ledgerEntries   LedgerEntry[]
+  hiddenByUsers   HiddenCampaign[]
+  reports         CampaignReport[]
 
   @@index([ownerId, createdAt])
   @@index([status, remainingBudget, createdAt])
+}
+
+model HiddenCampaign {
+  userId     String
+  campaignId String
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId])
+  @@index([campaignId, createdAt])
+}
+
+model CampaignReport {
+  id         String               @id @default(cuid())
+  campaignId String
+  reporterId String
+  reason     CampaignReportReason
+  reportedAt DateTime             @default(now())
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  campaign   Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reporter   User                 @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, reporterId])
+  @@index([reportedAt])
+  @@index([campaignId, reportedAt])
+  @@index([reporterId, reportedAt])
 }
 
 model Application {

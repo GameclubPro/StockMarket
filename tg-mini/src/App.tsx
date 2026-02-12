@@ -17,10 +17,13 @@ import {
   fetchMyApplications,
   fetchMyCampaigns,
   fetchMyGroups,
+  hideCampaign,
+  reportCampaign,
   spinDailyBonus,
   type ApplicationDto,
   type AdminPanelStats,
   type CampaignDto,
+  type CampaignReportReason,
   type DailyBonusStatus,
   type GroupDto,
   type ReferralBonus,
@@ -387,6 +390,48 @@ const extractUsernameFromTelegramUnsafe = () => {
 const isPrivilegedAdminUsername = (username: string) =>
   username.toLowerCase() === TOP_UP_MANAGER_USERNAME.toLowerCase();
 
+type TaskActionSheetMode = 'actions' | 'report';
+const TASK_REPORT_REASON_OPTIONS: Array<{
+  reason: CampaignReportReason;
+  label: string;
+}> = [
+  { reason: 'SPAM_SCAM', label: 'Спам или скам' },
+  { reason: 'FAKE_TASK', label: 'Фейковое/обманчивое задание' },
+  { reason: 'BROKEN_LINK', label: 'Ссылка не работает' },
+  { reason: 'PROHIBITED_CONTENT', label: 'Запрещенный контент' },
+  { reason: 'OTHER', label: 'Другое' },
+];
+
+const TaskAvatar = ({
+  group,
+  getAvatarUrl,
+}: {
+  group: GroupDto;
+  getAvatarUrl: (group: GroupDto) => string;
+}) => {
+  const avatarUrl = getAvatarUrl(group);
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [avatarUrl]);
+
+  const hasPhoto = Boolean(avatarUrl) && !broken;
+  return (
+    <div className={`task-avatar ${hasPhoto ? 'has-photo' : ''}`}>
+      {hasPhoto ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
+      ) : null}
+      <span>{group.title?.[0] ?? 'Г'}</span>
+    </div>
+  );
+};
+
 export default function App() {
   const [userLabel, setUserLabel] = useState(() => getUserLabel());
   const [userPhoto, setUserPhoto] = useState(() => getUserPhotoUrl());
@@ -465,8 +510,13 @@ export default function App() {
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
   const [applicationsFetched, setApplicationsFetched] = useState(false);
+  const [hiddenCampaignIds, setHiddenCampaignIds] = useState<string[]>([]);
   const [leavingIds, setLeavingIds] = useState<string[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
+  const [taskActionSheetCampaign, setTaskActionSheetCampaign] = useState<CampaignDto | null>(null);
+  const [taskActionSheetMode, setTaskActionSheetMode] = useState<TaskActionSheetMode>('actions');
+  const [taskActionSheetLoading, setTaskActionSheetLoading] = useState(false);
+  const [taskActionSheetError, setTaskActionSheetError] = useState('');
   const resumeRefreshAtRef = useRef(0);
   const applicationsRequestedRef = useRef(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -529,6 +579,7 @@ export default function App() {
     () => new Set(campaigns.map((campaign) => campaign.id)),
     [campaigns]
   );
+  const hiddenCampaignIdsSet = useMemo(() => new Set(hiddenCampaignIds), [hiddenCampaignIds]);
   const pendingPayoutTotal = useMemo(() => {
     const acknowledged = new Set(acknowledgedIds);
     return applications.reduce((sum, application) => {
@@ -783,13 +834,14 @@ export default function App() {
   const activeCampaigns = useMemo(() => {
     const acknowledgedSet = new Set(acknowledgedIds);
     return campaigns.filter((campaign) => {
+      if (hiddenCampaignIdsSet.has(campaign.id)) return false;
       const status = applicationsByCampaign.get(campaign.id)?.status;
       if (status === 'APPROVED' && acknowledgedSet.has(campaign.id)) return false;
       if (status === 'REJECTED') return false;
       if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
-  }, [applicationsByCampaign, campaigns, userId, acknowledgedIds]);
+  }, [applicationsByCampaign, campaigns, userId, acknowledgedIds, hiddenCampaignIdsSet]);
   const visibleCampaigns = useMemo(() => {
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
     const base = activeCampaigns.filter((campaign) => campaign.actionType === type);
@@ -810,14 +862,16 @@ export default function App() {
     return applications
       .filter(
         (application) =>
-          application.status === 'APPROVED' && application.campaign.actionType === type
+          application.status === 'APPROVED' &&
+          application.campaign.actionType === type &&
+          !hiddenCampaignIdsSet.has(application.campaign.id)
       )
       .sort(
         (a, b) =>
           new Date(b.reviewedAt ?? b.createdAt).getTime() -
           new Date(a.reviewedAt ?? a.createdAt).getTime()
       );
-  }, [applications, taskTypeFilter]);
+  }, [applications, taskTypeFilter, hiddenCampaignIdsSet]);
   const taskStatusCounters = useMemo(() => {
     return taskTypeCampaigns.reduce(
       (acc, campaign) => {
@@ -974,6 +1028,14 @@ export default function App() {
       setTaskCount(maxAffordableCount);
     }
   }, [taskCount, maxAffordableCount]);
+
+  useEffect(() => {
+    if (!userId) return;
+    setHiddenCampaignIds([]);
+    setTaskActionSheetCampaign(null);
+    setTaskActionSheetMode('actions');
+    setTaskActionSheetError('');
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -1195,6 +1257,85 @@ export default function App() {
     }
   }, []);
 
+  const hideCampaignLocally = useCallback((campaignId: string) => {
+    setHiddenCampaignIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
+    setCampaigns((prev) => prev.filter((item) => item.id !== campaignId));
+    setApplications((prev) => prev.filter((item) => item.campaign.id !== campaignId));
+    setLeavingIds((prev) => prev.filter((item) => item !== campaignId));
+    setAcknowledgedIds((prev) => {
+      if (!prev.includes(campaignId)) return prev;
+      const next = prev.filter((item) => item !== campaignId);
+      if (acknowledgedKeyRef.current) {
+        try {
+          localStorage.setItem(acknowledgedKeyRef.current, JSON.stringify(next));
+        } catch {
+          // ignore localStorage write errors
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const refreshTaskListsSilently = useCallback(async () => {
+    await Promise.allSettled([loadCampaigns({ silent: true }), loadMyApplications({ silent: true })]);
+  }, [loadCampaigns, loadMyApplications]);
+
+  const openTaskActionSheet = useCallback((campaign: CampaignDto) => {
+    setTaskActionSheetCampaign(campaign);
+    setTaskActionSheetMode('actions');
+    setTaskActionSheetError('');
+  }, []);
+
+  const closeTaskActionSheet = useCallback(() => {
+    if (taskActionSheetLoading) return;
+    setTaskActionSheetCampaign(null);
+    setTaskActionSheetMode('actions');
+    setTaskActionSheetError('');
+  }, [taskActionSheetLoading]);
+
+  const handleHideTaskCampaign = useCallback(async () => {
+    if (!taskActionSheetCampaign || taskActionSheetLoading) return;
+    setTaskActionSheetError('');
+    setTaskActionSheetLoading(true);
+    try {
+      const data = await hideCampaign(taskActionSheetCampaign.id);
+      if (!data.ok) {
+        throw new Error('Не удалось скрыть задание.');
+      }
+      hideCampaignLocally(taskActionSheetCampaign.id);
+      setTaskActionSheetCampaign(null);
+      setTaskActionSheetMode('actions');
+      void refreshTaskListsSilently();
+    } catch (error: any) {
+      setTaskActionSheetError(error?.message ?? 'Не удалось скрыть задание.');
+    } finally {
+      setTaskActionSheetLoading(false);
+    }
+  }, [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently]);
+
+  const handleReportTaskCampaign = useCallback(
+    async (reason: CampaignReportReason) => {
+      if (!taskActionSheetCampaign || taskActionSheetLoading) return;
+      setTaskActionSheetError('');
+      setTaskActionSheetLoading(true);
+      try {
+        const data = await reportCampaign(taskActionSheetCampaign.id, reason);
+        if (!data.ok) {
+          throw new Error('Не удалось отправить жалобу.');
+        }
+        hideCampaignLocally(taskActionSheetCampaign.id);
+        setTaskActionSheetCampaign(null);
+        setTaskActionSheetMode('actions');
+        void refreshTaskListsSilently();
+      } catch (error: any) {
+        setTaskActionSheetError(error?.message ?? 'Не удалось отправить жалобу.');
+      } finally {
+        setTaskActionSheetLoading(false);
+      }
+    },
+    [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently]
+  );
+
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
@@ -1241,6 +1382,14 @@ export default function App() {
   }, [activeTab, adminPanelAllowed, adminPanelLoading]);
 
   useEffect(() => {
+    if (activeTab === 'tasks') return;
+    if (!taskActionSheetCampaign) return;
+    setTaskActionSheetCampaign(null);
+    setTaskActionSheetMode('actions');
+    setTaskActionSheetError('');
+  }, [activeTab, taskActionSheetCampaign]);
+
+  useEffect(() => {
     if (activeTab === 'wheel') return;
     if (!dailyBonusInfoOpen) return;
     setDailyBonusInfoOpen(false);
@@ -1267,6 +1416,19 @@ export default function App() {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [referralInfoOpen]);
+
+  useEffect(() => {
+    if (!taskActionSheetCampaign) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (taskActionSheetLoading) return;
+      setTaskActionSheetCampaign(null);
+      setTaskActionSheetMode('actions');
+      setTaskActionSheetError('');
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [taskActionSheetCampaign, taskActionSheetLoading]);
 
   useEffect(() => {
     let detachBackHandler: VoidFunction | undefined;
@@ -3563,6 +3725,56 @@ export default function App() {
                       ))}
                     </div>
 
+                    {adminRisks?.reports && (
+                      <div className="admin-risk-block">
+                        <div className="admin-split-title">Жалобы по заданиям</div>
+                        <div className="admin-mini-grid admin-reports-grid">
+                          <div className="admin-mini-item">
+                            <span>Жалоб за период</span>
+                            <strong>{formatNumberRu(adminRisks.reports.totalInPeriod)}</strong>
+                          </div>
+                          <div className="admin-mini-item">
+                            <span>Последних жалоб</span>
+                            <strong>{formatNumberRu(adminRisks.reports.recent.length)}</strong>
+                          </div>
+                        </div>
+                        {(adminRisks.reports.byReason?.length ?? 0) > 0 && (
+                          <div className="admin-entity-list compact">
+                            {adminRisks.reports.byReason.map((item) => (
+                              <div className="admin-entity-row compact" key={`report-reason-${item.reason}`}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">{item.reasonLabel}</div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <strong>{formatNumberRu(item.count)}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {(adminRisks.reports.recent?.length ?? 0) > 0 ? (
+                          <div className="admin-entity-list compact">
+                            {adminRisks.reports.recent.map((item) => (
+                              <div className="admin-entity-row compact" key={item.id}>
+                                <div className="admin-entity-main">
+                                  <div className="admin-entity-title">{item.groupTitle}</div>
+                                  <div className="admin-entity-sub">
+                                    {item.reasonLabel} • {item.reporterLabel}
+                                  </div>
+                                </div>
+                                <div className="admin-entity-meta">
+                                  <span>{formatDateTimeRu(item.createdAt)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty">Жалоб за выбранный период нет.</div>
+                        )}
+                      </div>
+                    )}
+
                     {(adminRisks?.highRejectOwners?.length ?? 0) > 0 && (
                       <div className="admin-risk-block">
                         <div className="admin-split-title">Высокий reject rate владельцев</div>
@@ -3692,9 +3904,7 @@ export default function App() {
                     return (
                       <div className="task-card promo-mine-card" key={campaign.id}>
                         <div className="task-card-head">
-                          <div className="task-avatar">
-                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
-                          </div>
+                          <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
@@ -3882,9 +4092,7 @@ export default function App() {
                         ref={(node) => registerTaskCardRef(campaign.id, node)}
                       >
                         <div className="task-card-head">
-                          <div className="task-avatar">
-                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
-                          </div>
+                          <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
@@ -3903,6 +4111,19 @@ export default function App() {
                             <span className={`status-badge compact ${statusMeta.className}`}>
                               {statusMeta.label}
                             </span>
+                            <button
+                              className="task-more-button"
+                              type="button"
+                              aria-label="Действия по заданию"
+                              onClick={() => openTaskActionSheet(campaign)}
+                              disabled={taskActionSheetLoading}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="6" r="1.8" />
+                                <circle cx="12" cy="12" r="1.8" />
+                                <circle cx="12" cy="18" r="1.8" />
+                              </svg>
+                            </button>
                           </div>
                         </div>
                         <div className="task-actions task-actions-row">
@@ -3956,9 +4177,7 @@ export default function App() {
                     return (
                       <div className="task-card task-card-history" key={application.id}>
                         <div className="task-card-head">
-                          <div className="task-avatar">
-                            <span>{campaign.group.title?.[0] ?? 'Г'}</span>
-                          </div>
+                          <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
                           <div className="task-info">
                             <div className="task-title-row">
                               <div className="task-title">{campaign.group.title}</div>
@@ -3970,6 +4189,19 @@ export default function App() {
                           <div className="task-meta">
                             <span className="badge sticker">{badgeLabel}</span>
                             <span className="status-badge approved compact">Выполнено</span>
+                            <button
+                              className="task-more-button"
+                              type="button"
+                              aria-label="Действия по заданию"
+                              onClick={() => openTaskActionSheet(campaign)}
+                              disabled={taskActionSheetLoading}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="6" r="1.8" />
+                                <circle cx="12" cy="12" r="1.8" />
+                                <circle cx="12" cy="18" r="1.8" />
+                              </svg>
+                            </button>
                           </div>
                         </div>
                         <div className="task-actions task-actions-row">
@@ -4298,6 +4530,95 @@ export default function App() {
                 {promoWizardPrimaryLabel}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {taskActionSheetCampaign && (
+        <div className="task-actionsheet-backdrop" onClick={closeTaskActionSheet}>
+          <div
+            className="task-actionsheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="task-actionsheet-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="task-actionsheet-handle" aria-hidden="true" />
+            <div className="task-actionsheet-head">
+              <div className="task-actionsheet-copy">
+                <div className="task-actionsheet-title" id="task-actionsheet-title">
+                  {taskActionSheetMode === 'report' ? 'Пожаловаться на задание' : 'Действия'}
+                </div>
+                <div className="task-actionsheet-sub">
+                  {taskActionSheetCampaign.group.title} •{' '}
+                  {getGroupSecondaryLabel(taskActionSheetCampaign.group)}
+                </div>
+              </div>
+              <button
+                className="task-actionsheet-close"
+                type="button"
+                aria-label="Закрыть меню действий"
+                onClick={closeTaskActionSheet}
+                disabled={taskActionSheetLoading}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M6 6l12 12" />
+                  <path d="M18 6l-12 12" />
+                </svg>
+              </button>
+            </div>
+            {taskActionSheetError && <div className="task-actionsheet-error">{taskActionSheetError}</div>}
+
+            {taskActionSheetMode === 'actions' && (
+              <div className="task-actionsheet-list">
+                <button
+                  className="task-actionsheet-item"
+                  type="button"
+                  onClick={() => void handleHideTaskCampaign()}
+                  disabled={taskActionSheetLoading}
+                >
+                  <span>Удалить из моего списка</span>
+                </button>
+                <button
+                  className="task-actionsheet-item warn"
+                  type="button"
+                  onClick={() => {
+                    setTaskActionSheetMode('report');
+                    setTaskActionSheetError('');
+                  }}
+                  disabled={taskActionSheetLoading}
+                >
+                  <span>Пожаловаться</span>
+                </button>
+              </div>
+            )}
+
+            {taskActionSheetMode === 'report' && (
+              <div className="task-report-reasons">
+                {TASK_REPORT_REASON_OPTIONS.map((option) => (
+                  <button
+                    className="task-report-reason-button"
+                    key={option.reason}
+                    type="button"
+                    onClick={() => void handleReportTaskCampaign(option.reason)}
+                    disabled={taskActionSheetLoading}
+                  >
+                    <span className="task-report-reason-title">{option.label}</span>
+                  </button>
+                ))}
+                <button
+                  className="task-actionsheet-back-button"
+                  type="button"
+                  onClick={() => {
+                    setTaskActionSheetMode('actions');
+                    setTaskActionSheetError('');
+                  }}
+                  disabled={taskActionSheetLoading}
+                >
+                  Назад
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
