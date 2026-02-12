@@ -176,6 +176,7 @@ const ADMIN_SECTION_OPTIONS: Array<{ id: AdminSectionId; label: string }> = [
   { id: 'economy', label: 'Экономика' },
   { id: 'risks', label: 'Риски' },
 ];
+type PromoWizardStepId = 'project' | 'reactionLink' | 'budget' | 'review';
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
   if (direction === 'down') return 'Падение';
@@ -432,7 +433,8 @@ export default function App() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<'subscribe' | 'reaction'>('subscribe');
   const [taskListFilter, setTaskListFilter] = useState<'hot' | 'new' | 'history'>('new');
   const [myTasksTab, setMyTasksTab] = useState<'place' | 'mine'>('place');
-  const [promoComposerStep, setPromoComposerStep] = useState<'project' | 'format' | 'budget'>('budget');
+  const [promoWizardOpen, setPromoWizardOpen] = useState(false);
+  const [promoWizardStep, setPromoWizardStep] = useState<PromoWizardStepId>('project');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPriceInput, setTaskPriceInput] = useState('10');
@@ -682,22 +684,18 @@ export default function App() {
     taskType,
     totalBudget,
   ]);
-  const createButtonDisabled = createLoading || createCtaState.blocked;
-  const createButtonLabel = createLoading ? 'Создание…' : createCtaState.label;
   const selectedProjectLabel = selectedGroupTitle || 'Проект не выбран';
+  const reactionLinkTrimmed = reactionLink.trim();
   const isProjectSelected = Boolean(selectedGroupId);
-  const hasReactionLink = taskType === 'subscribe' || Boolean(reactionLink.trim());
-  const budgetRatio = useMemo(() => {
-    if (displayPoints <= 0) return 100;
-    const pct = Math.round((totalBudget / displayPoints) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }, [displayPoints, totalBudget]);
-  const budgetStateLabel = useMemo(() => {
-    if (displayPoints < totalBudget) return 'Нужно пополнение';
-    if (budgetRatio >= 85) return 'Почти весь баланс';
-    if (budgetRatio >= 55) return 'Средняя нагрузка';
-    return 'Комфортный бюджет';
-  }, [budgetRatio, displayPoints, totalBudget]);
+  const hasReactionLink = taskType === 'subscribe' || Boolean(reactionLinkTrimmed);
+  const isTaskPriceValid =
+    parsedTaskPrice !== null &&
+    Number.isFinite(parsedTaskPrice) &&
+    parsedTaskPrice >= MIN_TASK_PRICE &&
+    parsedTaskPrice <= MAX_TASK_PRICE;
+  const isTaskCountValid =
+    Number.isFinite(taskCount) && taskCount >= 1 && taskCount <= maxAffordableCount;
+  const canProceedBudget = isTaskPriceValid && isTaskCountValid && totalBudget <= MAX_TOTAL_BUDGET;
   const formatSummaryLabel =
     taskType === 'subscribe'
       ? 'Подписка'
@@ -705,6 +703,51 @@ export default function App() {
         ? 'Реакция · ссылка задана'
         : 'Реакция · нужна ссылка';
   const budgetSummaryLabel = `${taskPriceValue} × ${taskCount} = ${totalBudget}`;
+  const promoWizardSteps = useMemo<
+    Array<{ id: PromoWizardStepId; label: string; shortLabel: string }>
+  >(
+    () =>
+      taskType === 'reaction'
+        ? [
+            { id: 'project', label: 'Проект', shortLabel: 'Проект' },
+            { id: 'reactionLink', label: 'Ссылка на пост', shortLabel: 'Пост' },
+            { id: 'budget', label: 'Бюджет и объем', shortLabel: 'Бюджет' },
+            { id: 'review', label: 'Проверка и запуск', shortLabel: 'Запуск' },
+          ]
+        : [
+            { id: 'project', label: 'Проект', shortLabel: 'Проект' },
+            { id: 'budget', label: 'Бюджет и объем', shortLabel: 'Бюджет' },
+            { id: 'review', label: 'Проверка и запуск', shortLabel: 'Запуск' },
+          ],
+    [taskType]
+  );
+  const promoWizardStepIndex = Math.max(
+    0,
+    promoWizardSteps.findIndex((item) => item.id === promoWizardStep)
+  );
+  const promoWizardStepTotal = promoWizardSteps.length;
+  const promoWizardCurrentStep = promoWizardSteps[promoWizardStepIndex] ?? promoWizardSteps[0];
+  const promoWizardCanGoBack = promoWizardStepIndex > 0;
+  const promoWizardCanGoNext = useMemo(() => {
+    if (promoWizardCurrentStep.id === 'project') return isProjectSelected;
+    if (promoWizardCurrentStep.id === 'reactionLink') return Boolean(reactionLinkTrimmed);
+    if (promoWizardCurrentStep.id === 'budget') return canProceedBudget;
+    return !createCtaState.blocked;
+  }, [canProceedBudget, createCtaState.blocked, isProjectSelected, promoWizardCurrentStep.id, reactionLinkTrimmed]);
+  const promoWizardPrimaryLabel = useMemo(() => {
+    if (promoWizardCurrentStep.id === 'review') {
+      if (createLoading) return 'Создание…';
+      if (!createCtaState.blocked) return 'Запустить кампанию';
+      return createCtaState.label;
+    }
+    return 'Далее';
+  }, [createCtaState.blocked, createCtaState.label, createLoading, promoWizardCurrentStep.id]);
+  const promoWizardPrimaryDisabled =
+    createLoading ||
+    (promoWizardCurrentStep.id === 'review'
+      ? createCtaState.blocked && createCtaState.label !== 'Пополните баланс'
+      : !promoWizardCanGoNext);
+  const promoWizardSecondaryLabel = promoWizardCanGoBack ? 'Назад' : 'Закрыть';
   const rangeProgress = useMemo(() => {
     const min = 1;
     const max = maxAffordableCount;
@@ -1202,6 +1245,26 @@ export default function App() {
   }, [topUpModalOpen]);
 
   useEffect(() => {
+    if (!promoWizardOpen) {
+      if (linkPickerOpen) setLinkPickerOpen(false);
+      return;
+    }
+    if (promoWizardSteps.some((step) => step.id === promoWizardStep)) return;
+    setPromoWizardStep(promoWizardSteps[0]?.id ?? 'project');
+  }, [linkPickerOpen, promoWizardOpen, promoWizardStep, promoWizardSteps]);
+
+  useEffect(() => {
+    if (!promoWizardOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !createLoading) {
+        setPromoWizardOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [promoWizardOpen, createLoading]);
+
+  useEffect(() => {
     if (applicationsRequestedRef.current) return;
     applicationsRequestedRef.current = true;
     void loadMyApplications({ silent: true });
@@ -1258,22 +1321,30 @@ export default function App() {
   }, [activeTab, loadMyCampaigns, myTasksTab]);
 
   useEffect(() => {
+    if (!promoWizardOpen) return;
+    if (activeTab !== 'promo' || myTasksTab !== 'place') {
+      setPromoWizardOpen(false);
+      setLinkPickerOpen(false);
+    }
+  }, [activeTab, myTasksTab, promoWizardOpen]);
+
+  useEffect(() => {
     setActionError('');
   }, [activeTab, myTasksTab]);
 
   useEffect(() => {
-    if (!linkPickerOpen) return;
+    if (!promoWizardOpen || !linkPickerOpen) return;
     if (myGroupsLoaded || myGroupsLoading) return;
     void loadMyGroups();
-  }, [linkPickerOpen, loadMyGroups, myGroupsLoaded, myGroupsLoading]);
+  }, [linkPickerOpen, loadMyGroups, myGroupsLoaded, myGroupsLoading, promoWizardOpen]);
 
   useEffect(() => {
-    if (!linkPickerOpen) return;
+    if (!promoWizardOpen || !linkPickerOpen) return;
     const raf = requestAnimationFrame(() => {
       linkPickerRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     return () => cancelAnimationFrame(raf);
-  }, [linkPickerOpen]);
+  }, [linkPickerOpen, promoWizardOpen]);
 
   const handleQuickLinkSelect = (group: GroupDto) => {
     setSelectedGroupId(group.id);
@@ -1433,6 +1504,44 @@ export default function App() {
 
   const openGroupSetup = () => {
     window.open(BOT_SETUP_GROUP_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  const openPromoWizard = (type: 'subscribe' | 'reaction') => {
+    setTaskType(type);
+    setCreateError('');
+    setLinkPickerOpen(false);
+    setPromoWizardStep('project');
+    setPromoWizardOpen(true);
+  };
+
+  const closePromoWizard = () => {
+    if (createLoading) return;
+    setPromoWizardOpen(false);
+    setLinkPickerOpen(false);
+  };
+
+  const handlePromoWizardBack = () => {
+    if (!promoWizardCanGoBack) {
+      closePromoWizard();
+      return;
+    }
+    setCreateError('');
+    setLinkPickerOpen(false);
+    setPromoWizardStep((current) => {
+      const currentIndex = promoWizardSteps.findIndex((step) => step.id === current);
+      if (currentIndex <= 0) return current;
+      return promoWizardSteps[currentIndex - 1]?.id ?? current;
+    });
+  };
+
+  const handlePromoWizardNext = () => {
+    if (!promoWizardCanGoNext || promoWizardCurrentStep.id === 'review') return;
+    setCreateError('');
+    setPromoWizardStep((current) => {
+      const currentIndex = promoWizardSteps.findIndex((step) => step.id === current);
+      if (currentIndex < 0 || currentIndex >= promoWizardSteps.length - 1) return current;
+      return promoWizardSteps[currentIndex + 1]?.id ?? current;
+    });
   };
 
   const registerTaskCardRef = useCallback((id: string, node: HTMLDivElement | null) => {
@@ -1689,39 +1798,39 @@ export default function App() {
     const groupId = resolveGroupId();
     if (!groupId) {
       setCreateError('Сначала подключите канал/группу и выберите ее из списка.');
-      return;
+      return false;
     }
     if (parsedTaskPrice === null) {
       setCreateError('Укажите цену за действие.');
-      return;
+      return false;
     }
     if (!Number.isFinite(parsedTaskPrice) || parsedTaskPrice < MIN_TASK_PRICE) {
       setCreateError(`Цена за действие должна быть не меньше ${MIN_TASK_PRICE} баллов.`);
-      return;
+      return false;
     }
     if (parsedTaskPrice > MAX_TASK_PRICE) {
       setCreateError(`Цена за действие должна быть не больше ${MAX_TASK_PRICE} баллов.`);
-      return;
+      return false;
     }
     if (!Number.isFinite(taskCount) || taskCount < 1) {
       setCreateError('Количество действий должно быть не меньше 1.');
-      return;
+      return false;
     }
     if (taskType === 'reaction') {
       if (!reactionLink.trim()) {
         setCreateError('Укажите ссылку на пост для реакции.');
-        return;
+        return false;
       }
     }
     if (totalBudget > MAX_TOTAL_BUDGET) {
       setCreateError(
         `Бюджет слишком большой. Максимум ${MAX_TOTAL_BUDGET.toLocaleString('ru-RU')} баллов.`
       );
-      return;
+      return false;
     }
     if (displayPoints < totalBudget) {
       setCreateError('Недостаточно баллов для размещения.');
-      return;
+      return false;
     }
 
     setCreateLoading(true);
@@ -1741,11 +1850,33 @@ export default function App() {
       setSelectedGroupTitle('');
       await loadCampaigns();
       await loadMyCampaigns();
+      return true;
     } catch (error: any) {
       setCreateError(error?.message ?? 'Не удалось создать кампанию.');
+      return false;
     } finally {
       setCreateLoading(false);
     }
+  };
+
+  const handlePromoWizardPrimary = async () => {
+    if (promoWizardCurrentStep.id === 'review') {
+      if (createCtaState.blocked) {
+        if (createCtaState.label === 'Пополните баланс') {
+          setPromoWizardOpen(false);
+          setLinkPickerOpen(false);
+          openTopUpModal();
+        }
+        return;
+      }
+      const created = await handleCreateCampaign();
+      if (created) {
+        setPromoWizardOpen(false);
+        setLinkPickerOpen(false);
+      }
+      return;
+    }
+    handlePromoWizardNext();
   };
 
   const handleApplyCampaign = async (campaignId: string) => {
@@ -3358,325 +3489,46 @@ export default function App() {
             </div>
 
             {myTasksTab === 'place' && (
-              <div className="promo-redesign-shell">
-                <div className="promo-quick-actions">
+              <div className="promo-entry-shell">
+                <div className="promo-entry-head">
+                  <h3 className="promo-entry-title">Что продвигаем?</h3>
+                  <p className="promo-entry-sub">
+                    Выберите формат, затем пройдите короткий мастер запуска.
+                  </p>
+                </div>
+                <div className="promo-type-grid">
+                  <button
+                    className={`promo-type-card ${taskType === 'subscribe' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => openPromoWizard('subscribe')}
+                  >
+                    <span className="promo-type-icon" aria-hidden="true">
+                      +
+                    </span>
+                    <span className="promo-type-title">Подписка</span>
+                    <span className="promo-type-meta">Продвижение вступлений в канал или группу</span>
+                  </button>
+                  <button
+                    className={`promo-type-card ${taskType === 'reaction' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => openPromoWizard('reaction')}
+                  >
+                    <span className="promo-type-icon" aria-hidden="true">
+                      ★
+                    </span>
+                    <span className="promo-type-title">Реакции</span>
+                    <span className="promo-type-meta">Продвижение поста по ссылке из вашего проекта</span>
+                  </button>
+                </div>
+                <div className="promo-entry-footer">
                   <div className="balance-pill">
                     Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
                   </div>
-                  <button
-                    className="primary-button promo-launch-button"
-                    type="button"
-                    onClick={() => void handleCreateCampaign()}
-                    disabled={createButtonDisabled}
-                  >
-                    {createLoading ? 'Создание…' : !createCtaState.blocked ? 'Запустить кампанию' : createButtonLabel}
-                  </button>
-                </div>
-                {createError && <div className="form-status error promo-create-error">{createError}</div>}
-
-                <div className="task-form-card promo-task-card">
-                  <div
-                    className={`promo-step-card ${isProjectSelected ? 'ready' : ''} ${
-                      promoComposerStep === 'project' ? 'active' : 'collapsed'
-                    }`}
-                  >
-                    <button
-                      className="promo-step-head"
-                      type="button"
-                      onClick={() => setPromoComposerStep('project')}
-                    >
-                      <span className="promo-step-index">1</span>
-                      <div className="promo-step-copy">
-                        <div className="promo-step-title">Проект</div>
-                        <div className="promo-step-sub">Подключите канал/группу и выберите проект.</div>
-                      </div>
-                      <span className="promo-step-state">{isProjectSelected ? 'Готово' : 'Нужно выбрать'}</span>
-                    </button>
-                    {promoComposerStep === 'project' ? (
-                      <>
-                        <div className="link-tools promo-link-tools">
-                          <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
-                            Подключить канал
-                          </button>
-                          <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
-                            Подключить группу
-                          </button>
-                          <button
-                            className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
-                            type="button"
-                            aria-expanded={linkPickerOpen}
-                            aria-controls="quick-link-picker"
-                            onClick={() => {
-                              setLinkPickerOpen((prev) => !prev);
-                            }}
-                          >
-                            Мои проекты
-                          </button>
-                        </div>
-                        <div className="promo-project-chip">{selectedProjectLabel}</div>
-                        <div className="link-hint">Бот подключается как администратор.</div>
-                        {linkPickerOpen && (
-                          <div className="link-picker" id="quick-link-picker" ref={linkPickerRef}>
-                            <div className="link-picker-head">
-                              <span className="link-picker-title">Мои проекты</span>
-                              <div className="link-picker-actions">
-                                <button
-                                  className="link-picker-refresh"
-                                  type="button"
-                                  aria-label="Обновить список групп"
-                                  disabled={myGroupsLoading}
-                                  onClick={() => void loadMyGroups()}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                    <path d="M21 12a9 9 0 11-2.6-6.4" />
-                                    <path d="M21 3v7h-7" />
-                                  </svg>
-                                </button>
-                                <button
-                                  className="link-picker-close"
-                                  type="button"
-                                  aria-label="Свернуть список"
-                                  onClick={() => setLinkPickerOpen(false)}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                    <path d="M6 6l12 12" />
-                                    <path d="M18 6l-12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                            {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
-                            {!myGroupsLoading && myGroupsError && (
-                              <div className="link-picker-status error">{myGroupsError}</div>
-                            )}
-                            {!myGroupsLoading &&
-                              !myGroupsError &&
-                              myGroupsLoaded &&
-                              myGroups.length === 0 && (
-                                <div className="link-picker-status">Пока нет добавленных групп.</div>
-                              )}
-                            {!myGroupsLoading &&
-                              !myGroupsError &&
-                              myGroups.map((group) => {
-                                const avatarUrl = getGroupAvatarUrl(group);
-                                return (
-                                  <button
-                                    className="link-option"
-                                    key={group.id}
-                                    type="button"
-                                    onClick={() => handleQuickLinkSelect(group)}
-                                  >
-                                    <div className="link-option-avatar">
-                                      {avatarUrl ? (
-                                        <img
-                                          src={avatarUrl}
-                                          alt=""
-                                          loading="lazy"
-                                          onError={(event) => {
-                                            event.currentTarget.style.display = 'none';
-                                          }}
-                                        />
-                                      ) : null}
-                                      <span>{group.title?.[0] ?? 'Г'}</span>
-                                    </div>
-                                    <div className="link-option-body">
-                                      <span className="link-option-title">{group.title}</span>
-                                      <span className="link-option-handle">
-                                        {getGroupSecondaryLabel(group)}
-                                      </span>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="promo-step-summary">{selectedProjectLabel}</div>
-                    )}
+                  <div className="promo-entry-hint">
+                    {isProjectSelected
+                      ? `Выбран проект: ${selectedProjectLabel}`
+                      : 'Проект выбирается на первом шаге мастера'}
                   </div>
-
-                  <div
-                    className={`promo-step-card ${hasReactionLink ? 'ready' : ''} ${
-                      promoComposerStep === 'format' ? 'active' : 'collapsed'
-                    }`}
-                  >
-                    <button
-                      className="promo-step-head"
-                      type="button"
-                      onClick={() => setPromoComposerStep('format')}
-                    >
-                      <span className="promo-step-index">2</span>
-                      <div className="promo-step-copy">
-                        <div className="promo-step-title">Формат задания</div>
-                        <div className="promo-step-sub">Выберите действие, которое выполняют участники.</div>
-                      </div>
-                      <span className="promo-step-state">{taskType === 'subscribe' ? 'Подписка' : 'Реакция'}</span>
-                    </button>
-                    {promoComposerStep === 'format' ? (
-                      <>
-                        <div className="choice-row">
-                          <button
-                            className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => setTaskType('subscribe')}
-                          >
-                            Подписка
-                          </button>
-                          <button
-                            className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => setTaskType('reaction')}
-                          >
-                            Реакция
-                          </button>
-                        </div>
-                        {taskType === 'reaction' && (
-                          <label className="field">
-                            <span>Ссылка на пост</span>
-                            <input
-                              type="text"
-                              placeholder="https://t.me/username/123 или https://t.me/c/123456/789"
-                              value={reactionLink}
-                              onChange={(event) => setReactionLink(event.target.value)}
-                            />
-                            <div className="range-hint">Пост должен быть из выбранного проекта.</div>
-                          </label>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <div className="choice-row promo-choice-inline">
-                          <button
-                            className={`choice-pill ${taskType === 'subscribe' ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => setTaskType('subscribe')}
-                          >
-                            Подписка
-                          </button>
-                          <button
-                            className={`choice-pill ${taskType === 'reaction' ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => {
-                              setTaskType('reaction');
-                              setPromoComposerStep('format');
-                            }}
-                          >
-                            Реакция
-                          </button>
-                        </div>
-                        <div className="promo-step-summary">{formatSummaryLabel}</div>
-                      </>
-                    )}
-                  </div>
-
-                  <div
-                    className={`promo-step-card ${!createCtaState.blocked ? 'ready' : ''} ${
-                      promoComposerStep === 'budget' ? 'active' : 'collapsed'
-                    }`}
-                  >
-                    <button
-                      className="promo-step-head"
-                      type="button"
-                      onClick={() => setPromoComposerStep('budget')}
-                    >
-                      <span className="promo-step-index">3</span>
-                      <div className="promo-step-copy">
-                        <div className="promo-step-title">Бюджет и объем</div>
-                        <div className="promo-step-sub">Управляйте ценой и количеством действий.</div>
-                      </div>
-                      <span className="promo-step-state">{budgetStateLabel}</span>
-                    </button>
-                    {promoComposerStep === 'budget' ? (
-                      <>
-                        <label className="field">
-                          <span>Цена за действие</span>
-                          <div className="price-stepper" role="group" aria-label="Управление ценой за действие">
-                            <div className="price-stepper-side">
-                              <button
-                                className="price-stepper-button"
-                                type="button"
-                                onClick={() => adjustTaskPrice(-10)}
-                                disabled={taskPriceValue <= MIN_TASK_PRICE}
-                              >
-                                -10
-                              </button>
-                              <button
-                                className="price-stepper-button"
-                                type="button"
-                                onClick={() => adjustTaskPrice(-1)}
-                                disabled={taskPriceValue <= MIN_TASK_PRICE}
-                              >
-                                -1
-                              </button>
-                            </div>
-                            <output
-                              className="price-stepper-value"
-                              aria-live="polite"
-                              aria-atomic="true"
-                            >
-                              {taskPriceValue}
-                            </output>
-                            <div className="price-stepper-side align-end">
-                              <button
-                                className="price-stepper-button"
-                                type="button"
-                                onClick={() => adjustTaskPrice(1)}
-                                disabled={taskPriceValue >= MAX_TASK_PRICE}
-                              >
-                                +1
-                              </button>
-                              <button
-                                className="price-stepper-button"
-                                type="button"
-                                onClick={() => adjustTaskPrice(10)}
-                                disabled={taskPriceValue >= MAX_TASK_PRICE}
-                              >
-                                +10
-                              </button>
-                            </div>
-                          </div>
-                          <div className="range-hint">
-                            Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
-                          </div>
-                        </label>
-                        <label className="field">
-                          <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
-                          <input
-                            className="range-input"
-                            type="range"
-                            min={1}
-                            max={maxAffordableCount}
-                            value={taskCount}
-                            style={{ '--range-progress': rangeProgress } as React.CSSProperties}
-                            onChange={(event) => setTaskCount(Number(event.target.value))}
-                          />
-                          <div className="range-meta">
-                            <span>{taskCount} действий</span>
-                            <span>Списание: {totalBudget} баллов</span>
-                          </div>
-                        </label>
-
-                        <div className="promo-budget-grid">
-                          <div className="promo-budget-item">
-                            <span>Цена</span>
-                            <strong>{taskPriceValue}</strong>
-                          </div>
-                          <div className="promo-budget-item">
-                            <span>Объем</span>
-                            <strong>{taskCount}</strong>
-                          </div>
-                          <div className="promo-budget-item">
-                            <span>Остаток</span>
-                            <strong>{Math.max(0, displayPoints - totalBudget)}</strong>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="promo-step-summary">{budgetSummaryLabel}</div>
-                    )}
-                  </div>
-
                 </div>
               </div>
             )}
@@ -3986,6 +3838,321 @@ export default function App() {
           </>
         )}
       </div>
+
+      {promoWizardOpen && (
+        <div className="promo-wizard-backdrop" onClick={closePromoWizard}>
+          <div
+            className="promo-wizard-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="promo-wizard-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="promo-wizard-handle" aria-hidden="true" />
+            <div className="promo-wizard-head">
+              <div className="promo-wizard-copy">
+                <div className="promo-wizard-title" id="promo-wizard-title">
+                  {taskType === 'subscribe' ? 'Продвижение подписки' : 'Продвижение реакций'}
+                </div>
+                <div className="promo-wizard-sub">
+                  Шаг {promoWizardStepIndex + 1} из {promoWizardStepTotal}: {promoWizardCurrentStep.label}
+                </div>
+              </div>
+              <button
+                className="promo-wizard-close"
+                type="button"
+                aria-label="Закрыть мастер"
+                onClick={closePromoWizard}
+                disabled={createLoading}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M6 6l12 12" />
+                  <path d="M18 6l-12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="promo-wizard-progress" role="list" aria-label="Шаги запуска кампании">
+              {promoWizardSteps.map((step, index) => (
+                <div
+                  className={`promo-wizard-progress-item ${
+                    index < promoWizardStepIndex
+                      ? 'done'
+                      : index === promoWizardStepIndex
+                        ? 'active'
+                        : ''
+                  }`}
+                  key={step.id}
+                  role="listitem"
+                >
+                  <span className="promo-wizard-progress-index">{index + 1}</span>
+                  <span className="promo-wizard-progress-label">{step.shortLabel}</span>
+                </div>
+              ))}
+            </div>
+
+            {createError && <div className="form-status error promo-create-error">{createError}</div>}
+
+            <div className="promo-wizard-body">
+              {promoWizardCurrentStep.id === 'project' && (
+                <>
+                  <div className="link-tools promo-link-tools">
+                    <button className="link-tool highlight" type="button" onClick={openChannelSetup}>
+                      Подключить канал
+                    </button>
+                    <button className="link-tool highlight-blue" type="button" onClick={openGroupSetup}>
+                      Подключить группу
+                    </button>
+                    <button
+                      className={`link-tool ${linkPickerOpen ? 'active' : ''}`}
+                      type="button"
+                      aria-expanded={linkPickerOpen}
+                      aria-controls="promo-wizard-link-picker"
+                      onClick={() => {
+                        setLinkPickerOpen((prev) => !prev);
+                      }}
+                    >
+                      Мои проекты
+                    </button>
+                  </div>
+                  <div className="promo-project-chip">{selectedProjectLabel}</div>
+                  <div className="link-hint">Бот должен быть администратором выбранного проекта.</div>
+                  {linkPickerOpen && (
+                    <div className="link-picker" id="promo-wizard-link-picker" ref={linkPickerRef}>
+                      <div className="link-picker-head">
+                        <span className="link-picker-title">Мои проекты</span>
+                        <div className="link-picker-actions">
+                          <button
+                            className="link-picker-refresh"
+                            type="button"
+                            aria-label="Обновить список групп"
+                            disabled={myGroupsLoading}
+                            onClick={() => void loadMyGroups()}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M21 12a9 9 0 11-2.6-6.4" />
+                              <path d="M21 3v7h-7" />
+                            </svg>
+                          </button>
+                          <button
+                            className="link-picker-close"
+                            type="button"
+                            aria-label="Свернуть список"
+                            onClick={() => setLinkPickerOpen(false)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M6 6l12 12" />
+                              <path d="M18 6l-12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      {myGroupsLoading && <div className="link-picker-status">Загрузка…</div>}
+                      {!myGroupsLoading && myGroupsError && (
+                        <div className="link-picker-status error">{myGroupsError}</div>
+                      )}
+                      {!myGroupsLoading && !myGroupsError && myGroupsLoaded && myGroups.length === 0 && (
+                        <div className="link-picker-status">Пока нет добавленных групп.</div>
+                      )}
+                      {!myGroupsLoading &&
+                        !myGroupsError &&
+                        myGroups.map((group) => {
+                          const avatarUrl = getGroupAvatarUrl(group);
+                          return (
+                            <button
+                              className="link-option"
+                              key={group.id}
+                              type="button"
+                              onClick={() => handleQuickLinkSelect(group)}
+                            >
+                              <div className="link-option-avatar">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt=""
+                                    loading="lazy"
+                                    onError={(event) => {
+                                      event.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : null}
+                                <span>{group.title?.[0] ?? 'Г'}</span>
+                              </div>
+                              <div className="link-option-body">
+                                <span className="link-option-title">{group.title}</span>
+                                <span className="link-option-handle">{getGroupSecondaryLabel(group)}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {promoWizardCurrentStep.id === 'reactionLink' && (
+                <>
+                  <label className="field">
+                    <span>Ссылка на пост</span>
+                    <input
+                      type="text"
+                      placeholder="https://t.me/username/123 или https://t.me/c/123456/789"
+                      value={reactionLink}
+                      onChange={(event) => setReactionLink(event.target.value)}
+                    />
+                    <div className="range-hint">Пост должен быть из выбранного проекта.</div>
+                  </label>
+                  <div className="promo-step-summary">
+                    {hasReactionLink ? 'Ссылка добавлена' : 'Добавьте ссылку, чтобы перейти дальше'}
+                  </div>
+                </>
+              )}
+
+              {promoWizardCurrentStep.id === 'budget' && (
+                <>
+                  <label className="field">
+                    <span>Цена за действие</span>
+                    <div className="price-stepper" role="group" aria-label="Управление ценой за действие">
+                      <div className="price-stepper-side">
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(-10)}
+                          disabled={taskPriceValue <= MIN_TASK_PRICE}
+                        >
+                          -10
+                        </button>
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(-1)}
+                          disabled={taskPriceValue <= MIN_TASK_PRICE}
+                        >
+                          -1
+                        </button>
+                      </div>
+                      <output className="price-stepper-value" aria-live="polite" aria-atomic="true">
+                        {taskPriceValue}
+                      </output>
+                      <div className="price-stepper-side align-end">
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(1)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                        >
+                          +1
+                        </button>
+                        <button
+                          className="price-stepper-button"
+                          type="button"
+                          onClick={() => adjustTaskPrice(10)}
+                          disabled={taskPriceValue >= MAX_TASK_PRICE}
+                        >
+                          +10
+                        </button>
+                      </div>
+                    </div>
+                    <div className="range-hint">
+                      Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
+                    </div>
+                  </label>
+
+                  <label className="field">
+                    <span>{taskType === 'subscribe' ? 'Количество вступлений' : 'Количество реакций'}</span>
+                    <input
+                      className="range-input"
+                      type="range"
+                      min={1}
+                      max={maxAffordableCount}
+                      value={taskCount}
+                      style={{ '--range-progress': rangeProgress } as React.CSSProperties}
+                      onChange={(event) => setTaskCount(Number(event.target.value))}
+                    />
+                    <div className="range-meta">
+                      <span>{taskCount} действий</span>
+                      <span>Списание: {totalBudget} баллов</span>
+                    </div>
+                  </label>
+
+                  <div className="promo-budget-grid">
+                    <div className="promo-budget-item">
+                      <span>Цена</span>
+                      <strong>{taskPriceValue}</strong>
+                    </div>
+                    <div className="promo-budget-item">
+                      <span>Объем</span>
+                      <strong>{taskCount}</strong>
+                    </div>
+                    <div className="promo-budget-item">
+                      <span>Остаток</span>
+                      <strong>{Math.max(0, displayPoints - totalBudget)}</strong>
+                    </div>
+                  </div>
+                  <div className="promo-step-summary">{budgetSummaryLabel}</div>
+                </>
+              )}
+
+              {promoWizardCurrentStep.id === 'review' && (
+                <>
+                  <div className="promo-review-grid">
+                    <div className="promo-review-item">
+                      <span>Проект</span>
+                      <strong>{selectedProjectLabel}</strong>
+                    </div>
+                    <div className="promo-review-item">
+                      <span>Формат</span>
+                      <strong>{formatSummaryLabel}</strong>
+                    </div>
+                    <div className="promo-review-item">
+                      <span>Цена</span>
+                      <strong>{taskPriceValue}</strong>
+                    </div>
+                    <div className="promo-review-item">
+                      <span>Объем</span>
+                      <strong>{taskCount}</strong>
+                    </div>
+                    <div className="promo-review-item">
+                      <span>Списание</span>
+                      <strong>{totalBudget}</strong>
+                    </div>
+                    <div className="promo-review-item">
+                      <span>Баланс после запуска</span>
+                      <strong>{Math.max(0, displayPoints - totalBudget)}</strong>
+                    </div>
+                  </div>
+                  {taskType === 'reaction' && reactionLinkTrimmed && (
+                    <div className="promo-step-summary promo-review-link">{reactionLinkTrimmed}</div>
+                  )}
+                  <div className={`promo-review-status ${displayPoints < totalBudget ? 'warn' : ''}`}>
+                    {displayPoints < totalBudget
+                      ? 'Недостаточно баллов. Пополните баланс и вернитесь к запуску.'
+                      : 'Проверьте параметры и запускайте кампанию.'}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="promo-wizard-footer">
+              <button
+                className="promo-wizard-secondary"
+                type="button"
+                onClick={handlePromoWizardBack}
+                disabled={createLoading}
+              >
+                {promoWizardSecondaryLabel}
+              </button>
+              <button
+                className="primary-button promo-wizard-primary"
+                type="button"
+                onClick={() => void handlePromoWizardPrimary()}
+                disabled={promoWizardPrimaryDisabled}
+              >
+                {promoWizardPrimaryLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {topUpModalOpen && (
         <div className="topup-modal-backdrop" onClick={closeTopUpModal}>
