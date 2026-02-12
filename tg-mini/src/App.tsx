@@ -3604,7 +3604,7 @@ export default function App() {
                 <div className="promo-entry-head">
                   <h3 className="promo-entry-title">Что продвигаем?</h3>
                   <p className="promo-entry-sub">
-                    Выберите формат, затем пройдите короткий мастер запуска.
+                    Выберите формат и настройте кампанию за пару шагов.
                   </p>
                 </div>
                 <div className="promo-type-grid">
@@ -3621,7 +3621,7 @@ export default function App() {
                     </span>
                     <span className="promo-type-title">Подписка</span>
                     <span className="promo-type-meta">Продвижение вступлений в канал или группу</span>
-                    <span className="promo-type-cta">Открыть мастер</span>
+                    <span className="promo-type-cta">Запустить</span>
                   </button>
                   <button
                     className={`promo-type-card ${taskType === 'reaction' ? 'active' : ''}`}
@@ -3636,14 +3636,14 @@ export default function App() {
                     </span>
                     <span className="promo-type-title">Реакции</span>
                     <span className="promo-type-meta">Продвижение поста по ссылке из вашего проекта</span>
-                    <span className="promo-type-cta">Открыть мастер</span>
+                    <span className="promo-type-cta">Запустить</span>
                   </button>
                 </div>
                 <div className="promo-entry-footer">
                   <div className="promo-entry-hint">
                     {isProjectSelected
                       ? `Выбран проект: ${selectedProjectLabel}`
-                      : 'Проект выбирается на первом шаге мастера'}
+                      : 'Проект выбирается на первом шаге запуска'}
                   </div>
                 </div>
               </div>
@@ -4008,7 +4008,7 @@ export default function App() {
               <button
                 className="promo-wizard-close"
                 type="button"
-                aria-label="Закрыть мастер"
+                aria-label="Закрыть окно запуска"
                 onClick={closePromoWizard}
                 disabled={createLoading}
               >
