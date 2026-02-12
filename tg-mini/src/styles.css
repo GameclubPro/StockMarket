@@ -6295,8 +6295,7 @@ button {
   }
 
   .wheel-reward-row {
-    grid-template-columns: auto 1fr;
-    column-gap: 7px;
+    gap: 6px;
   }
 
   .wheel-reward-label {
@@ -6304,8 +6303,6 @@ button {
   }
 
   .wheel-reward-list {
-    grid-column: 1 / -1;
-    padding-left: 23px;
     gap: 4px;
   }
 
