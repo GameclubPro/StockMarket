@@ -2617,21 +2617,9 @@ export default function App() {
                         ? 'Обновляем'
                         : dailyBonusAvailable
                           ? 'Можно крутить'
-                          : `Через ${wheelTimerValue}`}
+                        : `Через ${wheelTimerValue}`}
                     </span>
                   </div>
-                  <button
-                    className={`daily-bonus-info-button wheel-info-button ${
-                      dailyBonusInfoOpen ? 'active' : ''
-                    }`}
-                    type="button"
-                    onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
-                    aria-label={dailyBonusInfoOpen ? 'Скрыть детали бонуса' : 'Показать детали бонуса'}
-                    aria-expanded={dailyBonusInfoOpen}
-                    aria-controls="wheel-info-popover"
-                  >
-                    i
-                  </button>
                 </div>
                 <div className="wheel-head-meta">
                   <div className="wheel-head-chip">
@@ -2647,6 +2635,18 @@ export default function App() {
                     </strong>
                   </div>
                 </div>
+                <button
+                  className={`daily-bonus-info-button wheel-info-button wheel-head-meta-button ${
+                    dailyBonusInfoOpen ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
+                  aria-label={dailyBonusInfoOpen ? 'Скрыть детали бонуса' : 'Показать детали бонуса'}
+                  aria-expanded={dailyBonusInfoOpen}
+                  aria-controls="wheel-info-popover"
+                >
+                  i
+                </button>
               </div>
               <div className="wheel-rules">
                 <div className="wheel-rule-row">

@@ -1527,10 +1527,9 @@ body::before {
 }
 
 .wheel-head-side {
-  display: grid;
-  justify-items: end;
-  align-content: start;
-  gap: 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
 }
 
 .wheel-head-status {
@@ -1585,10 +1584,16 @@ body::before {
 }
 
 .wheel-head-meta {
-  grid-column: 1 / -1;
+  grid-column: 1 / 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
+}
+
+.wheel-head-meta-button {
+  grid-column: 2 / 3;
+  align-self: stretch;
+  justify-self: end;
 }
 
 .wheel-head-chip {
@@ -1698,14 +1703,14 @@ body::before {
 }
 
 .wheel-reward-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
+  display: flex;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 6px;
+  gap: 8px;
   font-size: 12px;
   color: #a8cbc0;
   line-height: 1.2;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .wheel-reward-dot {
@@ -1721,13 +1726,22 @@ body::before {
   font-size: 12px;
   font-weight: 600;
   color: rgba(224, 243, 237, 0.92);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .wheel-reward-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.wheel-reward-list::-webkit-scrollbar {
+  display: none;
 }
 
 .wheel-reward-chip {
