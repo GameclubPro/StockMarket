@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  hideBackButton,
+  mountBackButton,
+  onBackButtonClick,
+  showBackButton,
+} from '@telegram-apps/sdk';
+import {
   applyCampaign,
   createCampaign,
   fetchAdminPanelStats,
@@ -1228,32 +1234,39 @@ export default function App() {
   }, [activeTab, dailyBonusInfoOpen]);
 
   useEffect(() => {
-    const tg = (window as any)?.Telegram?.WebApp;
-    const backButton = tg?.BackButton;
-    if (!backButton) return;
-
-    const handleBack = () => {
-      if (activeTab === 'wheel') {
-        setActiveTab('home');
-      }
-    };
+    let detachBackHandler: VoidFunction | undefined;
 
     try {
-      backButton.offClick?.(handleBack);
+      if (mountBackButton.isAvailable?.()) {
+        mountBackButton();
+      }
     } catch {
       // noop
     }
 
     if (activeTab === 'wheel') {
       try {
-        backButton.onClick?.(handleBack);
-        backButton.show?.();
+        if (onBackButtonClick.isAvailable?.()) {
+          detachBackHandler = onBackButtonClick(() => {
+            setActiveTab('home');
+          });
+        }
+      } catch {
+        // noop
+      }
+
+      try {
+        if (showBackButton.isAvailable?.()) {
+          showBackButton();
+        }
       } catch {
         // noop
       }
     } else {
       try {
-        backButton.hide?.();
+        if (hideBackButton.isAvailable?.()) {
+          hideBackButton();
+        }
       } catch {
         // noop
       }
@@ -1261,7 +1274,7 @@ export default function App() {
 
     return () => {
       try {
-        backButton.offClick?.(handleBack);
+        detachBackHandler?.();
       } catch {
         // noop
       }
@@ -4271,10 +4284,10 @@ export default function App() {
         </div>
       )}
 
-      {activeTab !== 'wheel' && activeTab !== 'referrals' && (
+      {activeTab !== 'referrals' && (
         <div className={`bottom-nav ${adminPanelAllowed ? 'has-admin' : ''}`}>
           <button
-            className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
+            className={`nav-item ${activeTab === 'home' || activeTab === 'wheel' ? 'active' : ''}`}
             type="button"
             onClick={() => setActiveTab('home')}
           >
