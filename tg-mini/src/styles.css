@@ -4336,8 +4336,9 @@ body::before {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(120% 94% at 50% -10%, rgba(143, 243, 190, 0.1), transparent 58%),
-    linear-gradient(180deg, rgba(10, 13, 16, 0.2), rgba(10, 13, 16, 0.76));
+    radial-gradient(120% 94% at 50% -10%, rgba(143, 243, 190, 0.14), transparent 58%),
+    linear-gradient(180deg, rgba(6, 9, 12, 0.34), rgba(6, 9, 12, 0.82));
+  backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity 220ms ease;
   pointer-events: none;
@@ -7888,7 +7889,8 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-safe-top) + 18px + var(--tg-screen-top-gap)) 10px 12px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 10px
+    12px;
   gap: 10px;
 }
 
@@ -8175,7 +8177,8 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 16px + var(--tg-screen-top-gap)) 9px 12px;
+    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 9px
+      12px;
     gap: 9px;
   }
 
@@ -8230,7 +8233,8 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-safe-top) + 16px + var(--tg-screen-top-gap)) 8px 12px;
+    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 8px
+      12px;
   }
 
   .content.referrals-content .referral-link-head {
