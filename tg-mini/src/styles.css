@@ -9672,3 +9672,91 @@ body::before {
     border-radius: 11px;
   }
 }
+
+/* Promo deep pass: remove blue tint and align with graphite + mint hierarchy */
+.content.promo-content {
+  --promo-surface-top: rgba(20, 24, 29, 0.97);
+  --promo-surface-card: rgba(27, 31, 36, 0.97);
+  --promo-surface-soft: rgba(255, 255, 255, 0.045);
+  --promo-stroke-strong: rgba(176, 196, 183, 0.34);
+  --promo-stroke-soft: rgba(176, 196, 183, 0.24);
+  --promo-text-main: #ebf1ed;
+  --promo-text-muted: #a5b2aa;
+  --promo-accent: #8de7af;
+}
+
+.content.promo-content .promo-entry-head,
+.content.promo-content .promo-type-card,
+.content.promo-content .promo-step-card,
+.content.promo-content .promo-step-summary,
+.content.promo-content .promo-project-chip,
+.content.promo-content .promo-budget-item,
+.content.promo-content .promo-mine-stat,
+.content.promo-content .promo-quick-actions {
+  border-color: var(--promo-stroke-soft) !important;
+  background: var(--promo-surface-card) !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .promo-entry-title,
+.content.promo-content .promo-type-title,
+.content.promo-content .promo-step-title,
+.content.promo-content .promo-budget-item strong,
+.content.promo-content .promo-mine-stat strong {
+  color: var(--promo-text-main) !important;
+}
+
+.content.promo-content .promo-entry-sub,
+.content.promo-content .promo-type-meta,
+.content.promo-content .promo-entry-hint,
+.content.promo-content .promo-step-sub,
+.content.promo-content .promo-budget-item span,
+.content.promo-content .promo-mine-stat span,
+.content.promo-content .task-form-helper {
+  color: var(--promo-text-muted) !important;
+}
+
+.content.promo-content .promo-type-card {
+  min-height: 124px;
+}
+
+.content.promo-content .promo-type-card.active {
+  border-color: rgba(141, 231, 175, 0.42) !important;
+  background:
+    radial-gradient(130% 130% at 10% -24%, rgba(141, 231, 175, 0.16), transparent 56%),
+    var(--promo-surface-card) !important;
+}
+
+.content.promo-content .promo-type-icon {
+  border-color: rgba(141, 231, 175, 0.36) !important;
+  background: rgba(141, 231, 175, 0.14) !important;
+  color: #dff7e9 !important;
+}
+
+.content.promo-content .promo-step-index,
+.content.promo-content .promo-step-state {
+  border-color: var(--promo-stroke-strong) !important;
+  background: var(--promo-surface-soft) !important;
+  color: var(--promo-text-main) !important;
+}
+
+.content.promo-content .promo-entry-footer {
+  display: block;
+  gap: 0;
+}
+
+.content.promo-content .promo-entry-hint {
+  border-radius: 12px;
+  border: 1px solid var(--promo-stroke-soft);
+  background: var(--promo-surface-soft);
+  padding: 8px 10px;
+}
+
+.content.promo-content .task-form-helper {
+  border-color: var(--promo-stroke-soft) !important;
+  background: var(--promo-surface-soft) !important;
+}
+
+.content.promo-content .promo-mine-card {
+  border-color: var(--promo-stroke-soft) !important;
+}

@@ -3632,9 +3632,6 @@ export default function App() {
                   </button>
                 </div>
                 <div className="promo-entry-footer">
-                  <div className="balance-pill">
-                    Баланс: {displayPoints} {formatPointsLabel(displayPoints)}
-                  </div>
                   <div className="promo-entry-hint">
                     {isProjectSelected
                       ? `Выбран проект: ${selectedProjectLabel}`
