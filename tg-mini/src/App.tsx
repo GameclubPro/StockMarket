@@ -2892,61 +2892,6 @@ export default function App() {
                 </>
               )}
 
-              <div className={`referral-info-layer ${referralInfoOpen ? 'open' : ''}`}>
-                <button
-                  className="referral-info-backdrop"
-                  type="button"
-                  onClick={() => setReferralInfoOpen(false)}
-                  aria-label="Закрыть детали реферальной программы"
-                  tabIndex={referralInfoOpen ? 0 : -1}
-                />
-                <div
-                  id="referral-info-popover"
-                  className="referral-info-popover"
-                  role="dialog"
-                  aria-hidden={!referralInfoOpen}
-                >
-                  <div className="referral-info-main">
-                    <div className="referral-info-item">
-                      <span>Средний доход с приглашённого</span>
-                      <strong>
-                        {referralInvitedCount > 0
-                          ? `${referralAveragePerFriend} ${formatPointsLabel(referralAveragePerFriend)}`
-                          : 'Нет данных'}
-                      </strong>
-                    </div>
-                    <div className="referral-info-item">
-                      <span>Освоено потенциала</span>
-                      <strong>{referralPotentialProgress}%</strong>
-                    </div>
-                  </div>
-                  <div className="referral-info-track" aria-hidden="true">
-                    <span style={{ width: `${referralPotentialProgress}%` }} />
-                  </div>
-                  <div className="referral-info-sub">
-                    {referralInvitedCount > 0
-                      ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
-                      : 'Пригласите первого друга, чтобы открыть прогресс'}
-                  </div>
-                  <div className="referral-info-label">Этапы начислений за одного приглашённого</div>
-                  <div className="referral-info-steps">
-                    {REFERRAL_STEPS.map((step, index) => (
-                      <div
-                        className={`referral-info-step ${
-                          referralHasInvites && step.orders <= referralBestOrders ? 'active' : ''
-                        }`}
-                        key={`referral-info-${step.label}`}
-                      >
-                        <span>
-                          {index + 1}. {step.label}
-                        </span>
-                        <strong>+{step.reward}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               {referralError && <div className="referral-status error">{referralError}</div>}
 
               <button
@@ -3046,6 +2991,61 @@ export default function App() {
                   );
                 })}
             </section>
+
+            <div className={`referral-info-screen-layer ${referralInfoOpen ? 'open' : ''}`}>
+              <button
+                className="referral-info-screen-backdrop"
+                type="button"
+                onClick={() => setReferralInfoOpen(false)}
+                aria-label="Закрыть детали реферальной программы"
+                tabIndex={referralInfoOpen ? 0 : -1}
+              />
+              <div
+                id="referral-info-popover"
+                className="referral-info-popover"
+                role="dialog"
+                aria-hidden={!referralInfoOpen}
+              >
+                <div className="referral-info-main">
+                  <div className="referral-info-item">
+                    <span>Средний доход с приглашённого</span>
+                    <strong>
+                      {referralInvitedCount > 0
+                        ? `${referralAveragePerFriend} ${formatPointsLabel(referralAveragePerFriend)}`
+                        : 'Нет данных'}
+                    </strong>
+                  </div>
+                  <div className="referral-info-item">
+                    <span>Освоено потенциала</span>
+                    <strong>{referralPotentialProgress}%</strong>
+                  </div>
+                </div>
+                <div className="referral-info-track" aria-hidden="true">
+                  <span style={{ width: `${referralPotentialProgress}%` }} />
+                </div>
+                <div className="referral-info-sub">
+                  {referralInvitedCount > 0
+                    ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
+                    : 'Пригласите первого друга, чтобы открыть прогресс'}
+                </div>
+                <div className="referral-info-label">Этапы начислений за одного приглашённого</div>
+                <div className="referral-info-steps">
+                  {REFERRAL_STEPS.map((step, index) => (
+                    <div
+                      className={`referral-info-step ${
+                        referralHasInvites && step.orders <= referralBestOrders ? 'active' : ''
+                      }`}
+                      key={`referral-info-${step.label}`}
+                    >
+                      <span>
+                        {index + 1}. {step.label}
+                      </span>
+                      <strong>+{step.reward}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </>
         )}
 

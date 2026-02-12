@@ -4004,8 +4004,8 @@ body::before {
 
   .wheel-info-backdrop,
   .wheel-info-layer .wheel-info-popover,
-  .referral-info-backdrop,
-  .referral-info-layer .referral-info-popover {
+  .referral-info-screen-backdrop,
+  .referral-info-screen-layer .referral-info-popover {
     transition: none;
   }
 }
@@ -4320,55 +4320,57 @@ body::before {
     inset 0 1px 0 rgba(220, 245, 255, 0.09);
 }
 
-.referral-info-layer {
+.referral-info-screen-layer {
   position: absolute;
   inset: 0;
-  z-index: 9;
-  border-radius: inherit;
-  padding: 102px 12px 12px;
+  z-index: 12;
+  padding: clamp(86px, 18vw, 112px) 12px 14px;
   pointer-events: none;
   display: flex;
   align-items: flex-start;
 }
 
-.referral-info-backdrop {
+.referral-info-screen-backdrop {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
   background:
-    radial-gradient(120% 94% at 50% -10%, rgba(143, 243, 190, 0.14), transparent 58%),
-    linear-gradient(180deg, rgba(6, 9, 12, 0.34), rgba(6, 9, 12, 0.82));
-  backdrop-filter: blur(2px);
+    radial-gradient(130% 96% at 50% -12%, rgba(143, 243, 190, 0.16), transparent 56%),
+    linear-gradient(180deg, rgba(7, 10, 14, 0.48), rgba(7, 10, 14, 0.9));
+  backdrop-filter: blur(6px);
   opacity: 0;
-  transition: opacity 220ms ease;
+  visibility: hidden;
+  transition: opacity 240ms ease;
   pointer-events: none;
 }
 
-.referral-info-layer .referral-info-popover {
+.referral-info-screen-layer .referral-info-popover {
   position: relative;
   width: 100%;
-  max-height: calc(100% - 10px);
+  max-height: calc(100% - 8px);
   overflow-y: auto;
   opacity: 0;
-  transform: translateY(-14px) scale(0.985);
+  visibility: hidden;
+  transform: translateY(-18px) scale(0.98);
   transform-origin: top center;
   transition:
     opacity 240ms ease,
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
-.referral-info-layer.open {
+.referral-info-screen-layer.open {
   pointer-events: auto;
 }
 
-.referral-info-layer.open .referral-info-backdrop {
+.referral-info-screen-layer.open .referral-info-screen-backdrop {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
-.referral-info-layer.open .referral-info-popover {
+.referral-info-screen-layer.open .referral-info-popover {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0) scale(1);
   pointer-events: auto;
 }
@@ -6336,8 +6338,8 @@ button {
     padding: 110px 10px 10px;
   }
 
-  .referral-info-layer {
-    padding: 94px 10px 10px;
+  .referral-info-screen-layer {
+    padding: 82px 10px 10px;
   }
 
   .wheel-title {
@@ -6643,6 +6645,7 @@ button {
   --tg-top-ui-gap: 18px;
   --tg-screen-top-gap: 12px;
   --tg-home-top-gap: 24px;
+  --tg-referrals-top-gap: calc(var(--tg-home-top-gap) + 8px);
   --tg-nav-bottom-gap: 18px;
 }
 
@@ -7889,8 +7892,8 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 10px
-    12px;
+  padding: calc(var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap))
+    10px 12px;
   gap: 10px;
 }
 
@@ -8177,8 +8180,10 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 9px
-      12px;
+    padding: calc(
+        var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap)
+      )
+      9px 12px;
     gap: 9px;
   }
 
@@ -8233,8 +8238,10 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-screen-top-gap) + 6px) 8px
-      12px;
+    padding: calc(
+        var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap)
+      )
+      8px 12px;
   }
 
   .content.referrals-content .referral-link-head {
