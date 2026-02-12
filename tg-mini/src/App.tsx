@@ -1855,31 +1855,45 @@ export default function App() {
   );
 
   const BalanceHeader = () => (
-    <div className="balance-header balance-header-info">
+    <div className="balance-header balance-header-info balance-header-modern">
       <div className="balance-header-metrics">
         <div className="metric-card compact metric-card-info metric-card-balance">
-          <span className="metric-label-top">Баланс</span>
+          <div className="metric-headline-row">
+            <span className="metric-label-top">Баланс</span>
+            <button
+              className="metric-inline-action"
+              type="button"
+              aria-label="Пополнить баланс"
+              onClick={openTopUpModal}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+            </button>
+          </div>
           <div className="metric-main-inline">
             <span className="metric-value" ref={balanceValueRef}>
               {displayPoints}
             </span>
             <span className="metric-unit">{formatPointsLabel(displayPoints)}</span>
           </div>
+          <div className="metric-footnote">
+            {formatSigned(pointsToday)} {formatPointsLabel(pointsToday)} сегодня
+          </div>
         </div>
-        <button
-          className="metric-plus metric-plus-action"
-          type="button"
-          aria-label="Пополнить баланс"
-          onClick={openTopUpModal}
-        >
-          +
-        </button>
         <div className="metric-card compact metric-card-info metric-card-rank">
-          <span className="metric-label-top">Ранг</span>
+          <div className="metric-headline-row">
+            <span className="metric-label-top">Ранг</span>
+            <span className="metric-rank-chip">+{bonusPercent}%</span>
+          </div>
           <div className="metric-main-inline">
             <span className="metric-value">{rankTier.title}</span>
-            <span className="metric-sub">+{bonusPercent}%</span>
           </div>
+          <div className="metric-progress-mini" aria-hidden="true">
+            <span style={{ width: `${Math.round(progressValue * 100)}%` }} />
+          </div>
+          <div className="metric-footnote">{progressLabel}</div>
         </div>
       </div>
     </div>
