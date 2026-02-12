@@ -85,7 +85,31 @@ const SCREEN_STEPS = [
     id: 'promo',
     open: async (page, waitMs) => {
       await openBottomTab(page, 'Продвижение', waitMs);
-      await page.waitForSelector('.task-form-card', { timeout: 10_000 });
+      await page.waitForSelector('.promo-entry-shell, .task-form-card', { timeout: 10_000 });
+    },
+  },
+  {
+    id: 'tasks-step-1',
+    open: async (page, waitMs) => {
+      await openTaskWizardStep(page, waitMs, 1);
+    },
+  },
+  {
+    id: 'tasks-step-2',
+    open: async (page, waitMs) => {
+      await openTaskWizardStep(page, waitMs, 2);
+    },
+  },
+  {
+    id: 'tasks-step-3',
+    open: async (page, waitMs) => {
+      await openTaskWizardStep(page, waitMs, 3);
+    },
+  },
+  {
+    id: 'tasks-step-4',
+    open: async (page, waitMs) => {
+      await openTaskWizardStep(page, waitMs, 4);
     },
   },
   {
@@ -2191,6 +2215,114 @@ async function ensureHome(page, waitMs) {
   }
 
   await page.waitForSelector(APP_READY_SELECTOR, { timeout: 10_000 });
+}
+
+async function waitForTaskWizardStep(page, step) {
+  await page.waitForFunction(
+    (expected) => {
+      const caption = document.querySelector('.promo-wizard-sub');
+      if (!caption) return false;
+      const text = (caption.textContent || '').replace(/\s+/g, ' ').trim();
+      return text.includes(`Шаг ${expected} из 4`);
+    },
+    step,
+    { timeout: 12_000 }
+  );
+}
+
+async function clickTaskWizardPrimary(page, waitMs) {
+  const primary = page.locator('.promo-wizard-modal .promo-wizard-primary').first();
+  await primary.waitFor({ state: 'visible', timeout: 10_000 });
+  await page.waitForFunction(() => {
+    const button = document.querySelector('.promo-wizard-modal .promo-wizard-primary');
+    return Boolean(button && !button.hasAttribute('disabled'));
+  });
+  await primary.click();
+  await sleep(Math.max(waitMs, 240));
+}
+
+async function ensureTaskWizardProject(page, waitMs) {
+  const projectChip = page.locator('.promo-wizard-modal .promo-project-chip').first();
+  await projectChip.waitFor({ state: 'visible', timeout: 10_000 });
+  const chipText = ((await projectChip.textContent().catch(() => '')) || '').trim().toLowerCase();
+  if (chipText && !chipText.includes('не выбран')) return;
+
+  const projectsToggle = page.locator('.promo-wizard-modal .link-tool', { hasText: 'Мои проекты' }).first();
+  await projectsToggle.waitFor({ state: 'visible', timeout: 10_000 });
+  await projectsToggle.click();
+
+  const projectOption = page.locator('.promo-wizard-modal .link-option').first();
+  await projectOption.waitFor({ state: 'visible', timeout: 12_000 });
+  await projectOption.click();
+
+  await page.waitForFunction(() => {
+    const chip = document.querySelector('.promo-wizard-modal .promo-project-chip');
+    const text = (chip?.textContent || '').trim().toLowerCase();
+    return Boolean(text) && !text.includes('не выбран');
+  });
+  await sleep(Math.max(waitMs, 220));
+}
+
+async function ensureTaskWizardReactionLink(page, waitMs) {
+  const input = page
+    .locator('.promo-wizard-modal input[placeholder*="t.me"], .promo-wizard-modal input[type="text"]')
+    .first();
+  await input.waitFor({ state: 'visible', timeout: 10_000 });
+  await input.fill('https://t.me/crypto_alpha/1488');
+  await sleep(Math.max(waitMs, 140));
+}
+
+async function openTaskWizardReaction(page, waitMs) {
+  const openedWizard = page.locator('.promo-wizard-modal').first();
+  if (await openedWizard.isVisible().catch(() => false)) {
+    const close = openedWizard.locator('.promo-wizard-close').first();
+    if (await close.isVisible().catch(() => false)) {
+      await close.click();
+      await page.waitForSelector('.promo-wizard-modal', { state: 'hidden', timeout: 8_000 }).catch(() => undefined);
+      await sleep(Math.max(waitMs, 180));
+    }
+  }
+
+  await openBottomTab(page, 'Продвижение', waitMs);
+  await page.waitForSelector('.promo-entry-shell, .task-form-card', { timeout: 10_000 });
+
+  const placeTab = page
+    .locator('.promo-mode-switch .promo-mode-button')
+    .filter({ hasText: 'Разместить' })
+    .first();
+  if (await placeTab.isVisible().catch(() => false)) {
+    await placeTab.click();
+    await sleep(Math.max(waitMs, 180));
+  }
+
+  const reactionCard = page.locator('.promo-type-card', { hasText: 'Реакции' }).first();
+  await reactionCard.waitFor({ state: 'visible', timeout: 10_000 });
+  await reactionCard.click();
+  await page.waitForSelector('.promo-wizard-modal', { timeout: 10_000 });
+  await waitForTaskWizardStep(page, 1);
+  await sleep(Math.max(waitMs, 260));
+}
+
+async function openTaskWizardStep(page, waitMs, targetStep) {
+  if (!Number.isFinite(targetStep) || targetStep < 1 || targetStep > 4) {
+    throw new Error(`Поддерживаются только шаги 1-4, получено: ${targetStep}.`);
+  }
+
+  await openTaskWizardReaction(page, waitMs);
+  if (targetStep === 1) return;
+
+  await ensureTaskWizardProject(page, waitMs);
+  await clickTaskWizardPrimary(page, waitMs);
+  await waitForTaskWizardStep(page, 2);
+  if (targetStep === 2) return;
+
+  await ensureTaskWizardReactionLink(page, waitMs);
+  await clickTaskWizardPrimary(page, waitMs);
+  await waitForTaskWizardStep(page, 3);
+  if (targetStep === 3) return;
+
+  await clickTaskWizardPrimary(page, waitMs);
+  await waitForTaskWizardStep(page, 4);
 }
 
 async function resetContentScroll(page) {
