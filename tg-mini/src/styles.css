@@ -9870,3 +9870,121 @@ body::before {
     min-height: 116px;
   }
 }
+
+/* Promo stepper modern pass: clean +/-1 control with clear center value */
+.content.promo-content .promo-wizard-modal .price-stepper {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-side {
+  gap: 0;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-button {
+  width: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid var(--promo-stroke-strong) !important;
+  background: linear-gradient(170deg, rgba(35, 40, 46, 0.96), rgba(25, 30, 35, 0.96)) !important;
+  color: var(--promo-text-main) !important;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    inset 0 1px 0 rgba(245, 255, 250, 0.05),
+    0 6px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-button:hover {
+  border-color: rgba(141, 231, 175, 0.4) !important;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-button:disabled {
+  opacity: 0.38;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-value {
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(141, 231, 175, 0.34) !important;
+  background:
+    radial-gradient(140% 120% at 8% -28%, rgba(141, 231, 175, 0.18), transparent 55%),
+    linear-gradient(170deg, rgba(31, 36, 42, 0.98), rgba(23, 28, 33, 0.96)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(245, 255, 250, 0.06),
+    0 8px 14px rgba(0, 0, 0, 0.22) !important;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-amount {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.2px;
+  color: var(--promo-text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.content.promo-content .promo-wizard-modal .price-stepper-unit {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--promo-text-muted);
+}
+
+.content.promo-content .promo-wizard-modal .range-hint-secondary {
+  display: block;
+  margin-top: 4px;
+  color: rgba(215, 229, 220, 0.92);
+}
+
+@media (max-width: 390px) {
+  .content.promo-content .promo-wizard-modal .price-stepper {
+    gap: 8px;
+  }
+
+  .content.promo-content .promo-wizard-modal .price-stepper-button {
+    width: 46px;
+    min-width: 46px;
+    min-height: 46px;
+    border-radius: 13px;
+  }
+
+  .content.promo-content .promo-wizard-modal .price-stepper-value {
+    min-height: 46px;
+    border-radius: 13px;
+  }
+}
+
+@media (max-width: 360px) {
+  .content.promo-content .promo-wizard-modal .price-stepper {
+    gap: 7px;
+  }
+
+  .content.promo-content .promo-wizard-modal .price-stepper-button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  .content.promo-content .promo-wizard-modal .price-stepper-value {
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  .content.promo-content .promo-wizard-modal .price-stepper-amount {
+    font-size: 16px;
+  }
+}

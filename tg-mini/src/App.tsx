@@ -42,7 +42,6 @@ const RANKS = [
 const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
 const MIN_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
-const MAX_TASK_COUNT = 200;
 const MAX_TOTAL_BUDGET = 1_000_000;
 const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
 const DAILY_WHEEL_SEGMENTS = [
@@ -444,7 +443,7 @@ export default function App() {
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
   const [taskPriceInput, setTaskPriceInput] = useState('10');
-  const [taskCount, setTaskCount] = useState(MAX_TASK_COUNT);
+  const [taskCount, setTaskCount] = useState(1);
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -642,12 +641,31 @@ export default function App() {
     [parsedTaskPrice, normalizeTaskPrice]
   );
   const taskPriceValue = parsedTaskPrice ?? 0;
-  const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
+  const balanceAffordableCount = useMemo(() => {
+    if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 0;
+    return Math.max(0, Math.floor(displayPoints / taskPriceValue));
+  }, [displayPoints, taskPriceValue]);
+  const budgetAffordableCount = useMemo(() => {
+    if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 0;
+    return Math.max(0, Math.floor(MAX_TOTAL_BUDGET / taskPriceValue));
+  }, [taskPriceValue]);
   const maxAffordableCount = useMemo(() => {
     if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 1;
-    const byBudget = Math.floor(MAX_TOTAL_BUDGET / taskPriceValue);
-    return Math.max(1, Math.min(MAX_TASK_COUNT, byBudget));
-  }, [taskPriceValue]);
+    return Math.max(1, Math.min(balanceAffordableCount, budgetAffordableCount));
+  }, [balanceAffordableCount, budgetAffordableCount, taskPriceValue]);
+  const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
+  const affordableCountHint = useMemo(() => {
+    if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) {
+      return 'Укажите цену за действие.';
+    }
+    if (balanceAffordableCount <= 0) {
+      return 'На балансе пока недостаточно для 1 действия.';
+    }
+    if (balanceAffordableCount < budgetAffordableCount) {
+      return `По балансу доступно до ${formatNumberRu(balanceAffordableCount)} действий.`;
+    }
+    return `Лимит по бюджету: до ${formatNumberRu(budgetAffordableCount)} действий.`;
+  }, [balanceAffordableCount, budgetAffordableCount, taskPriceValue]);
   const minPayoutPreview = useMemo(() => {
     if (!parsedTaskPrice || parsedTaskPrice <= 0) return 0;
     return calculateBasePayout(parsedTaskPrice);
@@ -762,7 +780,6 @@ export default function App() {
     const clamped = Math.min(100, Math.max(0, pct));
     return `${clamped}%`;
   }, [taskCount, maxAffordableCount]);
-  const maxCountRef = useRef(maxAffordableCount);
   const activeCampaigns = useMemo(() => {
     const acknowledgedSet = new Set(acknowledgedIds);
     return campaigns.filter((campaign) => {
@@ -953,13 +970,9 @@ export default function App() {
 
   useEffect(() => {
     if (!Number.isFinite(taskCount)) return;
-    const prevMax = maxCountRef.current;
     if (taskCount > maxAffordableCount) {
       setTaskCount(maxAffordableCount);
-    } else if (taskCount === prevMax && prevMax !== maxAffordableCount) {
-      setTaskCount(maxAffordableCount);
     }
-    maxCountRef.current = maxAffordableCount;
   }, [taskCount, maxAffordableCount]);
 
   useEffect(() => {
@@ -4163,22 +4176,16 @@ export default function App() {
                         <button
                           className="price-stepper-button"
                           type="button"
-                          onClick={() => adjustTaskPrice(-10)}
-                          disabled={taskPriceValue <= MIN_TASK_PRICE}
-                        >
-                          -10
-                        </button>
-                        <button
-                          className="price-stepper-button"
-                          type="button"
                           onClick={() => adjustTaskPrice(-1)}
                           disabled={taskPriceValue <= MIN_TASK_PRICE}
+                          aria-label="Уменьшить цену на 1 балл"
                         >
                           -1
                         </button>
                       </div>
                       <output className="price-stepper-value" aria-live="polite" aria-atomic="true">
-                        {taskPriceValue}
+                        <span className="price-stepper-amount">{taskPriceValue}</span>
+                        <span className="price-stepper-unit">баллов</span>
                       </output>
                       <div className="price-stepper-side align-end">
                         <button
@@ -4186,21 +4193,15 @@ export default function App() {
                           type="button"
                           onClick={() => adjustTaskPrice(1)}
                           disabled={taskPriceValue >= MAX_TASK_PRICE}
+                          aria-label="Увеличить цену на 1 балл"
                         >
                           +1
-                        </button>
-                        <button
-                          className="price-stepper-button"
-                          type="button"
-                          onClick={() => adjustTaskPrice(10)}
-                          disabled={taskPriceValue >= MAX_TASK_PRICE}
-                        >
-                          +10
                         </button>
                       </div>
                     </div>
                     <div className="range-hint">
                       Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} баллов.
+                      <span className="range-hint-secondary">{affordableCountHint}</span>
                     </div>
                   </label>
 
