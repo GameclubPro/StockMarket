@@ -1386,33 +1386,6 @@ body::before {
   text-align: center;
 }
 
-.icon-button.ghost {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.bonus-header {
-  padding: 0 2px;
-}
-
-.bonus-header .icon-button {
-  background: linear-gradient(165deg, rgba(36, 36, 35, 0.95), rgba(26, 26, 25, 0.98));
-  border: 1px solid rgba(186, 186, 182, 0.32);
-  color: rgba(234, 234, 230, 0.9);
-  box-shadow:
-    0 10px 18px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(246, 246, 242, 0.12);
-}
-
-.bonus-header .icon-button:active {
-  transform: translateY(1px);
-}
-
-.bonus-header .page-title {
-  letter-spacing: 0.2px;
-  color: #effaf6;
-}
-
 .wheel-card {
   background:
     radial-gradient(120% 96% at 50% -18%, rgba(156, 218, 255, 0.2), transparent 58%),
@@ -6439,7 +6412,7 @@ body::before {
 }
 
 .content.wheel-content {
-  padding: calc(var(--tg-safe-top-effective) + 34px + var(--tg-screen-top-gap)) 12px 12px;
+  padding: calc(var(--tg-safe-top-effective) + 22px + var(--tg-screen-top-gap)) 12px 12px;
   gap: 12px;
 }
 

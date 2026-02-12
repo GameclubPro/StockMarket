@@ -1228,6 +1228,47 @@ export default function App() {
   }, [activeTab, dailyBonusInfoOpen]);
 
   useEffect(() => {
+    const tg = (window as any)?.Telegram?.WebApp;
+    const backButton = tg?.BackButton;
+    if (!backButton) return;
+
+    const handleBack = () => {
+      if (activeTab === 'wheel') {
+        setActiveTab('home');
+      }
+    };
+
+    try {
+      backButton.offClick?.(handleBack);
+    } catch {
+      // noop
+    }
+
+    if (activeTab === 'wheel') {
+      try {
+        backButton.onClick?.(handleBack);
+        backButton.show?.();
+      } catch {
+        // noop
+      }
+    } else {
+      try {
+        backButton.hide?.();
+      } catch {
+        // noop
+      }
+    }
+
+    return () => {
+      try {
+        backButton.offClick?.(handleBack);
+      } catch {
+        // noop
+      }
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
     if (activeTab === 'referrals') return;
     if (!referralInfoOpen) return;
     setReferralInfoOpen(false);
@@ -2522,28 +2563,6 @@ export default function App() {
 
         {activeTab === 'wheel' && (
           <>
-            <div className="page-header bonus-header">
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => setActiveTab('home')}
-                aria-label="Назад"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                  <path d="M6 6l12 12" />
-                  <path d="M18 6l-12 12" />
-                </svg>
-              </button>
-              <div className="page-title">Ежедневный бонус</div>
-              <div className="icon-button ghost" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                  <circle cx="12" cy="5" r="1.2" />
-                  <circle cx="12" cy="12" r="1.2" />
-                  <circle cx="12" cy="19" r="1.2" />
-                </svg>
-              </div>
-            </div>
-
             <section className="wheel-card">
               <div className="wheel-head">
                 <div className="wheel-head-main">
