@@ -3613,22 +3613,30 @@ export default function App() {
                     type="button"
                     onClick={() => openPromoWizard('subscribe')}
                   >
-                    <span className="promo-type-icon" aria-hidden="true">
-                      +
+                    <span className="promo-type-head">
+                      <span className="promo-type-icon" aria-hidden="true">
+                        +
+                      </span>
+                      <span className="promo-type-chip">Рост базы</span>
                     </span>
                     <span className="promo-type-title">Подписка</span>
                     <span className="promo-type-meta">Продвижение вступлений в канал или группу</span>
+                    <span className="promo-type-cta">Открыть мастер</span>
                   </button>
                   <button
                     className={`promo-type-card ${taskType === 'reaction' ? 'active' : ''}`}
                     type="button"
                     onClick={() => openPromoWizard('reaction')}
                   >
-                    <span className="promo-type-icon" aria-hidden="true">
-                      ★
+                    <span className="promo-type-head">
+                      <span className="promo-type-icon" aria-hidden="true">
+                        ★
+                      </span>
+                      <span className="promo-type-chip">Вовлечение</span>
                     </span>
                     <span className="promo-type-title">Реакции</span>
                     <span className="promo-type-meta">Продвижение поста по ссылке из вашего проекта</span>
+                    <span className="promo-type-cta">Открыть мастер</span>
                   </button>
                 </div>
                 <div className="promo-entry-footer">
