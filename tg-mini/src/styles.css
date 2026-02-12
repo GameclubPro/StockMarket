@@ -6645,7 +6645,7 @@ button {
   --tg-top-ui-gap: 18px;
   --tg-screen-top-gap: 12px;
   --tg-home-top-gap: 24px;
-  --tg-referrals-top-gap: calc(var(--tg-home-top-gap) + 8px);
+  --tg-referrals-top-gap: calc(var(--tg-home-top-gap) + 2px);
   --tg-nav-bottom-gap: 18px;
 }
 
@@ -7892,8 +7892,8 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
-  padding: calc(var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap))
-    10px 12px;
+  padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-referrals-top-gap)) 10px
+    12px;
   gap: 10px;
 }
 
@@ -8180,10 +8180,8 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(
-        var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap)
-      )
-      9px 12px;
+    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-referrals-top-gap)) 9px
+      12px;
     gap: 9px;
   }
 
@@ -8238,10 +8236,8 @@ body::before {
   }
 
   .content.referrals-content {
-    padding: calc(
-        var(--tg-top-ui-gap) + max(var(--tg-safe-top-effective), 64px) + var(--tg-referrals-top-gap)
-      )
-      8px 12px;
+    padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-referrals-top-gap)) 8px
+      12px;
   }
 
   .content.referrals-content .referral-link-head {
