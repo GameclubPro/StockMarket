@@ -1245,6 +1245,17 @@ export default function App() {
   }, [dailyBonusInfoOpen]);
 
   useEffect(() => {
+    if (!referralInfoOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setReferralInfoOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [referralInfoOpen]);
+
+  useEffect(() => {
     let detachBackHandler: VoidFunction | undefined;
 
     try {
@@ -1255,11 +1266,21 @@ export default function App() {
       // noop
     }
 
-    if (activeTab === 'wheel') {
+    if (activeTab === 'wheel' || activeTab === 'referrals') {
       try {
         if (onBackButtonClick.isAvailable?.()) {
           detachBackHandler = onBackButtonClick(() => {
-            setActiveTab('home');
+            if (activeTab === 'wheel') {
+              setActiveTab('home');
+              return;
+            }
+            if (activeTab === 'referrals') {
+              if (referralInfoOpen) {
+                setReferralInfoOpen(false);
+                return;
+              }
+              setActiveTab('home');
+            }
           });
         }
       } catch {
@@ -1290,7 +1311,7 @@ export default function App() {
         // noop
       }
     };
-  }, [activeTab]);
+  }, [activeTab, referralInfoOpen]);
 
   useEffect(() => {
     if (activeTab === 'referrals') return;
@@ -2795,21 +2816,6 @@ export default function App() {
 
         {activeTab === 'referrals' && (
           <>
-            <div className="page-header">
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => setActiveTab('home')}
-                aria-label="Назад"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M15 6l-6 6 6 6" />
-                </svg>
-              </button>
-              <div className="page-title referral-page-title">Реферальная система</div>
-              <div className="header-spacer" aria-hidden="true" />
-            </div>
-
             <section className="referral-hero">
               <div className="referral-hero-top">
                 <div className="referral-hero-kicker">Реферальная программа</div>
@@ -2817,7 +2823,13 @@ export default function App() {
                   className={`referral-info-button ${referralInfoOpen ? 'active' : ''}`}
                   type="button"
                   onClick={() => setReferralInfoOpen((prev) => !prev)}
-                  aria-label="Показать детали реферальной программы"
+                  aria-label={
+                    referralInfoOpen
+                      ? 'Скрыть детали реферальной программы'
+                      : 'Показать детали реферальной программы'
+                  }
+                  aria-expanded={referralInfoOpen}
+                  aria-controls="referral-info-popover"
                 >
                   i
                 </button>
@@ -2877,51 +2889,63 @@ export default function App() {
                       Код: {referralStats?.code || 'недоступен'}
                     </div>
                   </div>
-
-                  {referralInfoOpen && (
-                    <div className="referral-info-popover">
-                      <div className="referral-info-main">
-                        <div className="referral-info-item">
-                          <span>Средний доход с приглашённого</span>
-                          <strong>
-                            {referralInvitedCount > 0
-                              ? `${referralAveragePerFriend} ${formatPointsLabel(referralAveragePerFriend)}`
-                              : 'Нет данных'}
-                          </strong>
-                        </div>
-                        <div className="referral-info-item">
-                          <span>Освоено потенциала</span>
-                          <strong>{referralPotentialProgress}%</strong>
-                        </div>
-                      </div>
-                      <div className="referral-info-track" aria-hidden="true">
-                        <span style={{ width: `${referralPotentialProgress}%` }} />
-                      </div>
-                      <div className="referral-info-sub">
-                        {referralInvitedCount > 0
-                          ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
-                          : 'Пригласите первого друга, чтобы открыть прогресс'}
-                      </div>
-                      <div className="referral-info-label">Этапы начислений за одного приглашённого</div>
-                      <div className="referral-info-steps">
-                        {REFERRAL_STEPS.map((step, index) => (
-                          <div
-                            className={`referral-info-step ${
-                              referralHasInvites && step.orders <= referralBestOrders ? 'active' : ''
-                            }`}
-                            key={`referral-info-${step.label}`}
-                          >
-                            <span>
-                              {index + 1}. {step.label}
-                            </span>
-                            <strong>+{step.reward}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
+
+              <div className={`referral-info-layer ${referralInfoOpen ? 'open' : ''}`}>
+                <button
+                  className="referral-info-backdrop"
+                  type="button"
+                  onClick={() => setReferralInfoOpen(false)}
+                  aria-label="Закрыть детали реферальной программы"
+                  tabIndex={referralInfoOpen ? 0 : -1}
+                />
+                <div
+                  id="referral-info-popover"
+                  className="referral-info-popover"
+                  role="dialog"
+                  aria-hidden={!referralInfoOpen}
+                >
+                  <div className="referral-info-main">
+                    <div className="referral-info-item">
+                      <span>Средний доход с приглашённого</span>
+                      <strong>
+                        {referralInvitedCount > 0
+                          ? `${referralAveragePerFriend} ${formatPointsLabel(referralAveragePerFriend)}`
+                          : 'Нет данных'}
+                      </strong>
+                    </div>
+                    <div className="referral-info-item">
+                      <span>Освоено потенциала</span>
+                      <strong>{referralPotentialProgress}%</strong>
+                    </div>
+                  </div>
+                  <div className="referral-info-track" aria-hidden="true">
+                    <span style={{ width: `${referralPotentialProgress}%` }} />
+                  </div>
+                  <div className="referral-info-sub">
+                    {referralInvitedCount > 0
+                      ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
+                      : 'Пригласите первого друга, чтобы открыть прогресс'}
+                  </div>
+                  <div className="referral-info-label">Этапы начислений за одного приглашённого</div>
+                  <div className="referral-info-steps">
+                    {REFERRAL_STEPS.map((step, index) => (
+                      <div
+                        className={`referral-info-step ${
+                          referralHasInvites && step.orders <= referralBestOrders ? 'active' : ''
+                        }`}
+                        key={`referral-info-${step.label}`}
+                      >
+                        <span>
+                          {index + 1}. {step.label}
+                        </span>
+                        <strong>+{step.reward}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               {referralError && <div className="referral-status error">{referralError}</div>}
 

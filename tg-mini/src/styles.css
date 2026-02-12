@@ -4003,7 +4003,9 @@ body::before {
   }
 
   .wheel-info-backdrop,
-  .wheel-info-layer .wheel-info-popover {
+  .wheel-info-layer .wheel-info-popover,
+  .referral-info-backdrop,
+  .referral-info-layer .referral-info-popover {
     transition: none;
   }
 }
@@ -4316,6 +4318,58 @@ body::before {
   box-shadow:
     0 12px 24px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(220, 245, 255, 0.09);
+}
+
+.referral-info-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  border-radius: inherit;
+  padding: 102px 12px 12px;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+}
+
+.referral-info-backdrop {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 94% at 50% -10%, rgba(143, 243, 190, 0.1), transparent 58%),
+    linear-gradient(180deg, rgba(10, 13, 16, 0.2), rgba(10, 13, 16, 0.76));
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.referral-info-layer .referral-info-popover {
+  position: relative;
+  width: 100%;
+  max-height: calc(100% - 10px);
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(-14px) scale(0.985);
+  transform-origin: top center;
+  transition:
+    opacity 240ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.referral-info-layer.open {
+  pointer-events: auto;
+}
+
+.referral-info-layer.open .referral-info-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.referral-info-layer.open .referral-info-popover {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
 .referral-info-main {
@@ -6281,6 +6335,10 @@ button {
     padding: 110px 10px 10px;
   }
 
+  .referral-info-layer {
+    padding: 94px 10px 10px;
+  }
+
   .wheel-title {
     font-size: 16px;
   }
@@ -7832,26 +7890,6 @@ body::before {
 .content.referrals-content {
   padding: calc(var(--tg-safe-top) + 18px + var(--tg-screen-top-gap)) 10px 12px;
   gap: 10px;
-}
-
-.content.referrals-content .page-header {
-  padding: 0 2px;
-  gap: 10px;
-}
-
-.content.referrals-content .header-spacer {
-  width: 44px;
-  min-width: 44px;
-}
-
-.referral-page-title {
-  flex: 1;
-  font-size: 17px;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
 }
 
 .content.referrals-content .referral-hero {
