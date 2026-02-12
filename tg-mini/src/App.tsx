@@ -2605,18 +2605,48 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <button
-                  className={`daily-bonus-info-button wheel-info-button ${
-                    dailyBonusInfoOpen ? 'active' : ''
-                  }`}
-                  type="button"
-                  onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
-                  aria-label={dailyBonusInfoOpen ? 'Скрыть детали бонуса' : 'Показать детали бонуса'}
-                  aria-expanded={dailyBonusInfoOpen}
-                  aria-controls="wheel-info-popover"
-                >
-                  i
-                </button>
+                <div className="wheel-head-side">
+                  <div
+                    className={`wheel-head-status ${
+                      dailyBonusLoading ? 'loading' : dailyBonusAvailable ? 'ready' : 'locked'
+                    }`}
+                  >
+                    <span className="wheel-head-status-dot" aria-hidden="true" />
+                    <span>
+                      {dailyBonusLoading
+                        ? 'Обновляем'
+                        : dailyBonusAvailable
+                          ? 'Можно крутить'
+                          : `Через ${wheelTimerValue}`}
+                    </span>
+                  </div>
+                  <button
+                    className={`daily-bonus-info-button wheel-info-button ${
+                      dailyBonusInfoOpen ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
+                    aria-label={dailyBonusInfoOpen ? 'Скрыть детали бонуса' : 'Показать детали бонуса'}
+                    aria-expanded={dailyBonusInfoOpen}
+                    aria-controls="wheel-info-popover"
+                  >
+                    i
+                  </button>
+                </div>
+                <div className="wheel-head-meta">
+                  <div className="wheel-head-chip">
+                    <span className="wheel-head-chip-label">Серия</span>
+                    <strong className="wheel-head-chip-value">{dailyStreak} дн.</strong>
+                  </div>
+                  <div className="wheel-head-chip">
+                    <span className="wheel-head-chip-label">
+                      {dailyBonusLoading ? 'Статус' : dailyBonusAvailable ? 'Прокрутка' : 'Откроется'}
+                    </span>
+                    <strong className="wheel-head-chip-value">
+                      {dailyBonusLoading ? 'проверяем…' : dailyBonusAvailable ? 'сейчас' : nextSpinClockLabel}
+                    </strong>
+                  </div>
+                </div>
               </div>
               <div className="wheel-rules">
                 <div className="wheel-rule-row">
