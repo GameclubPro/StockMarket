@@ -4049,14 +4049,19 @@ export default function App() {
                     {Array.from({ length: 3 }).map((_, index) => (
                       <div className="task-card task-card-skeleton" key={`task-skeleton-${index}`}>
                         <div className="task-card-head">
-                          <div className="task-avatar task-avatar-skeleton" />
-                          <div className="task-info">
-                            <div className="task-skeleton-line task-skeleton-line-title" />
-                            <div className="task-skeleton-line task-skeleton-line-handle" />
+                          <div className="task-card-main">
+                            <div className="task-avatar task-avatar-skeleton" />
+                            <div className="task-info">
+                              <div className="task-skeleton-line task-skeleton-line-title" />
+                              <div className="task-skeleton-line task-skeleton-line-handle" />
+                            </div>
                           </div>
-                          <div className="task-meta">
-                            <div className="task-skeleton-pill" />
-                            <div className="task-skeleton-pill short" />
+                          <div className="task-meta task-meta-skeleton">
+                            <div className="task-meta-stack">
+                              <div className="task-skeleton-pill" />
+                              <div className="task-skeleton-pill short" />
+                            </div>
+                            <div className="task-skeleton-icon" />
                           </div>
                         </div>
                         <div className="task-actions task-actions-row">
@@ -4092,25 +4097,29 @@ export default function App() {
                         ref={(node) => registerTaskCardRef(campaign.id, node)}
                       >
                         <div className="task-card-head">
-                          <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
-                          <div className="task-info">
-                            <div className="task-title-row">
-                              <div className="task-title">{campaign.group.title}</div>
-                            </div>
-                            <div className="task-handle">
-                              {getGroupSecondaryLabel(campaign.group)}
+                          <div className="task-card-main">
+                            <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
+                            <div className="task-info">
+                              <div className="task-title-row">
+                                <div className="task-title">{campaign.group.title}</div>
+                              </div>
+                              <div className="task-handle">
+                                {getGroupSecondaryLabel(campaign.group)}
+                              </div>
                             </div>
                           </div>
                           <div className="task-meta">
-                            <span
-                              className="badge sticker"
-                              ref={(node) => registerTaskBadgeRef(campaign.id, node)}
-                            >
-                              {badgeLabel}
-                            </span>
-                            <span className={`status-badge compact ${statusMeta.className}`}>
-                              {statusMeta.label}
-                            </span>
+                            <div className="task-meta-stack">
+                              <span
+                                className="badge sticker task-reward-badge"
+                                ref={(node) => registerTaskBadgeRef(campaign.id, node)}
+                              >
+                                {badgeLabel}
+                              </span>
+                              <span className={`status-badge compact task-status-chip ${statusMeta.className}`}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
                             <button
                               className="task-more-button"
                               type="button"
@@ -4128,7 +4137,9 @@ export default function App() {
                         </div>
                         <div className="task-actions task-actions-row">
                           <button
-                            className="open-button action task-primary-action"
+                            className={`open-button action task-primary-action ${
+                              readyToClaim ? 'task-primary-action-ready' : ''
+                            }`}
                             type="button"
                             onClick={() => void handleOpenCampaign(campaign, status)}
                             aria-label={statusMeta.actionLabel}
@@ -4177,18 +4188,22 @@ export default function App() {
                     return (
                       <div className="task-card task-card-history" key={application.id}>
                         <div className="task-card-head">
-                          <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
-                          <div className="task-info">
-                            <div className="task-title-row">
-                              <div className="task-title">{campaign.group.title}</div>
-                            </div>
-                            <div className="task-handle">
-                              {getGroupSecondaryLabel(campaign.group)}
+                          <div className="task-card-main">
+                            <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
+                            <div className="task-info">
+                              <div className="task-title-row">
+                                <div className="task-title">{campaign.group.title}</div>
+                              </div>
+                              <div className="task-handle">
+                                {getGroupSecondaryLabel(campaign.group)}
+                              </div>
                             </div>
                           </div>
                           <div className="task-meta">
-                            <span className="badge sticker">{badgeLabel}</span>
-                            <span className="status-badge approved compact">Выполнено</span>
+                            <div className="task-meta-stack">
+                              <span className="badge sticker task-reward-badge">{badgeLabel}</span>
+                              <span className="status-badge approved compact task-status-chip">Выполнено</span>
+                            </div>
                             <button
                               className="task-more-button"
                               type="button"
