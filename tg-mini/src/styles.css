@@ -1615,6 +1615,58 @@ body::before {
     inset 0 1px 0 rgba(223, 247, 255, 0.1);
 }
 
+.wheel-info-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  border-radius: inherit;
+  padding: 84px 14px 14px;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+}
+
+.wheel-info-backdrop {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 96% at 50% -12%, rgba(122, 173, 209, 0.14), transparent 58%),
+    linear-gradient(180deg, rgba(9, 16, 27, 0.2), rgba(6, 10, 18, 0.74));
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.wheel-info-layer .wheel-info-popover {
+  position: relative;
+  width: 100%;
+  max-height: calc(100% - 10px);
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(-14px) scale(0.985);
+  transform-origin: top center;
+  transition:
+    opacity 240ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.wheel-info-layer.open {
+  pointer-events: auto;
+}
+
+.wheel-info-layer.open .wheel-info-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wheel-info-layer.open .wheel-info-popover {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
 .wheel-info-popover .daily-bonus-info-item span {
   font-size: 10px;
   color: rgba(187, 213, 228, 0.82);
@@ -3795,6 +3847,11 @@ body::before {
 
   .topup-modal {
     animation: none;
+  }
+
+  .wheel-info-backdrop,
+  .wheel-info-layer .wheel-info-popover {
+    transition: none;
   }
 }
 
@@ -6030,6 +6087,10 @@ button {
 
   .wheel-head {
     padding: 12px;
+  }
+
+  .wheel-info-layer {
+    padding: 80px 12px 12px;
   }
 
   .wheel-title {

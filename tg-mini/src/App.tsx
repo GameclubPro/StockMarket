@@ -1234,6 +1234,17 @@ export default function App() {
   }, [activeTab, dailyBonusInfoOpen]);
 
   useEffect(() => {
+    if (!dailyBonusInfoOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDailyBonusInfoOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [dailyBonusInfoOpen]);
+
+  useEffect(() => {
     let detachBackHandler: VoidFunction | undefined;
 
     try {
@@ -2600,7 +2611,9 @@ export default function App() {
                   }`}
                   type="button"
                   onClick={() => setDailyBonusInfoOpen((prev) => !prev)}
-                  aria-label="Показать детали бонуса"
+                  aria-label={dailyBonusInfoOpen ? 'Скрыть детали бонуса' : 'Показать детали бонуса'}
+                  aria-expanded={dailyBonusInfoOpen}
+                  aria-controls="wheel-info-popover"
                 >
                   i
                 </button>
@@ -2640,8 +2653,20 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              {dailyBonusInfoOpen && (
-                <div className="daily-bonus-info-popover wheel-info-popover">
+              <div className={`wheel-info-layer ${dailyBonusInfoOpen ? 'open' : ''}`}>
+                <button
+                  className="wheel-info-backdrop"
+                  type="button"
+                  onClick={() => setDailyBonusInfoOpen(false)}
+                  aria-label="Закрыть детали бонуса"
+                  tabIndex={dailyBonusInfoOpen ? 0 : -1}
+                />
+                <div
+                  id="wheel-info-popover"
+                  className="daily-bonus-info-popover wheel-info-popover"
+                  role="dialog"
+                  aria-hidden={!dailyBonusInfoOpen}
+                >
                   <div className="daily-bonus-info-main">
                     <div className="daily-bonus-info-item">
                       <span>Серия</span>
@@ -2665,7 +2690,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-              )}
+              </div>
               <div className="wheel-wrapper">
                 <div
                   ref={wheelRotorRef}
