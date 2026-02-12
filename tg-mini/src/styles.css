@@ -12,6 +12,14 @@
   --accent: #8ad2ff;
   --green: #7cffb2;
   --gold: #f4d17d;
+  --state-warning-bg: rgba(255, 128, 128, 0.14);
+  --state-warning-border: rgba(255, 142, 142, 0.46);
+  --state-warning-text: rgba(255, 226, 226, 0.94);
+  --state-critical-bg: rgba(255, 102, 102, 0.2);
+  --state-critical-border: rgba(255, 122, 122, 0.56);
+  --state-critical-text: rgba(255, 236, 236, 0.98);
+  --state-warning-bg-strong: linear-gradient(160deg, rgba(68, 34, 38, 0.88), rgba(32, 21, 26, 0.95));
+  --state-critical-bg-strong: linear-gradient(160deg, rgba(84, 32, 37, 0.92), rgba(41, 18, 24, 0.97));
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   --bonus-1: #6fd3ff;
   --bonus-2: #7aa7ff;
@@ -2773,9 +2781,9 @@ body::before {
 }
 
 .promo-review-status.warn {
-  border-color: rgba(255, 181, 143, 0.5);
-  background: rgba(74, 36, 29, 0.62);
-  color: rgba(255, 225, 212, 0.94);
+  border-color: var(--state-warning-border);
+  background: var(--state-warning-bg);
+  color: var(--state-warning-text);
 }
 
 .promo-wizard-footer {
@@ -4993,13 +5001,13 @@ body::before {
 }
 
 .admin-health-card.warn {
-  border-color: rgba(255, 217, 156, 0.4);
-  background: linear-gradient(150deg, rgba(255, 191, 120, 0.16), rgba(129, 199, 255, 0.08));
+  border-color: var(--state-warning-border);
+  background: linear-gradient(150deg, var(--state-warning-bg), rgba(72, 32, 37, 0.12));
 }
 
 .admin-health-card.critical {
-  border-color: rgba(255, 160, 160, 0.48);
-  background: linear-gradient(150deg, rgba(255, 122, 122, 0.16), rgba(120, 181, 255, 0.08));
+  border-color: var(--state-critical-border);
+  background: linear-gradient(150deg, var(--state-critical-bg), rgba(88, 30, 35, 0.18));
 }
 
 .admin-health-head {
@@ -5228,13 +5236,15 @@ body::before {
 }
 
 .admin-alert.warning {
-  border-color: rgba(255, 208, 145, 0.42);
-  background: rgba(255, 190, 121, 0.12);
+  border-color: var(--state-warning-border);
+  background: var(--state-warning-bg);
+  color: var(--state-warning-text);
 }
 
 .admin-alert.critical {
-  border-color: rgba(255, 153, 153, 0.5);
-  background: rgba(255, 138, 138, 0.14);
+  border-color: var(--state-critical-border);
+  background: var(--state-critical-bg);
+  color: var(--state-critical-text);
 }
 
 .admin-risk-block {
@@ -5275,13 +5285,15 @@ body::before {
 }
 
 .admin-action-item.warn {
-  border-color: rgba(255, 214, 148, 0.42);
-  background: rgba(255, 188, 118, 0.1);
+  border-color: var(--state-warning-border);
+  background: var(--state-warning-bg);
+  color: var(--state-warning-text);
 }
 
 .admin-action-item.critical {
-  border-color: rgba(255, 157, 157, 0.5);
-  background: rgba(255, 135, 135, 0.12);
+  border-color: var(--state-critical-border);
+  background: var(--state-critical-bg);
+  color: var(--state-critical-text);
 }
 
 .admin-module-switch {
@@ -8558,23 +8570,23 @@ body::before {
 }
 
 .content.admin-content .admin-alert.warning {
-  background: linear-gradient(160deg, rgba(58, 44, 25, 0.86), rgba(26, 23, 18, 0.94));
-  border-color: rgba(255, 208, 145, 0.42);
+  background: var(--state-warning-bg-strong);
+  border-color: var(--state-warning-border);
 }
 
 .content.admin-content .admin-alert.critical {
-  background: linear-gradient(160deg, rgba(59, 30, 30, 0.88), rgba(28, 18, 21, 0.95));
-  border-color: rgba(255, 153, 153, 0.48);
+  background: var(--state-critical-bg-strong);
+  border-color: var(--state-critical-border);
 }
 
 .content.admin-content .admin-action-item.warn {
-  background: linear-gradient(160deg, rgba(63, 49, 29, 0.84), rgba(31, 23, 16, 0.94));
-  border-color: rgba(255, 214, 148, 0.42);
+  background: var(--state-warning-bg-strong);
+  border-color: var(--state-warning-border);
 }
 
 .content.admin-content .admin-action-item.critical {
-  background: linear-gradient(160deg, rgba(64, 33, 33, 0.86), rgba(30, 19, 22, 0.95));
-  border-color: rgba(255, 157, 157, 0.48);
+  background: var(--state-critical-bg-strong);
+  border-color: var(--state-critical-border);
 }
 
 /* Hard lock: make all non-home screens inherit home visual language */
@@ -8620,12 +8632,46 @@ body::before {
   opacity: 0 !important;
 }
 
+.content.admin-content .admin-health-card.warn {
+  background: linear-gradient(150deg, var(--state-warning-bg), rgba(72, 32, 37, 0.16));
+  border-color: var(--state-warning-border);
+}
+
+.content.admin-content .admin-health-card.critical {
+  background: linear-gradient(150deg, var(--state-critical-bg), rgba(88, 30, 35, 0.2));
+  border-color: var(--state-critical-border);
+}
+
 .content.admin-content .admin-alert.warning,
+.content.admin-content .admin-action-item.warn {
+  background: var(--state-warning-bg-strong);
+  border-color: var(--state-warning-border);
+}
+
 .content.admin-content .admin-alert.critical,
-.content.admin-content .admin-action-item.warn,
 .content.admin-content .admin-action-item.critical {
-  background: var(--home-theme-surface-bg-strong);
-  border-color: var(--home-theme-surface-border);
+  background: var(--state-critical-bg-strong);
+  border-color: var(--state-critical-border);
+}
+
+.content.admin-content .admin-health-card.warn .admin-health-head,
+.content.admin-content .admin-health-card.warn .admin-health-head strong,
+.content.admin-content .admin-health-card.warn .admin-health-sub,
+.content.admin-content .admin-alert.warning strong,
+.content.admin-content .admin-alert.warning span,
+.content.admin-content .admin-action-item.warn strong,
+.content.admin-content .admin-action-item.warn span {
+  color: var(--state-warning-text);
+}
+
+.content.admin-content .admin-health-card.critical .admin-health-head,
+.content.admin-content .admin-health-card.critical .admin-health-head strong,
+.content.admin-content .admin-health-card.critical .admin-health-sub,
+.content.admin-content .admin-alert.critical strong,
+.content.admin-content .admin-alert.critical span,
+.content.admin-content .admin-action-item.critical strong,
+.content.admin-content .admin-action-item.critical span {
+  color: var(--state-critical-text);
 }
 
 .content.wheel-content .wheel-reward-chip.base,
