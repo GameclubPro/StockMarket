@@ -87,6 +87,66 @@ export type ReferralListItem = {
   referredUser: UserDto;
 };
 
+export type BlockedPayload = {
+  reason: string | null;
+  blockedUntil: string | null;
+  isPermanent: boolean;
+};
+
+export type AdminComplaintItem = {
+  campaignId: string;
+  reportCount: number;
+  lastReportedAt: string;
+  topReason: CampaignReportReason;
+  topReasonLabel: string;
+  campaign: {
+    id: string;
+    groupTitle: string;
+    actionType: 'SUBSCRIBE' | 'REACTION';
+    createdAt: string;
+    totalBudget: number;
+    remainingBudget: number;
+  };
+  owner: {
+    id: string;
+    label: string;
+    isBlocked: boolean;
+    blockedUntil: string | null;
+  };
+  sampleReporters: string[];
+};
+
+export type AdminModerationSnapshot = {
+  summary: {
+    openReports: number;
+    stalePendingCount: number;
+    blockedUsersCount: number;
+    updatedAt: string;
+  };
+  complaints: AdminComplaintItem[];
+  stale: {
+    thresholdHours: number;
+    count: number;
+    oldestCreatedAt: string | null;
+  };
+  blockedUsers: Array<{
+    id: string;
+    label: string;
+    blockedAt: string;
+    blockedUntil: string | null;
+    blockReason: string | null;
+  }>;
+};
+
+export type AdminModerationActionPayload = {
+  deleteCampaign?: boolean;
+  finePoints?: number;
+  fineReason?: string;
+  blockMode?: 'none' | 'temporary' | 'permanent';
+  blockDays?: number;
+  blockReason?: string;
+};
+
 export type AdminPanelStats = {
   period: {
     preset: 'today' | '7d' | '30d';

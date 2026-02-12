@@ -10,6 +10,7 @@ import {
   calculateUnsubscribePenalty,
   getRankByTotal,
 } from './domain/economy.js';
+import { calculateAdminFineApplied, resolveAdminBlockUntil } from './domain/moderation.js';
 import {
   DAILY_BONUS_COOLDOWN_MS,
   DAILY_BONUS_REASON,
@@ -18,7 +19,7 @@ import {
   getNextDailyBonusAt,
   isDailyBonusAvailable,
 } from './domain/daily-bonus.js';
-import { normalizeApiError, toPublicErrorMessage } from './http/errors.js';
+import { ApiError, normalizeApiError, toPublicErrorMessage } from './http/errors.js';
 import { verifyInitData } from './telegram.js';
 import {
   ensureBotIsAdmin,
@@ -74,6 +75,48 @@ const adminPanelQuerySchema = z.object({
   period: z.enum(['today', '7d', '30d']).optional(),
 });
 
+const adminModerationActionSchema = z
+  .object({
+    deleteCampaign: z.boolean().optional(),
+    finePoints: z.coerce.number().int().min(1).max(1_000_000).optional(),
+    fineReason: z
+      .string()
+      .max(200)
+      .optional()
+      .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+    blockMode: z.enum(['none', 'temporary', 'permanent']).optional().default('none'),
+    blockDays: z.coerce.number().int().min(1).max(3650).optional(),
+    blockReason: z
+      .string()
+      .max(200)
+      .optional()
+      .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+  })
+  .superRefine((value, context) => {
+    const hasAction =
+      Boolean(value.deleteCampaign) || typeof value.finePoints === 'number' || value.blockMode !== 'none';
+    if (!hasAction) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'at least one moderation action is required',
+      });
+    }
+    if (value.blockMode === 'temporary' && typeof value.blockDays !== 'number') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['blockDays'],
+        message: 'blockDays is required for temporary block',
+      });
+    }
+    if (value.blockMode !== 'temporary' && typeof value.blockDays === 'number') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['blockDays'],
+        message: 'blockDays is only allowed for temporary block',
+      });
+    }
+  });
+
 const REFERRAL_MILESTONES = [
   {
     milestone: 'JOIN',
@@ -127,6 +170,7 @@ const BOT_PANEL_ALLOWED_TEXTS = new Set(['админ', 'админка', 'пан
 const BOT_PANEL_DEFAULT_ADMIN_USERNAMES = ['@Nitchim'];
 const ADMIN_PERIOD_DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_STALE_PENDING_MS = 24 * 60 * 60 * 1000;
+const ADMIN_STALE_PENDING_HOURS = Math.round(ADMIN_STALE_PENDING_MS / (60 * 60 * 1000));
 const ADMIN_LOW_BUDGET_MULTIPLIER = 3;
 const ADMIN_REPORT_ALERT_THRESHOLD = 6;
 const CAMPAIGN_REPORT_REASON_LABELS: Record<CampaignReportReason, string> = {
@@ -304,6 +348,51 @@ type AdminPanelStats = {
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
+type UserBlockPayload = {
+  reason: string | null;
+  blockedUntil: string | null;
+  isPermanent: boolean;
+};
+type UserBlockResolution = {
+  user: User;
+  blocked: UserBlockPayload | null;
+};
+
+const buildUserBlockPayload = (user: Pick<User, 'blockReason' | 'blockedUntil'>): UserBlockPayload => ({
+  reason: user.blockReason ?? null,
+  blockedUntil: user.blockedUntil ? user.blockedUntil.toISOString() : null,
+  isPermanent: !user.blockedUntil,
+});
+
+const clearUserBlock = async (db: DbClient, userId: string) => {
+  return await db.user.update({
+    where: { id: userId },
+    data: {
+      isBlocked: false,
+      blockedAt: null,
+      blockedUntil: null,
+      blockReason: null,
+    },
+  });
+};
+
+const resolveUserBlockState = async (
+  db: DbClient,
+  user: User,
+  now = new Date()
+): Promise<UserBlockResolution> => {
+  if (!user.isBlocked) return { user, blocked: null };
+
+  if (user.blockedUntil && user.blockedUntil.getTime() <= now.getTime()) {
+    const unblocked = await clearUserBlock(db, user.id);
+    return { user: unblocked, blocked: null };
+  }
+
+  return {
+    user,
+    blocked: buildUserBlockPayload(user),
+  };
+};
 
 const generateReferralCode = () =>
   crypto.randomBytes(REFERRAL_CODE_BYTES).toString('hex').toUpperCase();
@@ -1409,6 +1498,207 @@ const getAdminPanelStats = async (options?: {
   };
 };
 
+const clearExpiredBlockedUsers = async (db: DbClient, now = new Date()) => {
+  await db.user.updateMany({
+    where: {
+      isBlocked: true,
+      blockedUntil: {
+        not: null,
+        lte: now,
+      },
+    },
+    data: {
+      isBlocked: false,
+      blockedAt: null,
+      blockedUntil: null,
+      blockReason: null,
+    },
+  });
+};
+
+const getAdminModerationSnapshot = async (options?: { now?: Date }) => {
+  const now = options?.now ?? new Date();
+  const staleThreshold = new Date(now.getTime() - ADMIN_STALE_PENDING_MS);
+  await clearExpiredBlockedUsers(prisma, now);
+
+  const [reportRows, staleCount, staleOldest, blockedUsersRows] = await Promise.all([
+    prisma.campaignReport.findMany({
+      orderBy: { reportedAt: 'desc' },
+      select: {
+        id: true,
+        campaignId: true,
+        reason: true,
+        reportedAt: true,
+        reporter: { select: { username: true, firstName: true, lastName: true } },
+        campaign: {
+          select: {
+            id: true,
+            actionType: true,
+            createdAt: true,
+            totalBudget: true,
+            remainingBudget: true,
+            group: { select: { title: true } },
+            owner: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                isBlocked: true,
+                blockedUntil: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.application.count({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: staleThreshold },
+      },
+    }),
+    prisma.application.findFirst({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: staleThreshold },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    }),
+    prisma.user.findMany({
+      where: { isBlocked: true },
+      orderBy: { blockedAt: 'desc' },
+      select: {
+        id: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        blockedAt: true,
+        blockedUntil: true,
+        blockReason: true,
+      },
+      take: 100,
+    }),
+  ]);
+
+  type ComplaintDraft = {
+    campaignId: string;
+    reportCount: number;
+    lastReportedAt: Date;
+    campaign: {
+      id: string;
+      groupTitle: string;
+      actionType: 'SUBSCRIBE' | 'REACTION';
+      createdAt: string;
+      totalBudget: number;
+      remainingBudget: number;
+    };
+    owner: {
+      id: string;
+      label: string;
+      isBlocked: boolean;
+      blockedUntil: string | null;
+    };
+    sampleReporters: string[];
+    reasonCounts: Map<CampaignReportReason, number>;
+  };
+
+  const complaintsMap = new Map<string, ComplaintDraft>();
+  for (const row of reportRows) {
+    const reason = row.reason as CampaignReportReason;
+    let complaint = complaintsMap.get(row.campaignId);
+    if (!complaint) {
+      complaint = {
+        campaignId: row.campaignId,
+        reportCount: 0,
+        lastReportedAt: row.reportedAt,
+        campaign: {
+          id: row.campaign.id,
+          groupTitle: row.campaign.group.title,
+          actionType: row.campaign.actionType,
+          createdAt: row.campaign.createdAt.toISOString(),
+          totalBudget: row.campaign.totalBudget,
+          remainingBudget: row.campaign.remainingBudget,
+        },
+        owner: {
+          id: row.campaign.owner.id,
+          label: getPersonLabel(row.campaign.owner),
+          isBlocked: row.campaign.owner.isBlocked,
+          blockedUntil: row.campaign.owner.blockedUntil
+            ? row.campaign.owner.blockedUntil.toISOString()
+            : null,
+        },
+        sampleReporters: [],
+        reasonCounts: new Map<CampaignReportReason, number>(),
+      };
+      complaintsMap.set(row.campaignId, complaint);
+    }
+
+    complaint.reportCount += 1;
+    if (row.reportedAt.getTime() > complaint.lastReportedAt.getTime()) {
+      complaint.lastReportedAt = row.reportedAt;
+    }
+    complaint.reasonCounts.set(reason, (complaint.reasonCounts.get(reason) ?? 0) + 1);
+
+    const reporterLabel = getPersonLabel(row.reporter);
+    if (reporterLabel && !complaint.sampleReporters.includes(reporterLabel)) {
+      complaint.sampleReporters.push(reporterLabel);
+      if (complaint.sampleReporters.length > 3) {
+        complaint.sampleReporters = complaint.sampleReporters.slice(0, 3);
+      }
+    }
+  }
+
+  const complaints = Array.from(complaintsMap.values())
+    .map((item) => {
+      const reasonRank = CAMPAIGN_REPORT_REASON_VALUES.map((reason) => ({
+        reason,
+        count: item.reasonCounts.get(reason) ?? 0,
+      })).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return CAMPAIGN_REPORT_REASON_VALUES.indexOf(a.reason) - CAMPAIGN_REPORT_REASON_VALUES.indexOf(b.reason);
+      });
+      const topReason = reasonRank[0]?.reason ?? 'OTHER';
+      return {
+        campaignId: item.campaignId,
+        reportCount: item.reportCount,
+        lastReportedAt: item.lastReportedAt.toISOString(),
+        topReason,
+        topReasonLabel: getCampaignReportReasonLabel(topReason),
+        campaign: item.campaign,
+        owner: item.owner,
+        sampleReporters: item.sampleReporters,
+      };
+    })
+    .sort((a, b) => new Date(b.lastReportedAt).getTime() - new Date(a.lastReportedAt).getTime());
+
+  const blockedUsers = blockedUsersRows.map((user) => ({
+    id: user.id,
+    label: getPersonLabel(user),
+    blockedAt: user.blockedAt ? user.blockedAt.toISOString() : now.toISOString(),
+    blockedUntil: user.blockedUntil ? user.blockedUntil.toISOString() : null,
+    blockReason: user.blockReason ?? null,
+  }));
+
+  return {
+    ok: true as const,
+    summary: {
+      openReports: complaints.length,
+      stalePendingCount: staleCount,
+      blockedUsersCount: blockedUsers.length,
+      updatedAt: now.toISOString(),
+    },
+    complaints,
+    stale: {
+      thresholdHours: ADMIN_STALE_PENDING_HOURS,
+      count: staleCount,
+      oldestCreatedAt: staleOldest?.createdAt ? staleOldest.createdAt.toISOString() : null,
+    },
+    blockedUsers,
+  };
+};
+
 const formatAdminPanelStatsText = async (now = new Date()) => {
   const stats = await getAdminPanelStats({ now, periodPreset: 'today' });
   const updatedAt = new Date(stats.updatedAt).toLocaleString('ru-RU', { hour12: false });
@@ -1534,7 +1824,10 @@ const getOptionalUser = async (request: FastifyRequest) => {
     const payload = await verifySession(bearer);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) return null;
-    return await ensureLegacyStats(user);
+    const ensured = await ensureLegacyStats(user);
+    const resolved = await resolveUserBlockState(prisma, ensured);
+    if (resolved.blocked) return null;
+    return resolved.user;
   } catch {
     return null;
   }
@@ -1544,17 +1837,19 @@ const creditUserForCampaign = async (
   tx: Prisma.TransactionClient,
   payload: { userId: string; campaign: { id: string; rewardPoints: number }; reason: string }
 ) => {
-  const user = await tx.user.findUnique({
-    where: { id: payload.userId },
-    select: { totalEarned: true },
-  });
-  if (!user) throw new Error('user not found');
+  const user = await tx.user.findUnique({ where: { id: payload.userId } });
+  if (!user) throw new ApiError('user not found', 404);
 
-  const bonusRate = getRankByTotal(user.totalEarned).bonusRate;
+  const resolved = await resolveUserBlockState(tx, user);
+  if (resolved.blocked) {
+    throw new ApiError('user_blocked', 423, { blocked: resolved.blocked });
+  }
+
+  const bonusRate = getRankByTotal(resolved.user.totalEarned).bonusRate;
   const payout = calculatePayoutWithBonus(payload.campaign.rewardPoints, bonusRate);
 
   await tx.user.update({
-    where: { id: payload.userId },
+    where: { id: resolved.user.id },
     data: {
       balance: { increment: payout },
       totalEarned: { increment: payout },
@@ -1563,7 +1858,7 @@ const creditUserForCampaign = async (
 
   await tx.ledgerEntry.create({
     data: {
-      userId: payload.userId,
+      userId: resolved.user.id,
       type: 'EARN',
       amount: payout,
       reason: payload.reason,
@@ -1571,7 +1866,7 @@ const creditUserForCampaign = async (
     },
   });
 
-  await updateReferralProgress(tx, { userId: payload.userId, delta: 1 });
+  await updateReferralProgress(tx, { userId: resolved.user.id, delta: 1 });
 
   return payout;
 };
@@ -1704,7 +1999,12 @@ const requireUser = async (request: FastifyRequest) => {
     const payload = await verifySession(bearer);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) throw new Error('user not found');
-    return await ensureLegacyStats(user);
+    const ensured = await ensureLegacyStats(user);
+    const resolved = await resolveUserBlockState(prisma, ensured);
+    if (resolved.blocked) {
+      throw new ApiError('user_blocked', 423, { blocked: resolved.blocked });
+    }
+    return resolved.user;
   }
 
   const initData = request.headers['x-init-data'];
@@ -1733,18 +2033,43 @@ const requireUser = async (request: FastifyRequest) => {
       },
     });
 
-    return await ensureLegacyStats(user);
+    const ensured = await ensureLegacyStats(user);
+    const resolved = await resolveUserBlockState(prisma, ensured);
+    if (resolved.blocked) {
+      throw new ApiError('user_blocked', 423, { blocked: resolved.blocked });
+    }
+    return resolved.user;
   }
 
   throw new Error('unauthorized');
 };
 
+const requireAdminUser = async (request: FastifyRequest) => {
+  await ensureDefaultBotPanelAccess();
+  const user = await requireUser(request);
+  const allowed = await hasBotPanelAccess({
+    telegramId: user.telegramId,
+    username: user.username ?? undefined,
+  });
+  if (!allowed) {
+    throw new ApiError('forbidden', 403);
+  }
+  return user;
+};
+
 const sendRouteError = (reply: FastifyReply, error: unknown, fallbackStatus = 400) => {
   const normalized = normalizeApiError(error, fallbackStatus);
-  return reply.code(normalized.status).send({
+  const body: Record<string, unknown> = {
     ok: false,
     error: toPublicErrorMessage(normalized.message),
-  });
+  };
+  if (normalized.message === 'user_blocked') {
+    const blocked = normalized.details?.blocked;
+    if (blocked && typeof blocked === 'object') {
+      body.blocked = blocked;
+    }
+  }
+  return reply.code(normalized.status).send(body);
 };
 
 const isRetryableWebhookError = (error: unknown) => {
@@ -1767,6 +2092,11 @@ const isRetryableWebhookError = (error: unknown) => {
   }
 
   return false;
+};
+
+const isUserBlockedError = (error: unknown) => {
+  const message = String((error as { message?: unknown } | null)?.message ?? '');
+  return message === 'user_blocked';
 };
 
 export const registerRoutes = (app: FastifyInstance) => {
@@ -1924,43 +2254,51 @@ export const registerRoutes = (app: FastifyInstance) => {
           if (!campaign) return;
 
           const applicant = await upsertUser(user);
+          const applicantState = await resolveUserBlockState(prisma, applicant);
+          if (applicantState.blocked) return;
+
           const application = await prisma.application.findUnique({
             where: {
               campaignId_applicantId: {
                 campaignId: campaign.id,
-                applicantId: applicant.id,
+                applicantId: applicantState.user.id,
               },
             },
           });
           if (!application || application.status !== 'PENDING') return;
 
-          await prisma.$transaction(async (tx) => {
-            const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
-            if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
-            if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
+          try {
+            await prisma.$transaction(async (tx) => {
+              const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+              if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+              if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
 
-            await tx.application.update({
-              where: { id: application.id },
-              data: { status: 'APPROVED', reviewedAt: new Date() },
-            });
+              await tx.application.update({
+                where: { id: application.id },
+                data: { status: 'APPROVED', reviewedAt: new Date() },
+              });
 
-            await tx.campaign.update({
-              where: { id: freshCampaign.id },
-              data: {
-                remainingBudget: { decrement: freshCampaign.rewardPoints },
-                status:
-                  freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
-                    ? 'COMPLETED'
-                    : freshCampaign.status,
-              },
-            });
+              await tx.campaign.update({
+                where: { id: freshCampaign.id },
+                data: {
+                  remainingBudget: { decrement: freshCampaign.rewardPoints },
+                  status:
+                    freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                      ? 'COMPLETED'
+                      : freshCampaign.status,
+                },
+              });
 
-            await creditUserForCampaign(tx, {
-              userId: applicant.id,
-              campaign: freshCampaign,
-              reason: 'Реакция на пост',
+              await creditUserForCampaign(tx, {
+                userId: applicantState.user.id,
+                campaign: freshCampaign,
+                reason: 'Реакция на пост',
+              });
             });
-          });
+          } catch (error) {
+            if (isUserBlockedError(error)) return;
+            throw error;
+          }
         },
         handleReactionCount: async ({ chat, messageId, totalCount }) => {
           const group = await findGroupByChat(chat);
@@ -1979,9 +2317,10 @@ export const registerRoutes = (app: FastifyInstance) => {
           if (campaigns.length === 0) return;
 
           for (const campaign of campaigns) {
-            await prisma.$transaction(async (tx) => {
-              const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
-              if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+            try {
+              await prisma.$transaction(async (tx) => {
+                const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+                if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
 
               const lastCount = freshCampaign.reactionCount;
               await tx.campaign.update({
@@ -2027,9 +2366,22 @@ export const registerRoutes = (app: FastifyInstance) => {
               }
               if (toApprove.length === 0) return;
 
-              const approveCount = Math.min(maxApprove, toApprove.length);
+              const applicantRows = await tx.user.findMany({
+                where: { id: { in: toApprove.map((item) => item.applicantId) } },
+              });
+              const applicantById = new Map(applicantRows.map((item) => [item.id, item]));
+              const eligibleApplications: typeof toApprove = [];
+              for (const application of toApprove) {
+                const applicant = applicantById.get(application.applicantId);
+                if (!applicant) continue;
+                const resolved = await resolveUserBlockState(tx, applicant);
+                if (resolved.blocked) continue;
+                eligibleApplications.push(application);
+              }
+
+              const approveCount = Math.min(maxApprove, eligibleApplications.length);
               if (approveCount <= 0) return;
-              toApprove = toApprove.slice(0, approveCount);
+              toApprove = eligibleApplications.slice(0, approveCount);
               const now = new Date();
 
               await tx.application.updateMany({
@@ -2048,14 +2400,18 @@ export const registerRoutes = (app: FastifyInstance) => {
                 },
               });
 
-              for (const application of toApprove) {
-                await creditUserForCampaign(tx, {
-                  userId: application.applicantId,
-                  campaign: freshCampaign,
-                  reason: 'Реакция на пост',
-                });
-              }
-            });
+                for (const application of toApprove) {
+                  await creditUserForCampaign(tx, {
+                    userId: application.applicantId,
+                    campaign: freshCampaign,
+                    reason: 'Реакция на пост',
+                  });
+                }
+              });
+            } catch (error) {
+              if (isUserBlockedError(error)) continue;
+              throw error;
+            }
           }
         },
         handleChatMember: async ({ chat, user, status }) => {
@@ -2069,10 +2425,13 @@ export const registerRoutes = (app: FastifyInstance) => {
           if (!group) return;
 
           const applicant = await upsertUser(user);
+          const applicantState = await resolveUserBlockState(prisma, applicant);
+          if (applicantState.blocked) return;
+
           if (isJoinStatus) {
             const application = await prisma.application.findFirst({
               where: {
-                applicantId: applicant.id,
+                applicantId: applicantState.user.id,
                 status: 'PENDING',
                 campaign: {
                   groupId: group.id,
@@ -2085,42 +2444,47 @@ export const registerRoutes = (app: FastifyInstance) => {
             });
             if (!application) return;
 
-            await prisma.$transaction(async (tx) => {
-              const freshCampaign = await tx.campaign.findUnique({
-                where: { id: application.campaignId },
-              });
-              if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
-              if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
+            try {
+              await prisma.$transaction(async (tx) => {
+                const freshCampaign = await tx.campaign.findUnique({
+                  where: { id: application.campaignId },
+                });
+                if (!freshCampaign || freshCampaign.status !== 'ACTIVE') return;
+                if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) return;
 
-              await tx.application.update({
-                where: { id: application.id },
-                data: { status: 'APPROVED', reviewedAt: new Date() },
-              });
+                await tx.application.update({
+                  where: { id: application.id },
+                  data: { status: 'APPROVED', reviewedAt: new Date() },
+                });
 
-              await tx.campaign.update({
-                where: { id: freshCampaign.id },
-                data: {
-                  remainingBudget: { decrement: freshCampaign.rewardPoints },
-                  status:
-                    freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
-                      ? 'COMPLETED'
-                      : freshCampaign.status,
-                },
-              });
+                await tx.campaign.update({
+                  where: { id: freshCampaign.id },
+                  data: {
+                    remainingBudget: { decrement: freshCampaign.rewardPoints },
+                    status:
+                      freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                        ? 'COMPLETED'
+                        : freshCampaign.status,
+                  },
+                });
 
-              await creditUserForCampaign(tx, {
-                userId: applicant.id,
-                campaign: freshCampaign,
-                reason: 'Вступление в группу',
+                await creditUserForCampaign(tx, {
+                  userId: applicantState.user.id,
+                  campaign: freshCampaign,
+                  reason: 'Вступление в группу',
+                });
               });
-            });
+            } catch (error) {
+              if (isUserBlockedError(error)) return;
+              throw error;
+            }
             return;
           }
 
           if (isLeaveStatus) {
             const application = await prisma.application.findFirst({
               where: {
-                applicantId: applicant.id,
+                applicantId: applicantState.user.id,
                 status: 'APPROVED',
                 campaign: {
                   groupId: group.id,
@@ -2143,7 +2507,7 @@ export const registerRoutes = (app: FastifyInstance) => {
               });
 
               await applyUnsubscribePenalty(tx, {
-                userId: applicant.id,
+                userId: applicantState.user.id,
                 campaignId: application.campaignId,
               });
             });
@@ -2352,17 +2716,166 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({ ok: false, error: 'invalid query' });
       }
       const periodPreset = parsedQuery.data.period ?? 'today';
-      await ensureDefaultBotPanelAccess();
-      const user = await requireUser(request);
-      const allowed = await hasBotPanelAccess({
-        telegramId: user.telegramId,
-        username: user.username ?? undefined,
-      });
-      if (!allowed) {
-        return reply.code(403).send({ ok: false, error: 'forbidden' });
-      }
+      await requireAdminUser(request);
       const stats = await getAdminPanelStats({ periodPreset });
       return { ok: true, allowed: true, stats };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.get('/admin/moderation', async (request, reply) => {
+    try {
+      await requireAdminUser(request);
+      return await getAdminModerationSnapshot();
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.post<{ Params: { campaignId: string } }>('/admin/moderation/campaigns/:campaignId/action', async (request, reply) => {
+    try {
+      await requireAdminUser(request);
+      const parsed = adminModerationActionSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid body' });
+      }
+
+      const campaignId = request.params.campaignId;
+      const now = new Date();
+      const result = await prisma.$transaction(async (tx) => {
+        const campaign = await tx.campaign.findUnique({
+          where: { id: campaignId },
+          include: { owner: true },
+        });
+        if (!campaign) {
+          throw new ApiError('campaign not found', 404);
+        }
+
+        let fineApplied = 0;
+        let userBlocked = false;
+        let blockedUntil: string | null = null;
+        let campaignDeleted = false;
+        let clearedReports = 0;
+
+        if (typeof parsed.data.finePoints === 'number' && parsed.data.finePoints > 0) {
+          const owner = await tx.user.findUnique({
+            where: { id: campaign.ownerId },
+            select: { id: true, balance: true, totalEarned: true },
+          });
+          if (!owner) throw new ApiError('user not found', 404);
+
+          fineApplied = calculateAdminFineApplied({
+            requestedFine: parsed.data.finePoints,
+            balance: owner.balance,
+            totalEarned: owner.totalEarned,
+          });
+
+          if (fineApplied > 0) {
+            await tx.user.update({
+              where: { id: owner.id },
+              data: {
+                balance: { decrement: fineApplied },
+                totalEarned: { decrement: fineApplied },
+              },
+            });
+            await tx.ledgerEntry.create({
+              data: {
+                userId: owner.id,
+                type: 'ADJUST',
+                amount: -fineApplied,
+                reason: parsed.data.fineReason ?? 'Админ штраф по жалобе',
+                campaignId: campaign.id,
+              },
+            });
+          }
+        }
+
+        if (parsed.data.blockMode && parsed.data.blockMode !== 'none') {
+          const nextBlockedUntil = resolveAdminBlockUntil({
+            mode: parsed.data.blockMode,
+            blockDays: parsed.data.blockDays,
+            now,
+          });
+          const updatedOwner = await tx.user.update({
+            where: { id: campaign.ownerId },
+            data: {
+              isBlocked: true,
+              blockedAt: now,
+              blockedUntil: nextBlockedUntil,
+              blockReason: parsed.data.blockReason ?? 'Блокировка админом по жалобе',
+            },
+            select: { isBlocked: true, blockedUntil: true },
+          });
+          userBlocked = updatedOwner.isBlocked;
+          blockedUntil = updatedOwner.blockedUntil ? updatedOwner.blockedUntil.toISOString() : null;
+        }
+
+        if (parsed.data.deleteCampaign) {
+          await tx.application.deleteMany({ where: { campaignId: campaign.id } });
+          await tx.hiddenCampaign.deleteMany({ where: { campaignId: campaign.id } });
+          await tx.ledgerEntry.updateMany({
+            where: { campaignId: campaign.id },
+            data: { campaignId: null },
+          });
+          const reportsResult = await tx.campaignReport.deleteMany({ where: { campaignId: campaign.id } });
+          clearedReports = reportsResult.count;
+          await tx.campaign.delete({ where: { id: campaign.id } });
+          campaignDeleted = true;
+        } else {
+          const reportsResult = await tx.campaignReport.deleteMany({ where: { campaignId: campaign.id } });
+          clearedReports = reportsResult.count;
+        }
+
+        return {
+          campaignDeleted,
+          fineApplied,
+          userBlocked,
+          blockedUntil,
+          clearedReports,
+        };
+      });
+
+      return { ok: true, result };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.post('/admin/moderation/stale/cleanup', async (request, reply) => {
+    try {
+      await requireAdminUser(request);
+      const now = new Date();
+      const staleThreshold = new Date(now.getTime() - ADMIN_STALE_PENDING_MS);
+      const cleaned = await prisma.application.updateMany({
+        where: {
+          status: 'PENDING',
+          createdAt: { lt: staleThreshold },
+        },
+        data: {
+          status: 'REJECTED',
+          reviewedAt: now,
+        },
+      });
+      return { ok: true, cleaned: cleaned.count, thresholdHours: ADMIN_STALE_PENDING_HOURS };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.post<{ Params: { userId: string } }>('/admin/moderation/users/:userId/unblock', async (request, reply) => {
+    try {
+      await requireAdminUser(request);
+      const userId = request.params.userId;
+      const existing = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!existing) {
+        return reply.code(404).send({ ok: false, error: 'user not found' });
+      }
+      const updated = await clearUserBlock(prisma, userId);
+      return { ok: true, user: { id: updated.id, isBlocked: updated.isBlocked } };
     } catch (error) {
       return sendRouteError(reply, error, 400);
     }

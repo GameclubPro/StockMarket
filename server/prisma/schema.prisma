@@ -62,6 +62,10 @@ model User {
   balance    Int      @default(30)
   totalEarned Int     @default(0)
   rating     Float    @default(0)
+  isBlocked  Boolean  @default(false)
+  blockedAt  DateTime?
+  blockedUntil DateTime?
+  blockReason String?
   referralCode String? @unique
   firstAuthAt DateTime?
   createdAt  DateTime @default(now())

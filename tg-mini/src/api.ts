@@ -1,4 +1,6 @@
 import type {
+  AdminModerationActionPayload,
+  AdminModerationSnapshot,
   AdminPanelStats,
   ApplicationDto,
   CampaignDto,
@@ -16,8 +18,11 @@ import { getInitDataRaw } from './telegram';
 const API_BASE = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE ?? '';
 
 export type {
+  AdminModerationActionPayload,
+  AdminModerationSnapshot,
   AdminPanelStats,
   ApplicationDto,
+  BlockedPayload,
   CampaignDto,
   CampaignReportReason,
   DailyBonusSpin,
@@ -28,6 +33,18 @@ export type {
   ReferralStats,
   UserDto,
 } from './types/app';
+
+export class ApiRequestError<T = unknown> extends Error {
+  status: number;
+  payload: T | null;
+
+  constructor(message: string, status: number, payload: T | null = null) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
 
 const withAuthHeaders = (base?: HeadersInit) => {
   const headers = new Headers(base);
@@ -50,13 +67,15 @@ const request = async (path: string, options: RequestInit = {}) => {
 
   if (!response.ok) {
     let message = 'request failed';
+    let payload: unknown = null;
     try {
       const data = await response.json();
+      payload = data;
       if (typeof data?.error === 'string') message = data.error;
     } catch {
       // ignore
     }
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, payload);
   }
 
   return response.json();
@@ -72,7 +91,16 @@ export const verifyInitData = async (initData: string) => {
   });
 
   if (!response.ok) {
-    throw new Error('auth failed');
+    let message = 'auth failed';
+    let payload: unknown = null;
+    try {
+      const data = await response.json();
+      payload = data;
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // ignore
+    }
+    throw new ApiRequestError(message, response.status, payload);
   }
 
   const data = (await response.json()) as {
@@ -107,13 +135,15 @@ export const fetchAdminPanelStats = async (period: 'today' | '7d' | '30d' = 'tod
 
   if (!response.ok) {
     let message = 'request failed';
+    let payload: unknown = null;
     try {
       const data = await response.json();
+      payload = data;
       if (typeof data?.error === 'string') message = data.error;
     } catch {
       // ignore
     }
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, payload);
   }
 
   const data = (await response.json()) as {
@@ -123,6 +153,65 @@ export const fetchAdminPanelStats = async (period: 'today' | '7d' | '30d' = 'tod
   };
   if (!data.ok || !data.allowed || !data.stats) return null;
   return data as { ok: true; allowed: true; stats: AdminPanelStats };
+};
+
+export const fetchAdminModeration = async () => {
+  const response = await fetch(`${API_BASE}/api/admin/moderation`, {
+    headers: withAuthHeaders(),
+  });
+  if (response.status === 401 || response.status === 403) return null;
+
+  if (!response.ok) {
+    let message = 'request failed';
+    let payload: unknown = null;
+    try {
+      const data = await response.json();
+      payload = data;
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // ignore
+    }
+    throw new ApiRequestError(message, response.status, payload);
+  }
+
+  const data = (await response.json()) as { ok: boolean } & AdminModerationSnapshot;
+  if (!data.ok) return null;
+  return data;
+};
+
+export const moderateCampaign = async (
+  campaignId: string,
+  payload: AdminModerationActionPayload
+) => {
+  const data = await request(`/api/admin/moderation/campaigns/${campaignId}/action`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return data as {
+    ok: boolean;
+    result: {
+      campaignDeleted: boolean;
+      fineApplied: number;
+      userBlocked: boolean;
+      blockedUntil: string | null;
+      clearedReports: number;
+    };
+  };
+};
+
+export const cleanupStaleApplications = async () => {
+  const data = await request('/api/admin/moderation/stale/cleanup', {
+    method: 'POST',
+  });
+  return data as { ok: boolean; cleaned: number; thresholdHours: number };
+};
+
+export const unblockUser = async (userId: string) => {
+  const data = await request(`/api/admin/moderation/users/${userId}/unblock`, {
+    method: 'POST',
+  });
+  return data as { ok: boolean; user: { id: string; isBlocked: boolean } };
 };
 
 export const fetchCampaigns = async (category?: string, actionType?: 'subscribe' | 'reaction') => {

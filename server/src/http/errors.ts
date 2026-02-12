@@ -1,10 +1,12 @@
 export class ApiError extends Error {
   status: number;
+  details?: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, details?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -46,6 +48,9 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
   ) {
     return 400;
   }
+  if (message === 'user_blocked') {
+    return 423;
+  }
   return fallbackStatus;
 };
 
@@ -54,12 +59,17 @@ export const normalizeApiError = (error: unknown, fallbackStatus = 400) => {
 
   const maybeStatus = (error as { status?: unknown } | null)?.status;
   const maybeMessage = (error as { message?: unknown } | null)?.message;
+  const maybeDetails = (error as { details?: unknown } | null)?.details;
   const message = normalizeMessage(maybeMessage);
   const status = isFiniteStatus(maybeStatus)
     ? Number(maybeStatus)
     : detectStatusByMessage(message, fallbackStatus);
+  const details =
+    maybeDetails && typeof maybeDetails === 'object'
+      ? (maybeDetails as Record<string, unknown>)
+      : undefined;
 
-  return new ApiError(message, status);
+  return new ApiError(message, status, details);
 };
 
 export const toPublicErrorMessage = (message: string) => {
@@ -68,5 +78,6 @@ export const toPublicErrorMessage = (message: string) => {
   if (message === 'budget empty') return 'Бюджет исчерпан.';
   if (message === 'campaign paused') return 'Задание приостановлено.';
   if (message === 'already reviewed') return 'Заявка уже обработана.';
+  if (message === 'user_blocked') return 'user_blocked';
   return message;
 };

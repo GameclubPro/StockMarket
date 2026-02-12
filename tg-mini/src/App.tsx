@@ -6,8 +6,11 @@ import {
   showBackButton,
 } from '@telegram-apps/sdk';
 import {
+  ApiRequestError,
   applyCampaign,
+  cleanupStaleApplications,
   createCampaign,
+  fetchAdminModeration,
   fetchAdminPanelStats,
   fetchCampaigns,
   fetchDailyBonusStatus,
@@ -18,10 +21,15 @@ import {
   fetchMyCampaigns,
   fetchMyGroups,
   hideCampaign,
+  moderateCampaign,
   reportCampaign,
   spinDailyBonus,
+  unblockUser,
+  type AdminModerationActionPayload,
+  type AdminModerationSnapshot,
   type ApplicationDto,
   type AdminPanelStats,
+  type BlockedPayload,
   type CampaignDto,
   type CampaignReportReason,
   type DailyBonusStatus,
@@ -184,6 +192,25 @@ const ADMIN_SECTION_OPTIONS: Array<{ id: AdminSectionId; label: string }> = [
   { id: 'economy', label: 'Экономика' },
   { id: 'risks', label: 'Риски' },
 ];
+type AdminModerationBlockMode = 'none' | 'temporary' | 'permanent';
+type AdminModerationFormState = {
+  deleteCampaign: boolean;
+  fineEnabled: boolean;
+  finePoints: string;
+  fineReason: string;
+  blockMode: AdminModerationBlockMode;
+  blockDays: string;
+  blockReason: string;
+};
+const createAdminModerationForm = (): AdminModerationFormState => ({
+  deleteCampaign: false,
+  fineEnabled: false,
+  finePoints: '',
+  fineReason: '',
+  blockMode: 'none',
+  blockDays: '7',
+  blockReason: '',
+});
 type PromoWizardStepId = 'project' | 'reactionLink' | 'budget' | 'review';
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
@@ -213,6 +240,29 @@ const getHealthTone = (score: number) => {
   if (score >= 90) return 'good';
   if (score >= 75) return 'warn';
   return 'critical';
+};
+
+const getBlockedPayloadFromError = (error: unknown): BlockedPayload | null => {
+  if (!(error instanceof ApiRequestError)) return null;
+  if (error.status !== 423) return null;
+  const payload = error.payload as
+    | {
+        error?: unknown;
+        blocked?: unknown;
+      }
+    | null;
+  if (!payload || payload.error !== 'user_blocked') return null;
+  if (!payload.blocked || typeof payload.blocked !== 'object') return null;
+  const blocked = payload.blocked as {
+    reason?: unknown;
+    blockedUntil?: unknown;
+    isPermanent?: unknown;
+  };
+  return {
+    reason: typeof blocked.reason === 'string' ? blocked.reason : null,
+    blockedUntil: typeof blocked.blockedUntil === 'string' ? blocked.blockedUntil : null,
+    isPermanent: Boolean(blocked.isPermanent),
+  };
 };
 
 const copyTextToClipboard = async (value: string) => {
@@ -467,6 +517,17 @@ export default function App() {
   const [adminPanelStats, setAdminPanelStats] = useState<AdminPanelStats | null>(null);
   const [adminPeriod, setAdminPeriod] = useState<AdminPeriodPreset>('today');
   const [adminSection, setAdminSection] = useState<AdminSectionId>('overview');
+  const [adminModerationSnapshot, setAdminModerationSnapshot] =
+    useState<AdminModerationSnapshot | null>(null);
+  const [adminModerationLoading, setAdminModerationLoading] = useState(false);
+  const [adminModerationError, setAdminModerationError] = useState('');
+  const [adminModerationForms, setAdminModerationForms] = useState<
+    Record<string, AdminModerationFormState>
+  >({});
+  const [adminModerationActionId, setAdminModerationActionId] = useState('');
+  const [adminStaleCleanupLoading, setAdminStaleCleanupLoading] = useState(false);
+  const [adminUnblockUserId, setAdminUnblockUserId] = useState('');
+  const [blockedState, setBlockedState] = useState<BlockedPayload | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
@@ -1063,6 +1124,13 @@ export default function App() {
     setPointsToday(readPointsToday(key));
   }, [userId]);
 
+  const handleBlockedApiError = useCallback((error: unknown) => {
+    const blocked = getBlockedPayloadFromError(error);
+    if (!blocked) return false;
+    setBlockedState(blocked);
+    return true;
+  }, []);
+
   const loadMyGroups = useCallback(async () => {
     setMyGroupsError('');
     setMyGroupsLoading(true);
@@ -1075,14 +1143,15 @@ export default function App() {
         setMyGroups([]);
         setMyGroupsError('Не удалось загрузить список групп.');
       }
-    } catch {
+    } catch (error) {
+      if (handleBlockedApiError(error)) return;
       setMyGroups([]);
       setMyGroupsError('Не удалось загрузить список групп.');
     } finally {
       setMyGroupsLoaded(true);
       setMyGroupsLoading(false);
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -1125,13 +1194,14 @@ export default function App() {
         setMyCampaigns([]);
         setMyCampaignsError('Не удалось загрузить ваши кампании.');
       }
-    } catch {
+    } catch (error) {
+      if (handleBlockedApiError(error)) return;
       setMyCampaigns([]);
       setMyCampaignsError('Не удалось загрузить ваши кампании.');
     } finally {
       setMyCampaignsLoading(false);
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadMyApplications = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -1151,7 +1221,8 @@ export default function App() {
           setApplicationsError('Не удалось загрузить статусы.');
         }
       }
-    } catch {
+    } catch (error) {
+      if (handleBlockedApiError(error)) return;
       if (!silent) {
         setApplications([]);
         setApplicationsError('Не удалось загрузить статусы.');
@@ -1161,20 +1232,21 @@ export default function App() {
         setApplicationsLoading(false);
       }
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadMe = useCallback(async () => {
     try {
       const data = await fetchMe();
       if (data.ok) {
+        setBlockedState(null);
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      if (handleBlockedApiError(error)) return;
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadAdminPanel = useCallback(async (options?: { silent?: boolean; period?: AdminPeriodPreset }) => {
     const silent = options?.silent ?? false;
@@ -1193,11 +1265,48 @@ export default function App() {
       setAdminPanelAllowed(true);
       setAdminPanelStats(data.stats);
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
       if (!silent) setAdminPanelError(error?.message ?? 'Не удалось загрузить админ-статистику.');
     } finally {
       setAdminPanelLoading(false);
     }
-  }, [adminPeriod, tgUsername]);
+  }, [adminPeriod, handleBlockedApiError, tgUsername]);
+
+  const loadAdminModeration = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setAdminModerationError('');
+    }
+    setAdminModerationLoading(true);
+    try {
+      const data = await fetchAdminModeration();
+      if (!data) {
+        setAdminModerationSnapshot(null);
+        setAdminPanelAllowed((current) =>
+          current && isPrivilegedAdminUsername(tgUsername) ? current : false
+        );
+        return;
+      }
+      setAdminPanelAllowed(true);
+      setAdminModerationSnapshot(data);
+      setAdminModerationForms((current) => {
+        const next = { ...current };
+        for (const complaint of data.complaints) {
+          if (!next[complaint.campaignId]) {
+            next[complaint.campaignId] = createAdminModerationForm();
+          }
+        }
+        return next;
+      });
+    } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
+      if (!silent) {
+        setAdminModerationError(error?.message ?? 'Не удалось загрузить модерацию.');
+      }
+    } finally {
+      setAdminModerationLoading(false);
+    }
+  }, [handleBlockedApiError, tgUsername]);
 
   const loadDailyBonusStatus = useCallback(async () => {
     setDailyBonusError('');
@@ -1212,11 +1321,12 @@ export default function App() {
         streak: typeof data.streak === 'number' ? data.streak : 0,
       });
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
       setDailyBonusError(error?.message ?? 'Не удалось загрузить бонус.');
     } finally {
       setDailyBonusLoading(false);
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadReferralStats = useCallback(async () => {
     setReferralError('');
@@ -1231,12 +1341,13 @@ export default function App() {
         setReferralError('Не удалось загрузить реферальные данные.');
       }
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
       setReferralStats(null);
       setReferralError(error?.message ?? 'Не удалось загрузить реферальные данные.');
     } finally {
       setReferralLoading(false);
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const loadReferralList = useCallback(async () => {
     setReferralListError('');
@@ -1250,12 +1361,13 @@ export default function App() {
         setReferralListError('Не удалось загрузить список приглашённых.');
       }
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
       setReferralList([]);
       setReferralListError(error?.message ?? 'Не удалось загрузить список приглашённых.');
     } finally {
       setReferralListLoading(false);
     }
-  }, []);
+  }, [handleBlockedApiError]);
 
   const hideCampaignLocally = useCallback((campaignId: string) => {
     setHiddenCampaignIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
@@ -1307,11 +1419,12 @@ export default function App() {
       setTaskActionSheetMode('actions');
       void refreshTaskListsSilently();
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
       setTaskActionSheetError(error?.message ?? 'Не удалось скрыть задание.');
     } finally {
       setTaskActionSheetLoading(false);
     }
-  }, [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently]);
+  }, [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently, handleBlockedApiError]);
 
   const handleReportTaskCampaign = useCallback(
     async (reason: CampaignReportReason) => {
@@ -1328,12 +1441,124 @@ export default function App() {
         setTaskActionSheetMode('actions');
         void refreshTaskListsSilently();
       } catch (error: any) {
+        if (handleBlockedApiError(error)) return;
         setTaskActionSheetError(error?.message ?? 'Не удалось отправить жалобу.');
       } finally {
         setTaskActionSheetLoading(false);
       }
     },
-    [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently]
+    [taskActionSheetCampaign, taskActionSheetLoading, hideCampaignLocally, refreshTaskListsSilently, handleBlockedApiError]
+  );
+
+  const setAdminModerationFormValue = useCallback(
+    (campaignId: string, updater: (current: AdminModerationFormState) => AdminModerationFormState) => {
+      setAdminModerationForms((current) => {
+        const prev = current[campaignId] ?? createAdminModerationForm();
+        return {
+          ...current,
+          [campaignId]: updater(prev),
+        };
+      });
+    },
+    []
+  );
+
+  const handleAdminModerateCampaign = useCallback(
+    async (campaignId: string) => {
+      const form = adminModerationForms[campaignId] ?? createAdminModerationForm();
+      const payload: AdminModerationActionPayload = {};
+
+      if (form.deleteCampaign) {
+        payload.deleteCampaign = true;
+      }
+
+      if (form.fineEnabled) {
+        const finePoints = Number(form.finePoints);
+        if (!Number.isFinite(finePoints) || finePoints <= 0) {
+          setAdminModerationError('Введите корректный размер штрафа.');
+          return;
+        }
+        payload.finePoints = Math.floor(finePoints);
+        if (form.fineReason.trim()) {
+          payload.fineReason = form.fineReason.trim();
+        }
+      }
+
+      payload.blockMode = form.blockMode;
+      if (form.blockMode === 'temporary') {
+        const blockDays = Number(form.blockDays);
+        if (!Number.isFinite(blockDays) || blockDays <= 0) {
+          setAdminModerationError('Укажите срок блокировки в днях.');
+          return;
+        }
+        payload.blockDays = Math.floor(blockDays);
+      }
+      if (form.blockMode !== 'none' && form.blockReason.trim()) {
+        payload.blockReason = form.blockReason.trim();
+      }
+
+      if (!payload.deleteCampaign && !payload.finePoints && payload.blockMode === 'none') {
+        setAdminModerationError('Выберите хотя бы одно действие.');
+        return;
+      }
+
+      setAdminModerationError('');
+      setAdminModerationActionId(campaignId);
+      try {
+        const data = await moderateCampaign(campaignId, payload);
+        if (!data.ok) {
+          throw new Error('Не удалось применить модерацию.');
+        }
+        setAdminModerationForms((current) => ({
+          ...current,
+          [campaignId]: createAdminModerationForm(),
+        }));
+        await loadAdminModeration({ silent: true });
+      } catch (error: any) {
+        if (handleBlockedApiError(error)) return;
+        setAdminModerationError(error?.message ?? 'Не удалось применить модерацию.');
+      } finally {
+        setAdminModerationActionId('');
+      }
+    },
+    [adminModerationForms, handleBlockedApiError, loadAdminModeration]
+  );
+
+  const handleAdminCleanupStale = useCallback(async () => {
+    setAdminModerationError('');
+    setAdminStaleCleanupLoading(true);
+    try {
+      const data = await cleanupStaleApplications();
+      if (!data.ok) {
+        throw new Error('Не удалось очистить зависшие заявки.');
+      }
+      await loadAdminModeration({ silent: true });
+    } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
+      setAdminModerationError(error?.message ?? 'Не удалось очистить зависшие заявки.');
+    } finally {
+      setAdminStaleCleanupLoading(false);
+    }
+  }, [handleBlockedApiError, loadAdminModeration]);
+
+  const handleAdminUnblockUser = useCallback(
+    async (targetUserId: string) => {
+      setAdminModerationError('');
+      setAdminUnblockUserId(targetUserId);
+      try {
+        const data = await unblockUser(targetUserId);
+        if (!data.ok) {
+          throw new Error('Не удалось снять блокировку.');
+        }
+        await loadAdminModeration({ silent: true });
+      } catch (error: any) {
+        if (handleBlockedApiError(error)) return;
+        setAdminModerationError(error?.message ?? 'Не удалось снять блокировку.');
+      } finally {
+        setAdminUnblockUserId('');
+      }
+    },
+    [handleBlockedApiError, loadAdminModeration]
   );
 
   useEffect(() => {
@@ -1352,8 +1577,18 @@ export default function App() {
 
   useEffect(() => {
     if (!userId) return;
+    void loadMe();
+  }, [userId, loadMe]);
+
+  useEffect(() => {
+    if (!userId) return;
     void loadAdminPanel({ silent: true, period: adminPeriod });
   }, [userId, loadAdminPanel, adminPeriod]);
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadAdminModeration({ silent: true });
+  }, [userId, loadAdminModeration]);
 
   useEffect(() => {
     if (activeTab !== 'referrals') return;
@@ -1373,6 +1608,12 @@ export default function App() {
     if (!userId) return;
     void loadAdminPanel({ period: adminPeriod });
   }, [activeTab, userId, loadAdminPanel, adminPeriod]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin') return;
+    if (!userId) return;
+    void loadAdminModeration();
+  }, [activeTab, userId, loadAdminModeration]);
 
   useEffect(() => {
     if (activeTab !== 'admin') return;
@@ -1556,10 +1797,11 @@ export default function App() {
         loadMyApplications({ silent: true }),
         loadMe(),
         loadAdminPanel({ silent: true }),
+        loadAdminModeration({ silent: true }),
       ]);
       restoreScrollTop(contentRef.current, scrollTop);
     })();
-  }, [loadCampaigns, loadMyApplications, loadMe, loadAdminPanel]);
+  }, [loadCampaigns, loadMyApplications, loadMe, loadAdminPanel, loadAdminModeration]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -2133,6 +2375,7 @@ export default function App() {
       await loadMyCampaigns();
       return true;
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return false;
       setCreateError(error?.message ?? 'Не удалось создать кампанию.');
       return false;
     } finally {
@@ -2175,6 +2418,7 @@ export default function App() {
       await loadMyApplications();
       return true;
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return false;
       setActionError(error?.message ?? 'Не удалось отправить задание.');
       return false;
     } finally {
@@ -2431,6 +2675,7 @@ export default function App() {
       setWheelCelebrating(false);
       setWheelRewardBurst(false);
       setWheelRewardModalOpen(false);
+      if (handleBlockedApiError(error)) return;
       setDailyBonusError(error?.message ?? 'Не удалось получить бонус.');
     }
   };
@@ -2532,6 +2777,14 @@ export default function App() {
     if (nextSection === adminSection) return;
     setAdminSection(nextSection);
   };
+  const adminModerationSummary = adminModerationSnapshot?.summary ?? null;
+  const adminModerationComplaints = adminModerationSnapshot?.complaints ?? [];
+  const adminModerationStale = adminModerationSnapshot?.stale ?? null;
+  const adminModerationBlockedUsers = adminModerationSnapshot?.blockedUsers ?? [];
+  const blockedUntilLabel = useMemo(() => {
+    if (!blockedState?.blockedUntil) return 'Бессрочно';
+    return formatDateTimeRu(blockedState.blockedUntil);
+  }, [blockedState?.blockedUntil]);
   const adminSummaryNewUsers = adminOverview?.newUsers ?? adminPanelStats?.newUsersToday ?? 0;
   const adminSummaryTotalUsers = adminOverview?.totalUsers ?? adminPanelStats?.totalUsers ?? 0;
   const adminSummaryActiveUsers = adminOverview?.activeUsers ?? 0;
@@ -2556,12 +2809,12 @@ export default function App() {
   const adminSummaryBonusRemaining =
     adminOverview?.welcomeBonusRemaining ?? adminPanelStats?.bonusRemaining ?? 0;
   const adminSummaryReviewed = adminOverview?.reviewedApplications ?? 0;
-  const adminTrends = adminPanelStats?.trends ?? null;
+  const adminTrends = (adminPanelStats?.trends ?? null) as any;
   const adminCampaigns = adminPanelStats?.campaigns ?? null;
   const adminApplications = adminPanelStats?.applications ?? null;
   const adminEconomy = adminPanelStats?.economy ?? null;
   const adminReferrals = adminPanelStats?.referrals ?? null;
-  const adminRisks = adminPanelStats?.risks ?? null;
+  const adminRisks = (adminPanelStats?.risks ?? null) as any;
   const adminAlerts = adminPanelStats?.alerts ?? [];
   const adminHealth = useMemo(() => {
     let score = 100;
@@ -2677,6 +2930,33 @@ export default function App() {
   ]
     .filter(Boolean)
     .join(' ');
+
+  if (blockedState) {
+    return (
+      <div className="content blocked-content">
+        <section className="blocked-screen">
+          <div className="blocked-chip">Доступ ограничен</div>
+          <h1 className="blocked-title">Аккаунт заблокирован</h1>
+          <p className="blocked-sub">
+            {blockedState.reason?.trim() || 'Обратитесь к администратору для разблокировки.'}
+          </p>
+          <div className="blocked-meta">
+            <span>Срок блокировки</span>
+            <strong>{blockedUntilLabel}</strong>
+          </div>
+          <button
+            className="blocked-refresh-button"
+            type="button"
+            onClick={() => {
+              void loadMe();
+            }}
+          >
+            Обновить статус
+          </button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -3237,6 +3517,291 @@ export default function App() {
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
+              <div className="page-title admin-page-title">Модерация</div>
+              <button
+                className="admin-refresh-button admin-refresh-inline"
+                type="button"
+                onClick={() => {
+                  void loadAdminModeration();
+                }}
+                disabled={adminModerationLoading}
+              >
+                {adminModerationLoading ? '...' : 'Обновить'}
+              </button>
+            </div>
+
+            <section className="admin-section-card admin-moderation-summary">
+              {adminModerationLoading && <div className="admin-panel-status">Загрузка модерации…</div>}
+              {!adminModerationLoading && adminModerationError && (
+                <div className="admin-panel-status error">{adminModerationError}</div>
+              )}
+              {!adminModerationLoading && !adminModerationError && adminModerationSummary && (
+                <div className="admin-mini-grid">
+                  <div className="admin-mini-item">
+                    <span>Открытые жалобы</span>
+                    <strong>{formatNumberRu(adminModerationSummary.openReports)}</strong>
+                  </div>
+                  <div className="admin-mini-item">
+                    <span>Зависшие заявки</span>
+                    <strong>{formatNumberRu(adminModerationSummary.stalePendingCount)}</strong>
+                  </div>
+                  <div className="admin-mini-item">
+                    <span>Заблокированные</span>
+                    <strong>{formatNumberRu(adminModerationSummary.blockedUsersCount)}</strong>
+                  </div>
+                  <div className="admin-mini-item">
+                    <span>Обновлено</span>
+                    <strong>{formatDateTimeRu(adminModerationSummary.updatedAt)}</strong>
+                  </div>
+                </div>
+              )}
+              {!adminModerationLoading &&
+                !adminModerationError &&
+                !adminModerationSummary && (
+                  <div className="admin-panel-status">Данные модерации недоступны.</div>
+                )}
+            </section>
+
+            {!adminModerationLoading && !adminModerationError && (
+              <>
+                <section className="admin-section-card">
+                  <div className="admin-section-head">
+                    <div className="admin-section-title">Жалобы</div>
+                    <div className="admin-section-sub">Удаление, штраф, блокировка</div>
+                  </div>
+                  {adminModerationComplaints.length === 0 && (
+                    <div className="admin-empty">Открытых жалоб нет.</div>
+                  )}
+                  {adminModerationComplaints.map((complaint) => {
+                    const form = adminModerationForms[complaint.campaignId] ?? createAdminModerationForm();
+                    return (
+                      <div className="admin-moderation-card" key={complaint.campaignId}>
+                        <div className="admin-moderation-head">
+                          <div className="admin-entity-title">{complaint.campaign.groupTitle}</div>
+                          <div className="admin-entity-sub">
+                            {formatCampaignTypeRu(complaint.campaign.actionType)} • {formatDateTimeRu(complaint.lastReportedAt)}
+                          </div>
+                        </div>
+                        <div className="admin-mini-grid admin-moderation-stats">
+                          <div className="admin-mini-item">
+                            <span>Жалоб</span>
+                            <strong>{formatNumberRu(complaint.reportCount)}</strong>
+                          </div>
+                          <div className="admin-mini-item">
+                            <span>Причина</span>
+                            <strong>{complaint.topReasonLabel}</strong>
+                          </div>
+                        </div>
+                        <div className="admin-entity-sub">
+                          Владелец: {complaint.owner.label}
+                          {complaint.owner.isBlocked ? ' • заблокирован' : ''}
+                        </div>
+                        {complaint.sampleReporters.length > 0 && (
+                          <div className="admin-entity-sub">
+                            Репортеры: {complaint.sampleReporters.join(', ')}
+                          </div>
+                        )}
+
+                        <label className="admin-form-toggle">
+                          <input
+                            type="checkbox"
+                            checked={form.deleteCampaign}
+                            onChange={(event) =>
+                              setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                ...current,
+                                deleteCampaign: event.target.checked,
+                              }))
+                            }
+                          />
+                          <span>Удалить кампанию глобально</span>
+                        </label>
+
+                        <label className="admin-form-toggle">
+                          <input
+                            type="checkbox"
+                            checked={form.fineEnabled}
+                            onChange={(event) =>
+                              setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                ...current,
+                                fineEnabled: event.target.checked,
+                              }))
+                            }
+                          />
+                          <span>Штраф владельцу</span>
+                        </label>
+                        {form.fineEnabled && (
+                          <div className="admin-form-grid">
+                            <input
+                              className="admin-form-input"
+                              type="number"
+                              min={1}
+                              placeholder="Баллы штрафа"
+                              value={form.finePoints}
+                              onChange={(event) =>
+                                setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                  ...current,
+                                  finePoints: event.target.value,
+                                }))
+                              }
+                            />
+                            <input
+                              className="admin-form-input"
+                              type="text"
+                              placeholder="Причина штрафа"
+                              value={form.fineReason}
+                              onChange={(event) =>
+                                setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                  ...current,
+                                  fineReason: event.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+                        )}
+
+                        <div className="admin-form-grid">
+                          <select
+                            className="admin-form-input"
+                            value={form.blockMode}
+                            onChange={(event) =>
+                              setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                ...current,
+                                blockMode: event.target.value as AdminModerationBlockMode,
+                              }))
+                            }
+                          >
+                            <option value="none">Без блокировки</option>
+                            <option value="temporary">Временный блок</option>
+                            <option value="permanent">Постоянный блок</option>
+                          </select>
+                          {form.blockMode === 'temporary' && (
+                            <input
+                              className="admin-form-input"
+                              type="number"
+                              min={1}
+                              placeholder="Дней блокировки"
+                              value={form.blockDays}
+                              onChange={(event) =>
+                                setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                  ...current,
+                                  blockDays: event.target.value,
+                                }))
+                              }
+                            />
+                          )}
+                        </div>
+                        {form.blockMode !== 'none' && (
+                          <input
+                            className="admin-form-input"
+                            type="text"
+                            placeholder="Причина блокировки"
+                            value={form.blockReason}
+                            onChange={(event) =>
+                              setAdminModerationFormValue(complaint.campaignId, (current) => ({
+                                ...current,
+                                blockReason: event.target.value,
+                              }))
+                            }
+                          />
+                        )}
+
+                        <button
+                          className="admin-refresh-button"
+                          type="button"
+                          disabled={adminModerationActionId === complaint.campaignId}
+                          onClick={() => {
+                            void handleAdminModerateCampaign(complaint.campaignId);
+                          }}
+                        >
+                          {adminModerationActionId === complaint.campaignId ? 'Применяем…' : 'Применить'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </section>
+
+                <section className="admin-section-card">
+                  <div className="admin-section-head">
+                    <div className="admin-section-title">Зависшие заявки</div>
+                    <div className="admin-section-sub">
+                      Pending старше {formatNumberRu(adminModerationStale?.thresholdHours ?? 24)} часов
+                    </div>
+                  </div>
+                  <div className="admin-mini-grid">
+                    <div className="admin-mini-item">
+                      <span>Количество</span>
+                      <strong>{formatNumberRu(adminModerationStale?.count ?? 0)}</strong>
+                    </div>
+                    <div className="admin-mini-item">
+                      <span>Самая старая</span>
+                      <strong>
+                        {adminModerationStale?.oldestCreatedAt
+                          ? formatDateTimeRu(adminModerationStale.oldestCreatedAt)
+                          : 'нет'}
+                      </strong>
+                    </div>
+                  </div>
+                  <button
+                    className="admin-refresh-button"
+                    type="button"
+                    disabled={adminStaleCleanupLoading || (adminModerationStale?.count ?? 0) <= 0}
+                    onClick={() => {
+                      void handleAdminCleanupStale();
+                    }}
+                  >
+                    {adminStaleCleanupLoading ? 'Очищаем…' : 'Очистить зависшие'}
+                  </button>
+                </section>
+
+                <section className="admin-section-card">
+                  <div className="admin-section-head">
+                    <div className="admin-section-title">Заблокированные пользователи</div>
+                  </div>
+                  {adminModerationBlockedUsers.length === 0 && (
+                    <div className="admin-empty">Сейчас блокировок нет.</div>
+                  )}
+                  {adminModerationBlockedUsers.length > 0 && (
+                    <div className="admin-entity-list">
+                      {adminModerationBlockedUsers.map((item) => (
+                        <div className="admin-moderation-user" key={item.id}>
+                          <div className="admin-entity-main">
+                            <div className="admin-entity-title">{item.label}</div>
+                            <div className="admin-entity-sub">
+                              {item.blockReason || 'Причина не указана'} • до{' '}
+                              {item.blockedUntil ? formatDateTimeRu(item.blockedUntil) : 'бессрочно'}
+                            </div>
+                          </div>
+                          <button
+                            className="admin-inline-button"
+                            type="button"
+                            disabled={adminUnblockUserId === item.id}
+                            onClick={() => {
+                              void handleAdminUnblockUser(item.id);
+                            }}
+                          >
+                            {adminUnblockUserId === item.id ? '...' : 'Разблокировать'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+
+            {false && (
+              <>
+            <div className="page-header admin-header">
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setActiveTab('home')}
+                aria-label="Назад"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
               <div className="page-title admin-page-title">Админ-панель</div>
               <div className="header-spacer" aria-hidden="true" />
             </div>
@@ -3740,7 +4305,7 @@ export default function App() {
                         </div>
                         {(adminRisks.reports.byReason?.length ?? 0) > 0 && (
                           <div className="admin-entity-list compact">
-                            {adminRisks.reports.byReason.map((item) => (
+                            {adminRisks.reports.byReason.map((item: any) => (
                               <div className="admin-entity-row compact" key={`report-reason-${item.reason}`}>
                                 <div className="admin-entity-main">
                                   <div className="admin-entity-title">{item.reasonLabel}</div>
@@ -3755,7 +4320,7 @@ export default function App() {
 
                         {(adminRisks.reports.recent?.length ?? 0) > 0 ? (
                           <div className="admin-entity-list compact">
-                            {adminRisks.reports.recent.map((item) => (
+                            {adminRisks.reports.recent.map((item: any) => (
                               <div className="admin-entity-row compact" key={item.id}>
                                 <div className="admin-entity-main">
                                   <div className="admin-entity-title">{item.groupTitle}</div>
@@ -3779,7 +4344,7 @@ export default function App() {
                       <div className="admin-risk-block">
                         <div className="admin-split-title">Высокий reject rate владельцев</div>
                         <div className="admin-entity-list compact">
-                          {adminRisks?.highRejectOwners.map((item) => (
+                          {adminRisks?.highRejectOwners.map((item: any) => (
                             <div className="admin-entity-row compact" key={item.userId}>
                               <div className="admin-entity-main">
                                 <div className="admin-entity-title">{item.ownerLabel}</div>
@@ -3797,6 +4362,8 @@ export default function App() {
                     )}
                   </section>
                 )}
+              </>
+            )}
               </>
             )}
           </>
