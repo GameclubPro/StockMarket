@@ -814,15 +814,15 @@ export default function App() {
   }, [applicationsByCampaign, taskTypeCampaigns]);
   const taskHintText = useMemo(() => {
     if (taskListFilter === 'history') {
-      return `Подтверждено: ${historyApplications.length}. Здесь хранится журнал завершённых заданий.`;
+      return `Подтверждено: ${historyApplications.length}. Журнал начислений и завершённых заданий.`;
     }
     if (taskStatusCounters.ready > 0) {
-      return `К выдаче: ${taskStatusCounters.ready}. Подтвердите задания с галочкой, чтобы получить баллы.`;
+      return `К выдаче: ${taskStatusCounters.ready}. Подтвердите задания с галочкой.`;
     }
     if (taskStatusCounters.pending > 0) {
-      return `На проверке: ${taskStatusCounters.pending}. Можно брать новые задания параллельно.`;
+      return `На проверке: ${taskStatusCounters.pending}. Новые задания можно брать параллельно.`;
     }
-    return 'Нажмите «Получить», выполните действие в Telegram и дождитесь подтверждения.';
+    return 'Нажмите «Получить», выполните задание в Telegram и вернитесь за наградой.';
   }, [historyApplications.length, taskListFilter, taskStatusCounters.pending, taskStatusCounters.ready]);
 
   const initialLetter = useMemo(() => {
@@ -3702,62 +3702,64 @@ export default function App() {
         {activeTab === 'tasks' && (
           <>
             <BalanceHeader />
-            <div className={`segment filters ${taskTypeFilter}`}>
-              <span className="filter-toggle-indicator" aria-hidden="true" />
-              <button
-                className={`filter-toggle-button ${
-                  taskTypeFilter === 'subscribe' ? 'active' : ''
-                }`}
-                type="button"
-                role="tab"
-                aria-selected={taskTypeFilter === 'subscribe'}
-                onClick={() => setTaskTypeFilter('subscribe')}
-              >
-                Подписки
-              </button>
-              <button
-                className={`filter-toggle-button ${
-                  taskTypeFilter === 'reaction' ? 'active' : ''
-                }`}
-                type="button"
-                role="tab"
-                aria-selected={taskTypeFilter === 'reaction'}
-                onClick={() => setTaskTypeFilter('reaction')}
-              >
-                Реакции
-              </button>
-              <div className="filter-divider" />
-              <div className="filter-row bottom" role="tablist" aria-label="Фильтр списка">
+            <section className="tasks-toolbar">
+              <div className={`segment filters ${taskTypeFilter}`}>
+                <span className="filter-toggle-indicator" aria-hidden="true" />
                 <button
-                  className={`filter-chip ${taskListFilter === 'hot' ? 'active' : ''}`}
+                  className={`filter-toggle-button ${
+                    taskTypeFilter === 'subscribe' ? 'active' : ''
+                  }`}
                   type="button"
                   role="tab"
-                  aria-selected={taskListFilter === 'hot'}
-                  onClick={() => setTaskListFilter('hot')}
+                  aria-selected={taskTypeFilter === 'subscribe'}
+                  onClick={() => setTaskTypeFilter('subscribe')}
                 >
-                  Топ
+                  Подписки
                 </button>
                 <button
-                  className={`filter-chip ${taskListFilter === 'new' ? 'active' : ''}`}
+                  className={`filter-toggle-button ${
+                    taskTypeFilter === 'reaction' ? 'active' : ''
+                  }`}
                   type="button"
                   role="tab"
-                  aria-selected={taskListFilter === 'new'}
-                  onClick={() => setTaskListFilter('new')}
+                  aria-selected={taskTypeFilter === 'reaction'}
+                  onClick={() => setTaskTypeFilter('reaction')}
                 >
-                  Новые
+                  Реакции
                 </button>
-                <button
-                  className={`filter-chip ${taskListFilter === 'history' ? 'active' : ''}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={taskListFilter === 'history'}
-                  onClick={() => setTaskListFilter('history')}
-                  ref={historyTabRef}
-                >
-                  История
-                </button>
+                <div className="filter-divider" />
+                <div className="filter-row bottom" role="tablist" aria-label="Фильтр списка">
+                  <button
+                    className={`filter-chip ${taskListFilter === 'hot' ? 'active' : ''}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={taskListFilter === 'hot'}
+                    onClick={() => setTaskListFilter('hot')}
+                  >
+                    Топ
+                  </button>
+                  <button
+                    className={`filter-chip ${taskListFilter === 'new' ? 'active' : ''}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={taskListFilter === 'new'}
+                    onClick={() => setTaskListFilter('new')}
+                  >
+                    Новые
+                  </button>
+                  <button
+                    className={`filter-chip ${taskListFilter === 'history' ? 'active' : ''}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={taskListFilter === 'history'}
+                    onClick={() => setTaskListFilter('history')}
+                    ref={historyTabRef}
+                  >
+                    История
+                  </button>
+                </div>
               </div>
-            </div>
+            </section>
             <div className={`tasks-overview ${taskListFilter === 'history' ? 'history' : ''}`}>
               <div className="tasks-overview-row">
                 <div className="tasks-overview-item">
@@ -3792,14 +3794,37 @@ export default function App() {
                 {actionError && <div className="form-status error">{actionError}</div>}
                 {applicationsError && <div className="form-status error">{applicationsError}</div>}
                 {applicationsLoading && (
-                  <div className="task-form-placeholder">Обновляем статусы…</div>
+                  <div className="task-form-placeholder subtle">Обновляем статусы…</div>
                 )}
-                {campaignsLoading && <div className="task-form-placeholder">Загрузка…</div>}
+                {campaignsLoading && (
+                  <div className="task-skeleton-list" aria-hidden="true">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div className="task-card task-card-skeleton" key={`task-skeleton-${index}`}>
+                        <div className="task-card-head">
+                          <div className="task-avatar task-avatar-skeleton" />
+                          <div className="task-info">
+                            <div className="task-skeleton-line task-skeleton-line-title" />
+                            <div className="task-skeleton-line task-skeleton-line-handle" />
+                          </div>
+                          <div className="task-meta">
+                            <div className="task-skeleton-pill" />
+                            <div className="task-skeleton-pill short" />
+                          </div>
+                        </div>
+                        <div className="task-actions task-actions-row">
+                          <div className="task-skeleton-button" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {!campaignsLoading && campaignsError && (
                   <div className="task-form-placeholder error">{campaignsError}</div>
                 )}
                 {!campaignsLoading && !campaignsError && visibleCampaigns.length === 0 && (
-                  <div className="task-form-placeholder">Нет активных заданий.</div>
+                  <div className="task-form-placeholder task-empty-state">
+                    Сейчас нет заданий в этом фильтре. Переключите вкладку или зайдите позже.
+                  </div>
                 )}
                 {!campaignsLoading &&
                   !campaignsError &&
@@ -3809,9 +3834,12 @@ export default function App() {
                     const statusMeta = getTaskStatusMeta(status);
                     const payout = calculatePayout(campaign.rewardPoints);
                     const badgeLabel = `+${payout} ${formatPointsLabel(payout)}`;
+                    const readyToClaim = status === 'APPROVED' && !acknowledgedIds.includes(campaign.id);
                     return (
                       <div
-                        className={`task-card ${leavingIds.includes(campaign.id) ? 'is-leaving' : ''}`}
+                        className={`task-card task-card-live ${readyToClaim ? 'task-card-claimable' : ''} ${
+                          leavingIds.includes(campaign.id) ? 'is-leaving' : ''
+                        }`}
                         key={campaign.id}
                         ref={(node) => registerTaskCardRef(campaign.id, node)}
                       >
@@ -3826,46 +3854,46 @@ export default function App() {
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
-                            <div className="task-meta">
-                              <span
-                                className="badge sticker"
-                                ref={(node) => registerTaskBadgeRef(campaign.id, node)}
-                              >
-                                {badgeLabel}
-                              </span>
-                              <span className={`status-badge compact ${statusMeta.className}`}>
-                                {statusMeta.label}
-                              </span>
-                            </div>
                           </div>
-                          <div className="task-actions">
-                            <button
-                              className="open-button action"
-                              type="button"
-                              onClick={() => void handleOpenCampaign(campaign, status)}
-                              aria-label={statusMeta.actionLabel}
-                              disabled={actionLoadingId === campaign.id}
+                          <div className="task-meta">
+                            <span
+                              className="badge sticker"
+                              ref={(node) => registerTaskBadgeRef(campaign.id, node)}
                             >
-                              <span>{actionLoadingId === campaign.id ? 'Ждите' : statusMeta.actionLabel}</span>
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                                <path d="M9 5h10v10" />
-                                <path d="M19 5l-9 9" />
-                                <path d="M5 19h10" />
+                              {badgeLabel}
+                            </span>
+                            <span className={`status-badge compact ${statusMeta.className}`}>
+                              {statusMeta.label}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="task-actions task-actions-row">
+                          <button
+                            className="open-button action task-primary-action"
+                            type="button"
+                            onClick={() => void handleOpenCampaign(campaign, status)}
+                            aria-label={statusMeta.actionLabel}
+                            disabled={actionLoadingId === campaign.id}
+                          >
+                            <span>{actionLoadingId === campaign.id ? 'Ждите' : statusMeta.actionLabel}</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                              <path d="M9 5h10v10" />
+                              <path d="M19 5l-9 9" />
+                              <path d="M5 19h10" />
+                            </svg>
+                          </button>
+                          {readyToClaim && (
+                            <button
+                              className="open-button confirm task-confirm-action"
+                              type="button"
+                              onClick={() => handleConfirmReward(campaign.id, payout)}
+                              aria-label="Подтвердить и получить"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M5 13l4 4L19 7" />
                               </svg>
                             </button>
-                            {status === 'APPROVED' && !acknowledgedIds.includes(campaign.id) && (
-                              <button
-                                className="open-button confirm"
-                                type="button"
-                                onClick={() => handleConfirmReward(campaign.id, payout)}
-                                aria-label="Подтвердить и получить"
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M5 13l4 4L19 7" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3888,7 +3916,7 @@ export default function App() {
                       calculatePayout(campaign.rewardPoints)
                     )}`;
                     return (
-                      <div className="task-card" key={application.id}>
+                      <div className="task-card task-card-history" key={application.id}>
                         <div className="task-card-head">
                           <div className="task-avatar">
                             <span>{campaign.group.title?.[0] ?? 'Г'}</span>
@@ -3900,26 +3928,29 @@ export default function App() {
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
-                            <div className="task-meta">
-                              <span className="badge sticker">{badgeLabel}</span>
-                              <span className="status-badge approved compact">Выполнено</span>
-                            </div>
                           </div>
-                          <div className="task-actions">
-                            <button
-                              className="open-button action"
-                              type="button"
-                              onClick={() => openCampaignLink(campaign)}
-                              aria-label="Открыть"
-                            >
-                              <span>Открыть</span>
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                                <path d="M9 5h10v10" />
-                                <path d="M19 5l-9 9" />
-                                <path d="M5 19h10" />
-                              </svg>
-                            </button>
+                          <div className="task-meta">
+                            <span className="badge sticker">{badgeLabel}</span>
+                            <span className="status-badge approved compact">Выполнено</span>
                           </div>
+                        </div>
+                        <div className="task-actions task-actions-row">
+                          <button
+                            className="open-button action task-secondary-action"
+                            type="button"
+                            onClick={() => openCampaignLink(campaign)}
+                            aria-label="Открыть"
+                          >
+                            <span>Открыть</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                              <path d="M9 5h10v10" />
+                              <path d="M19 5l-9 9" />
+                              <path d="M5 19h10" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="task-history-date">
+                          {formatDateTimeRu(application.reviewedAt ?? application.createdAt)}
                         </div>
                       </div>
                     );
