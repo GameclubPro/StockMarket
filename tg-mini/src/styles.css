@@ -9417,34 +9417,7 @@ body::before {
   }
 }
 
-/* Promo fullscreen cleanup: unified top shell with light glass effect */
-.content.promo-content .promo-top-unified {
-  margin: 0;
-  padding: 8px;
-  border-radius: 20px;
-  border: 1px solid rgba(170, 194, 181, 0.26);
-  background:
-    radial-gradient(120% 140% at 8% -16%, rgba(141, 231, 175, 0.14), transparent 48%),
-    linear-gradient(175deg, rgba(19, 24, 30, 0.72), rgba(14, 18, 23, 0.42));
-  backdrop-filter: blur(10px);
-  box-shadow:
-    inset 0 1px 0 rgba(245, 255, 250, 0.06),
-    0 10px 20px rgba(0, 0, 0, 0.24);
-  display: grid;
-  gap: 8px;
-}
-
-.content.promo-content .promo-top-separator {
-  height: 1px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(173, 195, 181, 0.04),
-    rgba(173, 195, 181, 0.46),
-    rgba(173, 195, 181, 0.04)
-  );
-}
-
+/* Promo fullscreen cleanup: standalone top blocks like tasks screen */
 .content.promo-content .balance-header {
   margin: 0 !important;
   padding: 0 !important;
@@ -9456,12 +9429,15 @@ body::before {
 
 .content.promo-content .promo-mode-switch.segment.center {
   width: 100%;
-  margin: 0 !important;
+  margin: 6px 0 0 !important;
   height: auto !important;
-  padding: 0 !important;
+  padding: 4px !important;
   gap: 8px !important;
-  background: transparent !important;
-  border: none !important;
+  border-radius: 16px;
+  border: 1px solid rgba(170, 194, 181, 0.22) !important;
+  background:
+    radial-gradient(120% 120% at 8% -22%, rgba(141, 231, 175, 0.1), transparent 55%),
+    linear-gradient(175deg, rgba(19, 24, 30, 0.74), rgba(15, 20, 25, 0.86)) !important;
   box-shadow: none !important;
 }
 
@@ -9469,8 +9445,8 @@ body::before {
   min-height: 52px;
   border-radius: 14px;
   padding: 8px 10px;
-  border: 1px solid rgba(173, 195, 181, 0.2) !important;
-  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid rgba(173, 195, 181, 0.15) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
   box-shadow: none !important;
 }
 
@@ -9656,11 +9632,6 @@ body::before {
 }
 
 @media (max-width: 390px) {
-  .content.promo-content .promo-top-unified {
-    padding: 7px;
-    gap: 7px;
-  }
-
   .content.promo-content .promo-mode-switch .promo-mode-button {
     min-height: 48px;
   }

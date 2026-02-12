@@ -3579,28 +3579,25 @@ export default function App() {
 
         {activeTab === 'promo' && (
           <>
-            <section className="promo-top-unified">
-              <BalanceHeader />
-              <div className="promo-top-separator" aria-hidden="true" />
-              <div className="segment center promo-mode-switch">
-                <button
-                  className={`segment-button promo-mode-button ${myTasksTab === 'place' ? 'active' : ''}`}
-                  type="button"
-                  onClick={() => setMyTasksTab('place')}
-                >
-                  <span className="promo-mode-title">Разместить</span>
-                  <span className="promo-mode-meta">новая кампания</span>
-                </button>
-                <button
-                  className={`segment-button promo-mode-button ${myTasksTab === 'mine' ? 'active' : ''}`}
-                  type="button"
-                  onClick={() => setMyTasksTab('mine')}
-                >
-                  <span className="promo-mode-title">Мои размещенные</span>
-                  <span className="promo-mode-meta">{myCampaigns.length} кампаний</span>
-                </button>
-              </div>
-            </section>
+            <BalanceHeader />
+            <div className="segment center promo-mode-switch">
+              <button
+                className={`segment-button promo-mode-button ${myTasksTab === 'place' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setMyTasksTab('place')}
+              >
+                <span className="promo-mode-title">Разместить</span>
+                <span className="promo-mode-meta">новая кампания</span>
+              </button>
+              <button
+                className={`segment-button promo-mode-button ${myTasksTab === 'mine' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setMyTasksTab('mine')}
+              >
+                <span className="promo-mode-title">Мои размещенные</span>
+                <span className="promo-mode-meta">{myCampaigns.length} кампаний</span>
+              </button>
+            </div>
 
             {myTasksTab === 'place' && (
               <div className="promo-entry-shell">
