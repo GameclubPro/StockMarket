@@ -2855,14 +2855,20 @@ export default function App() {
                       <div className="referral-stat-value">{referralEarnedTotal}</div>
                       <div className="referral-stat-sub">{formatPointsLabel(referralEarnedTotal)}</div>
                     </div>
-                    <div className="referral-stat referral-stat-wide">
-                      <div className="referral-stat-label">Освоено потенциала</div>
-                      <div className="referral-stat-value">{referralPotentialProgress}%</div>
-                      <div className="referral-stat-sub">
-                        {referralInvitedCount > 0
-                          ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
-                          : 'Появится после первого приглашённого'}
-                      </div>
+                  </div>
+
+                  <div className="referral-goal-block">
+                    <div className="referral-goal-head">
+                      <span>Освоено потенциала</span>
+                      <strong>{referralPotentialProgress}%</strong>
+                    </div>
+                    <div className="referral-goal-track" aria-hidden="true">
+                      <span style={{ width: `${referralPotentialProgress}%` }} />
+                    </div>
+                    <div className="referral-goal-sub">
+                      {referralInvitedCount > 0
+                        ? `${referralEarnedTotal} из ${referralPotentialTotal} ${formatPointsLabel(referralPotentialTotal)}`
+                        : 'Появится после первого приглашённого'}
                     </div>
                   </div>
 
@@ -2920,28 +2926,18 @@ export default function App() {
                 <div className="referral-empty-state">
                   <div className="referral-empty-title">Пока нет приглашённых</div>
                   <div className="referral-empty-sub">
-                    Скопируйте ссылку и отправьте её в личный чат или канал.
+                    Отправьте приглашение в личный чат, канал или группу.
                   </div>
-                  <button
-                    className="referral-empty-action"
-                    type="button"
-                    onClick={handleCopyInviteLink}
-                    disabled={!referralLinkAvailable}
-                  >
-                    {!referralLinkAvailable
-                      ? 'Ссылка недоступна'
-                      : inviteCopied
-                        ? 'Ссылка скопирована'
-                        : 'Скопировать ссылку'}
-                  </button>
+                  <div className="referral-empty-note">Используйте кнопку «Пригласить друга» выше.</div>
                 </div>
               )}
               {!referralListLoading &&
                 !referralListError &&
                 referralList.map((item) => {
+                  const completedOrders = Math.max(0, Math.floor(item.completedOrders));
                   const nextStep = getReferralNextStep(item.completedOrders);
                   const toNext = nextStep
-                    ? Math.max(0, nextStep.orders - Math.max(0, item.completedOrders))
+                    ? Math.max(0, nextStep.orders - completedOrders)
                     : 0;
                   return (
                     <div className="referral-item" key={item.id}>
@@ -2953,39 +2949,23 @@ export default function App() {
                           <div className="referral-item-name">
                             {getReferralUserLabel(item.referredUser)}
                           </div>
-                          <div className="referral-item-sub">
-                            Заказов: {item.completedOrders}/30 • с {getReferralCreatedLabel(item.createdAt)}
-                          </div>
                         </div>
                         <div className="referral-item-earned">+{item.earned}</div>
                       </div>
                       <div className="referral-item-meta">
-                        <div className="referral-item-meta-label">Текущий прогресс</div>
+                        <div className="referral-item-progress-main">Прогресс {Math.min(30, completedOrders)}/30</div>
                         <div className={`referral-item-next ${nextStep ? '' : 'done'}`}>
-                          {nextStep ? `До этапа «${nextStep.label}»: ${toNext}` : 'Этапы завершены'}
+                          {nextStep ? `До «${nextStep.label}»: ${toNext}` : 'Все этапы пройдены'}
                         </div>
                       </div>
                       <div className="referral-progress">
                         <div
                           className="referral-progress-bar"
-                          style={{ width: getReferralProgressPercent(item.completedOrders) }}
+                          style={{ width: getReferralProgressPercent(completedOrders) }}
                         />
                       </div>
-                      <div className="referral-progress-scale" aria-hidden="true">
-                        <span>0</span>
-                        <span>30</span>
-                      </div>
-                      <div className="referral-milestones">
-                        {REFERRAL_STEPS.map((step) => (
-                          <span
-                            className={`referral-milestone ${
-                              item.completedOrders >= step.orders ? 'active' : ''
-                            }`}
-                            key={`${item.id}-${step.label}`}
-                          >
-                            {step.label}
-                          </span>
-                        ))}
+                      <div className="referral-item-date">
+                        В программе с {getReferralCreatedLabel(item.createdAt)}
                       </div>
                     </div>
                   );

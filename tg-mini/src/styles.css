@@ -7892,49 +7892,65 @@ body::before {
 
 /* Referral screen quality pass */
 .content.referrals-content {
+  --ref-surface-hero: rgba(20, 24, 29, 0.98);
+  --ref-surface-card: rgba(27, 31, 36, 0.97);
+  --ref-surface-soft: rgba(255, 255, 255, 0.04);
+  --ref-stroke-strong: rgba(175, 196, 183, 0.34);
+  --ref-stroke-soft: rgba(175, 196, 183, 0.22);
+  --ref-text-main: #ecf2ee;
+  --ref-text-muted: #a8b3ac;
+  --ref-accent: #8de7af;
   padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-referrals-top-gap)) 10px
     12px;
-  gap: 10px;
+  gap: 12px;
+  color: var(--ref-text-main);
 }
 
 .content.referrals-content .referral-hero {
-  padding: 12px;
-  gap: 10px;
+  padding: 16px;
+  gap: 12px;
   border-radius: 20px;
-  border-color: rgba(156, 226, 255, 0.36);
-  background:
-    radial-gradient(124% 88% at 100% -28%, rgba(138, 210, 255, 0.2), transparent 62%),
-    radial-gradient(106% 90% at -10% 112%, rgba(143, 243, 190, 0.16), transparent 68%),
-    linear-gradient(168deg, rgba(10, 17, 26, 0.98), rgba(4, 10, 16, 0.99));
+  border: 1px solid var(--ref-stroke-strong);
+  background: var(--ref-surface-hero);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
 }
 
+.content.referrals-content .referral-hero::before,
 .content.referrals-content .referral-hero::after {
-  left: 12px;
-  right: 12px;
-  opacity: 0.7;
+  opacity: 0;
 }
 
 .content.referrals-content .referral-hero-top {
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .content.referrals-content .referral-hero-kicker {
-  min-height: 24px;
-  padding: 2px 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 2px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 227, 156, 0.54);
-  background: rgba(255, 217, 118, 0.12);
-  color: #ffeab6;
-  font-size: 10px;
-  letter-spacing: 0.9px;
+  border: 1px solid var(--ref-stroke-soft);
+  background: var(--ref-surface-soft);
+  color: var(--ref-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.6px;
 }
 
 .content.referrals-content .referral-info-button {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border-color: rgba(169, 228, 255, 0.42);
+  border-color: var(--ref-stroke-soft);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ref-text-main);
+  box-shadow: none;
+}
+
+.content.referrals-content .referral-info-button.active {
+  border-color: var(--ref-stroke-strong);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .content.referrals-content .referral-hero-copy {
@@ -7942,14 +7958,17 @@ body::before {
 }
 
 .content.referrals-content .referral-hero-title {
-  font-size: 18px;
-  line-height: 1.15;
-  letter-spacing: 0.1px;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--ref-text-main);
 }
 
 .content.referrals-content .referral-hero-sub {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.38;
+  color: var(--ref-text-muted);
 }
 
 .content.referrals-content .referral-stats-grid {
@@ -7958,144 +7977,290 @@ body::before {
 }
 
 .content.referrals-content .referral-stat {
-  padding: 9px 10px;
-  border-radius: 13px;
-  gap: 2px;
-}
-
-.content.referrals-content .referral-stat-wide {
-  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-radius: 14px;
+  gap: 4px;
+  background: var(--ref-surface-card);
+  border: 1px solid var(--ref-stroke-soft);
+  box-shadow: none;
+  min-height: 92px;
+  align-content: center;
 }
 
 .content.referrals-content .referral-stat-value {
-  font-size: 24px;
+  font-size: 28px;
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--ref-text-main);
 }
 
 .content.referrals-content .referral-stat-sub {
-  line-height: 1.25;
+  line-height: 1.3;
+  font-size: 11px;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-stat-label {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-goal-block {
+  gap: 8px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--ref-surface-soft);
+  border: 1px solid var(--ref-stroke-soft);
+}
+
+.content.referrals-content .referral-goal-head {
+  font-size: 11px;
+  line-height: 1.28;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-goal-head strong {
+  font-size: 15px;
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-goal-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: transparent;
+}
+
+.content.referrals-content .referral-goal-track span {
+  background: linear-gradient(90deg, var(--ref-accent), rgba(141, 231, 175, 0.62));
+  box-shadow: none;
+}
+
+.content.referrals-content .referral-goal-sub {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ref-text-muted);
 }
 
 .content.referrals-content .referral-link-block {
-  gap: 7px;
-  padding: 10px;
+  gap: 8px;
+  padding: 12px;
   border-radius: 14px;
+  border: 1px solid var(--ref-stroke-soft);
+  background: var(--ref-surface-card);
+  box-shadow: none;
 }
 
-.referral-link-head {
+.content.referrals-content .referral-link-head {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.content.referrals-content .referral-link-label {
+  font-size: 11px;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-copy-link {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ref-stroke-soft);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ref-text-main);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.content.referrals-content .referral-copy-link:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.content.referrals-content .referral-copy-link:active {
+  transform: translateY(1px);
+}
+
+.content.referrals-content .referral-link {
+  font-size: 13px;
+  line-height: 1.38;
+  overflow-wrap: anywhere;
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-link.muted {
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-code {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-color: var(--ref-stroke-soft);
+  background: var(--ref-surface-soft);
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-info-popover {
+  padding: 12px;
+  gap: 10px;
+  border-radius: 16px;
+  border-color: var(--ref-stroke-strong);
+  background: var(--ref-surface-hero);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.36);
+}
+
+.content.referrals-content .referral-share {
+  min-height: 46px;
+  margin-top: 2px;
+  font-size: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(197, 239, 214, 0.88);
+  background: linear-gradient(135deg, #9be3b6, #78cc99 56%, #66ba89);
+  color: #102819;
+  box-shadow: 0 10px 22px rgba(70, 122, 94, 0.34);
+}
+
+.content.referrals-content .referral-share-sub {
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-list {
+  margin-top: 0;
+  gap: 12px;
+}
+
+.content.referrals-content .referral-list-count {
+  background: var(--ref-surface-soft);
+  border-color: var(--ref-stroke-soft);
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-empty-state {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--ref-stroke-soft);
+  background: var(--ref-surface-card);
+  box-shadow: none;
+}
+
+.content.referrals-content .referral-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-empty-sub {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-empty-note {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ref-text-muted);
+  padding-top: 2px;
+}
+
+.content.referrals-content .referral-item {
+  background: var(--ref-surface-card);
+  border: 1px solid var(--ref-stroke-soft);
+  border-radius: 16px;
+  padding: 12px;
+  gap: 8px;
+  box-shadow: none;
+}
+
+.content.referrals-content .referral-item-head {
+  align-items: flex-start;
+}
+
+.content.referrals-content .referral-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--ref-stroke-soft);
+  background: var(--ref-surface-soft);
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-item-info {
+  gap: 0;
+}
+
+.content.referrals-content .referral-item-name {
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--ref-text-main);
+}
+
+.content.referrals-content .referral-item-earned {
+  font-size: 15px;
+  line-height: 1.2;
+  color: var(--ref-accent);
+}
+
+.content.referrals-content .referral-item-meta {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.referral-copy-link {
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(166, 228, 255, 0.4);
-  background: linear-gradient(180deg, rgba(15, 27, 40, 0.98), rgba(6, 14, 22, 0.99));
-  color: rgba(225, 246, 255, 0.96);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: transform 0.18s ease, border-color 0.18s ease;
-}
-
-.referral-copy-link:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.referral-copy-link:active {
-  transform: translateY(1px);
-}
-
-.content.referrals-content .referral-link {
-  font-size: 12px;
-  line-height: 1.35;
-  word-break: break-all;
-}
-
-.content.referrals-content .referral-link.muted {
-  color: rgba(201, 220, 238, 0.72);
-}
-
-.content.referrals-content .referral-code {
-  padding: 4px 9px;
-  font-size: 11px;
-}
-
-.content.referrals-content .referral-info-popover {
-  padding: 10px;
-  gap: 8px;
-}
-
-.content.referrals-content .referral-share {
-  min-height: 46px;
-  font-size: 14px;
-  margin-top: 1px;
-}
-
-.referral-share-sub {
-  font-size: 12px;
-  line-height: 1.35;
-  text-align: center;
-  color: rgba(219, 238, 228, 0.9);
-}
-
-.content.referrals-content .referral-list {
-  margin-top: 0;
-  gap: 10px;
-}
-
-.referral-empty-state {
-  display: grid;
-  gap: 8px;
-  padding: 11px;
-  border-radius: 14px;
-  border: 1px solid rgba(166, 227, 255, 0.3);
-  background:
-    radial-gradient(120% 86% at 100% -20%, rgba(142, 216, 255, 0.12), transparent 68%),
-    linear-gradient(160deg, rgba(13, 22, 33, 0.94), rgba(7, 13, 21, 0.97));
-}
-
-.referral-empty-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #ecfff5;
-}
-
-.referral-empty-sub {
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(215, 236, 225, 0.9);
-}
-
-.referral-empty-action {
-  min-height: 44px;
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid rgba(169, 228, 255, 0.44);
-  background: linear-gradient(180deg, rgba(15, 28, 43, 0.98), rgba(6, 13, 21, 0.99));
-  color: rgba(230, 248, 255, 0.95);
+.content.referrals-content .referral-item-progress-main {
   font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
+  line-height: 1.38;
+  color: var(--ref-text-main);
 }
 
-.referral-empty-action:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.referral-empty-action:active {
-  transform: translateY(1px);
-}
-
-.content.referrals-content .referral-item-sub {
-  white-space: normal;
+.content.referrals-content .referral-item-next {
+  font-size: 11px;
   line-height: 1.3;
+  color: var(--ref-text-muted);
+  text-align: right;
+}
+
+.content.referrals-content .referral-item-next.done {
+  color: var(--ref-accent);
+}
+
+.content.referrals-content .referral-progress {
+  height: 6px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.content.referrals-content .referral-progress-bar {
+  background: linear-gradient(90deg, var(--ref-accent), rgba(141, 231, 175, 0.56));
+  box-shadow: none;
+}
+
+.content.referrals-content .referral-item-date {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-status {
+  background: var(--ref-surface-soft);
+  border: 1px solid var(--ref-stroke-soft);
+  color: var(--ref-text-muted);
+}
+
+.content.referrals-content .referral-status.error {
+  border-color: rgba(255, 142, 142, 0.32);
+  background: rgba(255, 142, 142, 0.08);
+  color: #ff9e9e;
 }
 
 @media (max-width: 390px) {
@@ -8182,7 +8347,7 @@ body::before {
   .content.referrals-content {
     padding: calc(var(--tg-top-ui-gap) + var(--tg-safe-top-effective) + var(--tg-referrals-top-gap)) 9px
       12px;
-    gap: 9px;
+    gap: 10px;
   }
 
   .referral-page-title {
@@ -8190,19 +8355,26 @@ body::before {
   }
 
   .content.referrals-content .referral-hero {
-    padding: 11px;
+    padding: 14px;
   }
 
   .content.referrals-content .referral-hero-title {
-    font-size: 17px;
+    font-size: 18px;
+    line-height: 1.2;
   }
 
   .content.referrals-content .referral-stat-value {
-    font-size: 22px;
+    font-size: 26px;
   }
 
-  .content.referrals-content .referral-share-sub {
-    font-size: 11px;
+  .content.referrals-content .referral-item-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .content.referrals-content .referral-item-next {
+    text-align: left;
   }
 }
 
@@ -8250,8 +8422,14 @@ body::before {
     font-size: 12px;
   }
 
-  .content.referrals-content .referral-empty-sub {
-    font-size: 11px;
+  .content.referrals-content .referral-item-head {
+    grid-template-columns: auto 1fr;
+    row-gap: 6px;
+  }
+
+  .content.referrals-content .referral-item-earned {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 
@@ -8273,7 +8451,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   ) {
   color: var(--home-theme-text-main);
@@ -8292,11 +8469,6 @@ body::before {
     .content.tasks-content .tasks-overview,
     .content.tasks-content .task-card,
     .content.wheel-content .wheel-card,
-    .content.referrals-content .referral-hero,
-    .content.referrals-content .referral-link-block,
-    .content.referrals-content .referral-item,
-    .content.referrals-content .referral-empty-state,
-    .content.referrals-content .referral-info-popover,
     .content.admin-content .admin-panel-card,
     .content.admin-content .admin-section-card,
     .content.admin-content .admin-stat-card,
@@ -8325,9 +8497,6 @@ body::before {
     .content.promo-content .link-picker-close,
     .content.tasks-content .open-button,
     .content.wheel-content .icon-button,
-    .content.referrals-content .icon-button,
-    .content.referrals-content .referral-copy-link,
-    .content.referrals-content .referral-empty-action,
     .content.admin-content .icon-button,
     .content.admin-content .admin-period-button,
     .content.admin-content .admin-module-button,
@@ -8347,7 +8516,6 @@ body::before {
     .content.promo-content .link-tool.active,
     .content.tasks-content .open-button.confirm,
     .content.wheel-content .wheel-cta,
-    .content.referrals-content .referral-share,
     .content.admin-content .admin-period-button.active,
     .content.admin-content .admin-module-button.active,
     .content.admin-content .admin-refresh-button
@@ -8368,13 +8536,6 @@ body::before {
     .content.tasks-content .task-handle,
     .content.wheel-content .wheel-sub,
     .content.wheel-content .wheel-timer,
-    .content.referrals-content .referral-hero-sub,
-    .content.referrals-content .referral-stat-label,
-    .content.referrals-content .referral-stat-sub,
-    .content.referrals-content .referral-item-sub,
-    .content.referrals-content .referral-item-meta-label,
-    .content.referrals-content .referral-progress-scale,
-    .content.referrals-content .referral-share-sub,
     .content.admin-content .admin-panel-sub,
     .content.admin-content .admin-section-sub,
     .content.admin-content .admin-stat-label,
@@ -8421,17 +8582,8 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   ) :is(
-    .referral-stat,
-    .referral-info-item,
-    .referral-info-step,
-    .referral-goal-block,
-    .referral-goal-head,
-    .referral-milestone,
-    .referral-copy-link,
-    .referral-empty-action,
     .admin-alert,
     .admin-action-item,
     .admin-period-button,
@@ -8509,7 +8661,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   :is(
@@ -8526,13 +8677,6 @@ body::before {
     .wheel-card,
     .wheel-rules,
     .wheel-info-popover,
-    .referral-hero,
-    .referral-link-block,
-    .referral-item,
-    .referral-empty-state,
-    .referral-info-popover,
-    .referral-stat,
-    .referral-info-item,
     .admin-panel-card,
     .admin-section-card,
     .admin-stat-card,
@@ -8553,8 +8697,6 @@ body::before {
 .content.promo-content .promo-step-card::after,
 .content.wheel-content .wheel-card::before,
 .content.wheel-content .wheel-card::after,
-.content.referrals-content .referral-hero::before,
-.content.referrals-content .referral-hero::after,
 .content.admin-content .admin-panel-card::before,
 .content.admin-content .admin-panel-card::after,
 .content.admin-content .admin-section-card::before,
@@ -8574,7 +8716,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   :is(
@@ -8591,10 +8732,6 @@ body::before {
     .promo-budget-item,
     .wheel-reward-chip,
     .wheel-rule-row,
-    .referral-code,
-    .referral-milestone,
-    .referral-copy-link,
-    .referral-empty-action,
     .admin-period-button,
     .admin-module-button,
     .admin-refresh-button,
@@ -8610,7 +8747,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   :is(
@@ -8628,7 +8764,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .field input:focus {
@@ -8643,7 +8778,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .range-input::-webkit-slider-runnable-track {
@@ -8660,7 +8794,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .range-input::-webkit-slider-thumb {
@@ -8672,7 +8805,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .range-input::-moz-range-track {
@@ -8684,7 +8816,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .range-input::-moz-range-progress {
@@ -8695,7 +8826,6 @@ body::before {
     .content.promo-content,
     .content.tasks-content,
     .content.wheel-content,
-    .content.referrals-content,
     .content.admin-content
   )
   .range-input::-moz-range-thumb {
@@ -8734,12 +8864,12 @@ body::before {
 }
 
 /* Final cleanup: remove remaining cyan accents on non-home screens */
-:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.referrals-content, .content.admin-content)
+:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.admin-content)
   .segment-button:focus-visible {
   outline: 2px solid rgba(143, 243, 190, 0.56) !important;
 }
 
-:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.referrals-content, .content.admin-content)
+:is(.content.promo-content, .content.tasks-content, .content.wheel-content, .content.admin-content)
   .price-stepper-button:focus-visible {
   outline: 2px solid rgba(143, 243, 190, 0.56) !important;
 }
@@ -8751,7 +8881,6 @@ body::before {
 }
 
 .content.wheel-content .daily-bonus-info-popover.wheel-info-popover .daily-bonus-info-track span,
-.content.referrals-content .referral-progress-bar,
 .content.admin-content .admin-progress-track span {
   background: linear-gradient(90deg, rgba(143, 243, 190, 0.86), rgba(143, 243, 190, 0.52)) !important;
   box-shadow: none !important;
