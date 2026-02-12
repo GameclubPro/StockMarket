@@ -9416,3 +9416,84 @@ body::before {
     font-size: 11px;
   }
 }
+
+/* Promo fullscreen cleanup: flat top composition without slab backgrounds */
+.content.promo-content .balance-header {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .balance-header-metrics {
+  gap: 8px;
+}
+
+.content.promo-content .balance-header .metric-card.compact {
+  min-height: 50px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(173, 195, 181, 0.26) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .balance-header .metric-plus {
+  border-radius: 10px;
+}
+
+.content.promo-content .promo-mode-switch.segment.center {
+  width: 100%;
+  margin: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  gap: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-button {
+  min-height: 50px;
+  border-radius: 14px;
+  padding: 8px 10px;
+  border: 1px solid rgba(173, 195, 181, 0.22) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-title {
+  color: #e8efea;
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-meta {
+  color: rgba(168, 179, 172, 0.92);
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-button.active {
+  border-color: rgba(194, 239, 213, 0.78) !important;
+  background: linear-gradient(145deg, #9be3b6 0%, #7aca99 56%, #66ba89 100%) !important;
+  color: #102819 !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-button.active .promo-mode-title {
+  color: #102819;
+}
+
+.content.promo-content .promo-mode-switch .promo-mode-button.active .promo-mode-meta {
+  color: rgba(16, 40, 25, 0.82) !important;
+}
+
+@media (max-width: 390px) {
+  .content.promo-content .balance-header .metric-card.compact {
+    min-height: 46px;
+    padding: 7px 10px;
+  }
+
+  .content.promo-content .promo-mode-switch .promo-mode-button {
+    min-height: 48px;
+  }
+}
