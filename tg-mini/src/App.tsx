@@ -2601,7 +2601,7 @@ export default function App() {
                   <div className="wheel-head-copy">
                     <div className="wheel-title">Ежедневный бонус</div>
                     <div className="wheel-sub">
-                      Крути <strong>Колесо фортуны</strong> и получай баллы каждый день.
+                      Крути <strong>колесо</strong> и получай баллы каждый день.
                     </div>
                   </div>
                 </div>

@@ -1436,8 +1436,8 @@ body::before {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: 10px 12px;
-  padding: 12px;
+  gap: 8px 10px;
+  padding: 11px;
   border-radius: 20px;
   border: 1px solid rgba(146, 214, 255, 0.26);
   background:
@@ -1509,7 +1509,7 @@ body::before {
 }
 
 .wheel-title {
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.05;
   font-weight: 700;
   color: #eefaf7;
@@ -1518,7 +1518,7 @@ body::before {
 
 .wheel-sub {
   font-size: 12px;
-  line-height: 1.34;
+  line-height: 1.3;
   color: rgba(191, 215, 229, 0.88);
 }
 
@@ -1588,12 +1588,12 @@ body::before {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
 }
 
 .wheel-head-chip {
-  min-height: 46px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 7px 9px;
   border-radius: 12px;
   border: 1px solid rgba(149, 212, 247, 0.26);
   background: linear-gradient(160deg, rgba(18, 35, 52, 0.86), rgba(11, 22, 36, 0.9));
@@ -1613,15 +1613,15 @@ body::before {
 }
 
 .wheel-head-chip-value {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.1;
   color: #f0fbff;
   font-weight: 700;
 }
 
 .wheel-info-button {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   font-size: 15px;
   margin-top: 0;
   flex-shrink: 0;
@@ -1782,7 +1782,7 @@ body::before {
   inset: 0;
   z-index: 9;
   border-radius: inherit;
-  padding: 132px 14px 14px;
+  padding: 120px 14px 14px;
   pointer-events: none;
   display: flex;
   align-items: flex-start;
@@ -6271,11 +6271,6 @@ button {
     font-size: 11px;
   }
 
-  .wheel-info-button {
-    width: 38px;
-    height: 38px;
-  }
-
   .wheel-rule-row {
     font-size: 13px;
   }
@@ -8269,7 +8264,6 @@ body::before {
     .content.promo-content .link-picker-close,
     .content.tasks-content .open-button,
     .content.wheel-content .icon-button,
-    .content.wheel-content .wheel-info-button,
     .content.referrals-content .icon-button,
     .content.referrals-content .referral-copy-link,
     .content.referrals-content .referral-empty-action,
