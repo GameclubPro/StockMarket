@@ -1855,25 +1855,31 @@ export default function App() {
   );
 
   const BalanceHeader = () => (
-    <div className="balance-header">
+    <div className="balance-header balance-header-info">
       <div className="balance-header-metrics">
-        <div className="metric-card compact">
-          <span className="metric-value" ref={balanceValueRef}>
-            {displayPoints}
-          </span>
-          <span className="metric-unit">{formatPointsLabel(displayPoints)}</span>
-          <button
-            className="metric-plus"
-            type="button"
-            aria-label="Пополнить баланс"
-            onClick={openTopUpModal}
-          >
-            +
-          </button>
+        <div className="metric-card compact metric-card-info metric-card-balance">
+          <span className="metric-label-top">Баланс</span>
+          <div className="metric-main-inline">
+            <span className="metric-value" ref={balanceValueRef}>
+              {displayPoints}
+            </span>
+            <span className="metric-unit">{formatPointsLabel(displayPoints)}</span>
+          </div>
         </div>
-        <div className="metric-card compact">
-          <span className="metric-value">{rankTier.title}</span>
-          <span className="metric-sub">+{bonusPercent}%</span>
+        <button
+          className="metric-plus metric-plus-action"
+          type="button"
+          aria-label="Пополнить баланс"
+          onClick={openTopUpModal}
+        >
+          +
+        </button>
+        <div className="metric-card compact metric-card-info metric-card-rank">
+          <span className="metric-label-top">Ранг</span>
+          <div className="metric-main-inline">
+            <span className="metric-value">{rankTier.title}</span>
+            <span className="metric-sub">+{bonusPercent}%</span>
+          </div>
         </div>
       </div>
     </div>

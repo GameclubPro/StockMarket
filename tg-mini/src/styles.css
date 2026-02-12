@@ -9524,3 +9524,126 @@ body::before {
     min-height: 48px;
   }
 }
+
+/* Balance header info pass: tiles should read as info, not buttons */
+.balance-header.balance-header-info {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.balance-header.balance-header-info .balance-header-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.balance-header.balance-header-info .metric-card.compact.metric-card-info {
+  min-height: 50px;
+  padding: 8px 10px !important;
+  border-radius: 14px;
+  border: 1px solid rgba(172, 194, 180, 0.24) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  box-shadow: none !important;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.balance-header.balance-header-info .metric-label-top {
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0.22px;
+  color: rgba(165, 177, 169, 0.9);
+}
+
+.balance-header.balance-header-info .metric-main-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.balance-header.balance-header-info .metric-main-inline .metric-value {
+  font-size: 17px;
+  line-height: 1;
+  color: #e9f0eb;
+  min-width: 0;
+}
+
+.balance-header.balance-header-info .metric-main-inline .metric-unit,
+.balance-header.balance-header-info .metric-main-inline .metric-sub {
+  font-size: 11px;
+  line-height: 1.1;
+  color: rgba(165, 177, 169, 0.88);
+}
+
+.balance-header.balance-header-info .metric-plus.metric-plus-action {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(194, 238, 212, 0.72) !important;
+  background: linear-gradient(145deg, #9be3b6 0%, #7aca99 56%, #66ba89 100%) !important;
+  color: #102819 !important;
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: none !important;
+  display: grid !important;
+  place-items: center;
+}
+
+.content.tasks-content .balance-header.balance-header-info,
+.content.promo-content .balance-header.balance-header-info {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.content.promo-content .balance-header.balance-header-info .metric-plus.metric-plus-action {
+  display: grid !important;
+}
+
+@media (max-width: 390px) {
+  .balance-header.balance-header-info .balance-header-metrics {
+    gap: 7px;
+  }
+
+  .balance-header.balance-header-info .metric-card.compact.metric-card-info {
+    min-height: 46px;
+    padding: 7px 9px !important;
+  }
+
+  .balance-header.balance-header-info .metric-main-inline .metric-value {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .balance-header.balance-header-info .balance-header-metrics {
+    grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .balance-header.balance-header-info .metric-plus.metric-plus-action {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    font-size: 18px;
+  }
+
+  .balance-header.balance-header-info .metric-main-inline .metric-value {
+    font-size: 15px;
+  }
+}
