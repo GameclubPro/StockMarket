@@ -2268,7 +2268,7 @@ async function ensureTaskWizardReactionLink(page, waitMs) {
     .locator('.promo-wizard-modal input[placeholder*="t.me"], .promo-wizard-modal input[type="text"]')
     .first();
   await input.waitFor({ state: 'visible', timeout: 10_000 });
-  await input.fill('https://t.me/crypto_alpha/1488');
+  await input.fill('https://t.me/my_test_channel/1488');
   await sleep(Math.max(waitMs, 140));
 }
 
