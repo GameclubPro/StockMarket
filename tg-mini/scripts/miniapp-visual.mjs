@@ -2154,6 +2154,8 @@ async function waitForFonts(page, timeoutMs = 10_000) {
 }
 
 async function openBottomTab(page, label, waitMs) {
+  await closeBlockingSheets(page);
+
   const button = page.locator('.bottom-nav .nav-item').filter({ hasText: label }).first();
   const byText = page.locator('.bottom-nav .nav-item span', { hasText: label }).first();
 
@@ -2181,17 +2183,43 @@ async function openBottomTab(page, label, waitMs) {
     }
   }
 
+  const clickTab = async (locator) => {
+    await locator.waitFor({ state: 'visible', timeout: 10_000 });
+    try {
+      await locator.click();
+    } catch {
+      await closeBlockingSheets(page);
+      await locator.click({ force: true });
+    }
+  };
+
   try {
-    await button.waitFor({ state: 'visible', timeout: 10_000 });
-    await button.click();
+    await clickTab(button);
   } catch {
-    await byText.waitFor({ state: 'visible', timeout: 10_000 });
-    await byText.click();
+    await clickTab(byText);
   }
   await sleep(waitMs);
 }
 
+async function closeBlockingSheets(page) {
+  const wizardClose = page.locator('.promo-wizard-modal .promo-wizard-close').first();
+  if (await wizardClose.isVisible().catch(() => false)) {
+    await wizardClose.click({ force: true }).catch(async () => {
+      await page.keyboard.press('Escape').catch(() => undefined);
+    });
+    await page.waitForTimeout(180).catch(() => undefined);
+  }
+
+  const taskSheet = page.locator('.task-actionsheet .task-actionsheet-close').first();
+  if (await taskSheet.isVisible().catch(() => false)) {
+    await taskSheet.click({ force: true }).catch(() => undefined);
+    await page.waitForTimeout(180).catch(() => undefined);
+  }
+}
+
 async function ensureHome(page, waitMs) {
+  await closeBlockingSheets(page);
+
   const profileCard = page.locator('.profile-card').first();
   if (await profileCard.isVisible().catch(() => false)) return;
 

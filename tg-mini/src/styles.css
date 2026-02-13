@@ -10843,6 +10843,21 @@ body::before {
   background: rgba(10, 20, 32, 0.66);
 }
 
+.promo-project-hint {
+  margin-top: -1px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: rgba(195, 219, 231, 0.76);
+}
+
+.promo-link-validation-row {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .promo-link-validation-chip {
   width: fit-content;
   min-height: 34px;
@@ -10892,9 +10907,37 @@ body::before {
   background: rgba(58, 45, 19, 0.52);
 }
 
+.promo-link-validation-hint {
+  min-height: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: rgba(205, 230, 243, 0.78);
+}
+
+.promo-link-validation-hint.valid {
+  color: rgba(219, 250, 233, 0.9);
+}
+
+.promo-link-validation-hint.invalid,
+.promo-link-validation-hint.foreign_project {
+  color: rgba(255, 214, 214, 0.9);
+}
+
+.promo-link-validation-hint.empty {
+  color: rgba(245, 223, 172, 0.9);
+}
+
 .range-hint {
-  display: grid;
-  gap: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(195, 219, 231, 0.78);
+}
+
+.promo-wizard-modal .promo-step-summary {
+  min-height: 32px;
+  padding: 7px 10px;
+  font-size: 11px;
+  color: rgba(195, 219, 231, 0.84);
 }
 
 .promo-budget-total,
@@ -11032,6 +11075,10 @@ body::before {
   }
 
   .promo-project-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .promo-wizard-footer {
     grid-template-columns: 1fr;
   }
 

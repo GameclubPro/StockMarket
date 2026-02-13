@@ -834,15 +834,15 @@ export default function App() {
   const totalBudget = useMemo(() => taskPriceValue * taskCount, [taskPriceValue, taskCount]);
   const affordableCountHint = useMemo(() => {
     if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) {
-      return 'Укажите цену за действие.';
+      return 'Укажите цену.';
     }
     if (balanceAffordableCount <= 0) {
-      return 'На балансе пока недостаточно для 1 действия.';
+      return 'По балансу: 0 действий.';
     }
     if (balanceAffordableCount < budgetAffordableCount) {
-      return `По балансу доступно до ${formatActionsCountRu(balanceAffordableCount)}.`;
+      return `По балансу: до ${formatActionsCountRu(balanceAffordableCount)}.`;
     }
-    return `Лимит по бюджету: до ${formatActionsCountRu(budgetAffordableCount)}.`;
+    return `По лимиту: до ${formatActionsCountRu(budgetAffordableCount)}.`;
   }, [balanceAffordableCount, budgetAffordableCount, taskPriceValue]);
   const minPayoutPreview = useMemo(() => {
     if (!parsedTaskPrice || parsedTaskPrice <= 0) return 0;
@@ -867,14 +867,14 @@ export default function App() {
         return {
           state: 'valid',
           label: 'OK',
-          hint: 'Для подписки ссылка на пост не требуется.',
+          hint: '',
         };
       }
       if (!reactionLinkTrimmed) {
         return {
           state: 'empty',
           label: 'Добавьте ссылку',
-          hint: 'Добавьте ссылку на пост, чтобы перейти к бюджету.',
+          hint: '',
         };
       }
       const parsedLink = parseReactionPostLink(reactionLinkTrimmed);
@@ -882,7 +882,7 @@ export default function App() {
         return {
           state: 'invalid',
           label: 'Неверный формат',
-          hint: 'Используйте ссылку вида https://t.me/username/123 или https://t.me/c/123456/789.',
+          hint: 't.me/channel/123',
         };
       }
       const projectUsername = normalizeUsername(selectedGroupEntity?.username).toLowerCase();
@@ -890,24 +890,21 @@ export default function App() {
       if (parsedLink.scope === 'username' && projectUsername && parsedLink.projectKey !== projectUsername) {
         return {
           state: 'foreign_project',
-          label: 'Не из выбранного проекта',
-          hint: 'Ссылка ведет на другой проект. Выберите нужный проект или замените ссылку.',
+          label: 'Другой проект',
+          hint: 'Ссылка не из выбранного проекта',
         };
       }
       if (parsedLink.scope === 'chat' && projectChatId && parsedLink.projectKey !== projectChatId) {
         return {
           state: 'foreign_project',
-          label: 'Не из выбранного проекта',
-          hint: 'Ссылка ведет на другой проект. Выберите нужный проект или замените ссылку.',
+          label: 'Другой проект',
+          hint: 'Ссылка не из выбранного проекта',
         };
       }
       return {
         state: 'valid',
         label: 'OK',
-        hint:
-          parsedLink.scope === 'chat' && !projectChatId
-            ? 'OK. Формат корректен, принадлежность поста проверим при запуске.'
-            : 'OK. Ссылка подходит для выбранного проекта.',
+        hint: parsedLink.scope === 'chat' && !projectChatId ? 'Формат корректен' : '',
       };
     },
     [reactionLinkTrimmed, selectedGroupEntity, taskType]
@@ -944,7 +941,6 @@ export default function App() {
     taskType,
     totalBudget,
   ]);
-  const hasReactionLink = taskType === 'subscribe' || reactionLinkValidation.state === 'valid';
   const isTaskPriceValid =
     parsedTaskPrice !== null &&
     Number.isFinite(parsedTaskPrice) &&
@@ -956,11 +952,9 @@ export default function App() {
   const formatSummaryLabel =
     taskType === 'subscribe'
       ? 'Подписка'
-      : hasReactionLink
-        ? 'Реакция · ссылка подтверждена'
-        : 'Реакция · ссылка требует проверки';
+      : 'Реакция';
   const remainingPointsAfterLaunch = Math.max(0, displayPoints - totalBudget);
-  const budgetSummaryLabel = `${formatNumberRu(taskPriceValue)} ${formatPointsLabel(taskPriceValue)} × ${formatActionsCountRu(taskCount)} = ${formatNumberRu(totalBudget)} ${formatPointsLabel(totalBudget)}`;
+  const budgetSummaryLabel = `${formatNumberRu(taskPriceValue)} ${formatPointsLabel(taskPriceValue)} × ${formatNumberRu(taskCount)} = ${formatNumberRu(totalBudget)} ${formatPointsLabel(totalBudget)}`;
   const promoWizardSteps = useMemo<
     Array<{ id: PromoWizardStepId; label: string; shortLabel: string }>
   >(
@@ -5022,10 +5016,8 @@ export default function App() {
                       <div className={`promo-project-chip ${isProjectSelected ? 'ready' : 'empty'}`}>
                         {selectedProjectLabel}
                       </div>
-                      <div className="promo-step-summary promo-project-summary">
-                        {isProjectSelected
-                          ? 'Проект выбран. Можно переходить к следующему шагу.'
-                          : 'Сначала выберите проект из списка «Мои проекты».'}
+                      <div className="link-hint promo-project-hint">
+                        {isProjectSelected ? 'Бот — админ проекта.' : 'Выберите проект.'}
                       </div>
                       <div className="promo-project-actions">
                         <button className="link-tool secondary" type="button" onClick={openChannelSetup}>
@@ -5035,7 +5027,6 @@ export default function App() {
                           Подключить группу
                         </button>
                       </div>
-                      <div className="link-hint">Бот должен быть администратором выбранного проекта.</div>
                     </div>
                     {linkPickerOpen && (
                       <div className="link-picker" id="promo-wizard-link-picker" ref={linkPickerRef}>
@@ -5116,17 +5107,20 @@ export default function App() {
                       <span>Ссылка на пост</span>
                       <input
                         type="text"
-                        placeholder="https://t.me/username/123"
+                        placeholder="https://t.me/channel/123"
                         value={reactionLink}
                         onChange={(event) => setReactionLink(event.target.value)}
                       />
-                      <div className="range-hint">Пост должен быть из выбранного проекта.</div>
                     </label>
-                    <div className={`promo-link-validation-chip ${reactionLinkValidation.state}`} role="status">
-                      {reactionLinkValidation.label}
-                    </div>
-                    <div className={`promo-step-summary promo-link-summary ${reactionLinkValidation.state}`}>
-                      {reactionLinkValidation.hint}
+                    <div className={`promo-link-validation-row ${reactionLinkValidation.state}`} role="status">
+                      <div className={`promo-link-validation-chip ${reactionLinkValidation.state}`}>
+                        {reactionLinkValidation.label}
+                      </div>
+                      {reactionLinkValidation.hint ? (
+                        <div className={`promo-link-validation-hint ${reactionLinkValidation.state}`}>
+                          {reactionLinkValidation.hint}
+                        </div>
+                      ) : null}
                     </div>
                   </>
                 )}
@@ -5164,10 +5158,8 @@ export default function App() {
                         </div>
                       </div>
                       <div className="range-hint">
-                        <span>
-                          Выплата исполнителю: {minPayoutPreview}–{maxPayoutPreview} {formatPointsLabel(maxPayoutPreview)}.
-                        </span>
-                        <span className="range-hint-secondary">{affordableCountHint}</span>
+                        Выплата {minPayoutPreview}–{maxPayoutPreview} {formatPointsLabel(maxPayoutPreview)} ·{' '}
+                        {affordableCountHint}
                       </div>
                     </label>
 
@@ -5191,33 +5183,13 @@ export default function App() {
                     </label>
 
                     <div className="promo-budget-total">
-                      <span>Итоговый бюджет</span>
+                      <span>Итог</span>
                       <strong>
                         {formatNumberRu(totalBudget)} {formatPointsLabel(totalBudget)}
                       </strong>
                       <p>
-                        После запуска останется {formatNumberRu(remainingPointsAfterLaunch)}{' '}
-                        {formatPointsLabel(remainingPointsAfterLaunch)}.
+                        Остаток: {formatNumberRu(remainingPointsAfterLaunch)} {formatPointsLabel(remainingPointsAfterLaunch)}.
                       </p>
-                    </div>
-
-                    <div className="promo-budget-grid">
-                      <div className="promo-budget-item">
-                        <span>Цена</span>
-                        <strong>
-                          {formatNumberRu(taskPriceValue)} {formatPointsLabel(taskPriceValue)}
-                        </strong>
-                      </div>
-                      <div className="promo-budget-item">
-                        <span>Объем</span>
-                        <strong>{formatActionsCountRu(taskCount)}</strong>
-                      </div>
-                      <div className="promo-budget-item">
-                        <span>Остаток</span>
-                        <strong>
-                          {formatNumberRu(remainingPointsAfterLaunch)} {formatPointsLabel(remainingPointsAfterLaunch)}
-                        </strong>
-                      </div>
                     </div>
                     <div className="promo-step-summary">{budgetSummaryLabel}</div>
                   </>
@@ -5261,9 +5233,9 @@ export default function App() {
                     <div className={`promo-review-status ${createCtaState.blocked ? 'warn' : ''}`}>
                       {createCtaState.blocked
                         ? createCtaState.label === 'Пополните баланс'
-                          ? 'Недостаточно баллов. Пополните баланс и вернитесь к запуску.'
-                          : `Требуется действие: ${createCtaState.label}.`
-                        : 'Параметры проверены. Можно запускать кампанию.'}
+                          ? 'Недостаточно баллов.'
+                          : `Нужно: ${createCtaState.label}.`
+                        : 'Готово к запуску.'}
                     </div>
                   </>
                 )}
