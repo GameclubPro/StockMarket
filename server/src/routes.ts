@@ -21,6 +21,7 @@ import {
 } from './domain/daily-bonus.js';
 import { ApiError, normalizeApiError, toPublicErrorMessage } from './http/errors.js';
 import { verifyInitData } from './telegram.js';
+import { isVkLaunchParamsPayload, verifyVkLaunchParams } from './vk.js';
 import {
   ensureBotIsAdmin,
   exportChatInviteLink,
@@ -34,7 +35,7 @@ import {
 import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
 const authBodySchema = z.object({
-  initData: z.string().min(1),
+  initData: z.string().min(1).transform((value) => value.trim()),
 });
 
 const groupCreateSchema = z.object({
@@ -356,6 +357,43 @@ type UserBlockPayload = {
 type UserBlockResolution = {
   user: User;
   blocked: UserBlockPayload | null;
+};
+type MiniAppAuthIdentity = {
+  platform: 'telegram' | 'vk';
+  externalId: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string;
+  startParam?: string;
+};
+
+const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
+  const rawPayload = authPayload.trim();
+  if (!rawPayload) throw new Error('empty auth payload');
+
+  if (isVkLaunchParamsPayload(rawPayload)) {
+    const vkData = verifyVkLaunchParams(rawPayload, config.vkAppSecret, config.maxAuthAgeSec);
+    return {
+      platform: 'vk',
+      externalId: `vk:${vkData.vk_user_id}`,
+      startParam: vkData.vk_ref,
+    };
+  }
+
+  const tgAuth = verifyInitData(rawPayload, config.botToken, config.maxAuthAgeSec);
+  const tgUser = tgAuth.user;
+  if (!tgUser) throw new Error('no user');
+
+  return {
+    platform: 'telegram',
+    externalId: String(tgUser.id),
+    username: tgUser.username,
+    firstName: tgUser.first_name,
+    lastName: tgUser.last_name,
+    photoUrl: tgUser.photo_url,
+    startParam: tgAuth.start_param,
+  };
 };
 
 const buildUserBlockPayload = (user: Pick<User, 'blockReason' | 'blockedUntil'>): UserBlockPayload => ({
@@ -2009,24 +2047,22 @@ const requireUser = async (request: FastifyRequest) => {
 
   const initData = request.headers['x-init-data'];
   if (typeof initData === 'string') {
-    const authData = verifyInitData(initData, config.botToken, config.maxAuthAgeSec);
-    const tgUser = authData.user;
-    if (!tgUser) throw new Error('no user');
+    const identity = resolveMiniAppAuthIdentity(initData);
 
     const user = await prisma.user.upsert({
-      where: { telegramId: String(tgUser.id) },
+      where: { telegramId: identity.externalId },
       update: {
-        username: tgUser.username,
-        firstName: tgUser.first_name,
-        lastName: tgUser.last_name,
-        photoUrl: tgUser.photo_url,
+        username: identity.username,
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        photoUrl: identity.photoUrl,
       },
       create: {
-        telegramId: String(tgUser.id),
-        username: tgUser.username,
-        firstName: tgUser.first_name,
-        lastName: tgUser.last_name,
-        photoUrl: tgUser.photo_url,
+        telegramId: identity.externalId,
+        username: identity.username,
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        photoUrl: identity.photoUrl,
         balance: 30,
         totalEarned: 0,
         rating: 0,
@@ -2591,18 +2627,16 @@ export const registerRoutes = (app: FastifyInstance) => {
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
     try {
-      const authData = verifyInitData(parsed.data.initData, config.botToken, config.maxAuthAgeSec);
-      const tgUser = authData.user;
-      if (!tgUser) return reply.code(401).send({ ok: false, error: 'no user' });
+      const identity = resolveMiniAppAuthIdentity(parsed.data.initData);
 
       const rawStartParam =
-        typeof authData.start_param === 'string' ? normalizeReferralCode(authData.start_param) : '';
+        typeof identity.startParam === 'string' ? normalizeReferralCode(identity.startParam) : '';
       const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
       const now = new Date();
 
       const result = await prisma.$transaction(async (tx) => {
         const existing = await tx.user.findUnique({
-          where: { telegramId: String(tgUser.id) },
+          where: { telegramId: identity.externalId },
         });
         let current: User;
         let isFirstAuth = false;
@@ -2610,10 +2644,10 @@ export const registerRoutes = (app: FastifyInstance) => {
 
         if (existing) {
           const updateData: Prisma.UserUpdateInput = {
-            username: tgUser.username,
-            firstName: tgUser.first_name,
-            lastName: tgUser.last_name,
-            photoUrl: tgUser.photo_url,
+            username: identity.username,
+            firstName: identity.firstName,
+            lastName: identity.lastName,
+            photoUrl: identity.photoUrl,
           };
           if (!existing.firstAuthAt) {
             updateData.firstAuthAt = now;
@@ -2624,11 +2658,11 @@ export const registerRoutes = (app: FastifyInstance) => {
           const referralCode = await createUniqueReferralCode(tx);
           current = await tx.user.create({
             data: {
-              telegramId: String(tgUser.id),
-              username: tgUser.username,
-              firstName: tgUser.first_name,
-              lastName: tgUser.last_name,
-              photoUrl: tgUser.photo_url,
+              telegramId: identity.externalId,
+              username: identity.username,
+              firstName: identity.firstName,
+              lastName: identity.lastName,
+              photoUrl: identity.photoUrl,
               balance: 30,
               totalEarned: 0,
               rating: 0,

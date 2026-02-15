@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@telegram-apps/sdk": "^3.11.5",
+    "@vkontakte/vk-bridge": "^2.15.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

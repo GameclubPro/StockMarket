@@ -10,6 +10,7 @@ export const config = {
   host: process.env.HOST ?? '127.0.0.1',
   port: toNumber(process.env.PORT, 3000),
   botToken: process.env.BOT_TOKEN ?? '',
+  vkAppSecret: process.env.VK_APP_SECRET ?? '',
   appSecret: process.env.APP_SECRET ?? '',
   botWebhookSecret: process.env.BOT_WEBHOOK_SECRET ?? '',
   maxAuthAgeSec: toNumber(process.env.MAX_AUTH_AGE_SEC, 86400),

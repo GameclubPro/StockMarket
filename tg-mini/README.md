@@ -21,9 +21,12 @@ npm run build
 ```
 2. Убедиться, что nginx раздаёт `dist` и есть `try_files $uri $uri/ /index.html;`.
 
-## Telegram Mini App
+## Telegram + VK Mini Apps
 - Нужно HTTPS и валидный SSL.
-- В проде указывать URL `https://tg.play-team.ru/`.
+- Один и тот же фронт можно отдавать и в Telegram, и в VK Mini Apps.
+- Для Telegram в проде указывать URL `https://tg.play-team.ru/`.
+- Для VK в адресе запуска должны приходить `vk_user_id` и `sign` (launch params).
+- На backend обязательно задать `VK_APP_SECRET`, иначе проверка подписи VK будет отклоняться.
 
 ## API
 - По умолчанию фронт ждёт backend на том же домене через `/api`.

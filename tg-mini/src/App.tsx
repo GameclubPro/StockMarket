@@ -39,7 +39,13 @@ import {
   type ReferralStats,
   verifyInitData,
 } from './api';
-import { getInitDataRaw, getUserLabel, getUserPhotoUrl, initTelegram } from './telegram';
+import {
+  getInitDataRaw,
+  getUserLabel,
+  getUserPhotoUrl,
+  initTelegram,
+  loadPlatformProfile,
+} from './telegram';
 
 const PLATFORM_FEE_RATE = 0.3;
 const RANKS = [
@@ -1176,6 +1182,11 @@ export default function App() {
   useEffect(() => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
+    void loadPlatformProfile().then((profile) => {
+      if (!profile) return;
+      if (profile.label) setUserLabel(profile.label);
+      if (profile.photoUrl) setUserPhoto(profile.photoUrl);
+    });
     const initData = getInitDataRaw();
     const username =
       extractUsernameFromInitData(initData) || extractUsernameFromTelegramUnsafe();

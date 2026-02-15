@@ -11,6 +11,7 @@ import {
   retrieveLaunchParams,
   themeParams,
 } from '@telegram-apps/sdk';
+import bridge from '@vkontakte/vk-bridge';
 
 type User = {
   username?: string;
@@ -19,7 +20,30 @@ type User = {
   photo_url?: string;
 };
 
+type VkLaunchParams = {
+  vk_user_id?: string;
+  sign?: string;
+  [key: string]: string | undefined;
+};
+
+type VkBridgeUserInfo = {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  photo_200?: string;
+  photo_100?: string;
+  photo_50?: string;
+};
+
+export type PlatformUserProfile = {
+  label?: string;
+  photoUrl?: string;
+};
+
 let initialized = false;
+let vkInitialized = false;
+let vkProfileCache: VkBridgeUserInfo | null = null;
+let vkProfileRequest: Promise<VkBridgeUserInfo | null> | null = null;
 
 const initViewportFullscreen = () => {
   const setInsetVars = (topPx: number, bottomPx: number) => {
@@ -198,6 +222,92 @@ const initViewportFullscreen = () => {
   })();
 };
 
+const normalizeVkLaunchParamsInput = (raw: string) => {
+  let normalized = raw.trim();
+  if (!normalized) return '';
+  if (normalized.startsWith('?')) normalized = normalized.slice(1);
+  if (normalized.startsWith('#')) normalized = normalized.slice(1);
+  if (normalized.startsWith('/')) normalized = normalized.slice(1);
+
+  const queryIndex = normalized.indexOf('?');
+  if (queryIndex >= 0) {
+    normalized = normalized.slice(queryIndex + 1);
+  }
+
+  const hashIndex = normalized.indexOf('#');
+  if (hashIndex >= 0) {
+    normalized = normalized.slice(hashIndex + 1);
+    if (normalized.startsWith('?')) normalized = normalized.slice(1);
+  }
+
+  return normalized;
+};
+
+const getVkLaunchParams = (): URLSearchParams => {
+  if (typeof window === 'undefined') return new URLSearchParams();
+
+  const search = window.location.search?.trim() ?? '';
+  const hash = window.location.hash?.trim() ?? '';
+  const candidates = [search, hash];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeVkLaunchParamsInput(candidate);
+    if (!normalized) continue;
+    const params = new URLSearchParams(normalized);
+    if (params.has('vk_user_id') && params.has('sign')) {
+      return params;
+    }
+  }
+
+  return new URLSearchParams();
+};
+
+const getVkLaunchData = (): VkLaunchParams => {
+  const params = getVkLaunchParams();
+  const data: VkLaunchParams = {};
+  params.forEach((value, key) => {
+    data[key] = value;
+  });
+  return data;
+};
+
+const getVkUserLabelFallback = () => {
+  const vkUserId = getVkLaunchData().vk_user_id;
+  if (!vkUserId) return 'Гость';
+  return `VK ID ${vkUserId}`;
+};
+
+const applyVkInsetFallback = () => {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (!root) return;
+  root.style.setProperty('--tg-top-reserved', '0px');
+  root.style.setProperty('--tg-bottom-reserved', '0px');
+  root.style.setProperty('--tg-safe-top-actual', '0px');
+  root.style.setProperty('--tg-safe-bottom-actual', '0px');
+};
+
+export const isVk = () => {
+  const params = getVkLaunchParams();
+  return params.has('vk_user_id') && params.has('sign');
+};
+
+export const getVkLaunchParamsRaw = () => getVkLaunchParams().toString();
+
+const initVk = () => {
+  if (vkInitialized || !isVk()) return;
+  vkInitialized = true;
+
+  try {
+    void bridge.send('VKWebAppInit');
+  } catch {
+    // noop
+  }
+
+  applyVkInsetFallback();
+  void loadPlatformProfile();
+};
+
 export const isTelegram = () => {
   try {
     retrieveLaunchParams();
@@ -227,6 +337,17 @@ const getUserFromWebAppGlobal = (): User | undefined => {
 };
 
 export const getUserLabel = () => {
+  if (isVk()) {
+    if (vkProfileCache) {
+      const fullName = [vkProfileCache.first_name, vkProfileCache.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      if (fullName) return fullName;
+    }
+    return getVkUserLabelFallback();
+  }
+
   let user: User | undefined;
 
   try {
@@ -246,6 +367,10 @@ export const getUserLabel = () => {
 };
 
 export const getUserPhotoUrl = () => {
+  if (isVk()) {
+    return vkProfileCache?.photo_200 || vkProfileCache?.photo_100 || vkProfileCache?.photo_50 || '';
+  }
+
   let user: User | undefined;
 
   try {
@@ -260,7 +385,53 @@ export const getUserPhotoUrl = () => {
   return user?.photo_url || '';
 };
 
+export const loadPlatformProfile = async (): Promise<PlatformUserProfile | null> => {
+  if (!isVk()) return null;
+
+  if (vkProfileCache) {
+    const label = [vkProfileCache.first_name, vkProfileCache.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return {
+      label: label || getVkUserLabelFallback(),
+      photoUrl: vkProfileCache.photo_200 || vkProfileCache.photo_100 || vkProfileCache.photo_50 || '',
+    };
+  }
+
+  if (!vkProfileRequest) {
+    vkProfileRequest = bridge
+      .send('VKWebAppGetUserInfo')
+      .then((profile) => {
+        vkProfileCache = profile as VkBridgeUserInfo;
+        return vkProfileCache;
+      })
+      .catch(() => {
+        vkProfileCache = null;
+        return null;
+      })
+      .finally(() => {
+        vkProfileRequest = null;
+      });
+  }
+
+  const profile = await vkProfileRequest;
+  if (!profile) {
+    return { label: getVkUserLabelFallback(), photoUrl: '' };
+  }
+
+  const label = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+  return {
+    label: label || getVkUserLabelFallback(),
+    photoUrl: profile.photo_200 || profile.photo_100 || profile.photo_50 || '',
+  };
+};
+
 export const getInitDataRaw = () => {
+  if (isVk()) {
+    return getVkLaunchParamsRaw();
+  }
+
   try {
     const raw = initData.raw?.();
     if (raw) return raw;
@@ -292,7 +463,11 @@ export const getInitDataRaw = () => {
 };
 
 export const initTelegram = () => {
-  if (initialized || !isTelegram()) return;
+  if (!isTelegram()) {
+    initVk();
+    return;
+  }
+  if (initialized) return;
 
   try {
     init();
