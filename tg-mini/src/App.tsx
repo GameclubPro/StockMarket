@@ -51,7 +51,8 @@ const RANKS = [
   { level: 5, minTotal: 5000, title: 'Алмаз', bonusRate: 0.3 },
 ];
 const MAX_BONUS_RATE = RANKS[RANKS.length - 1].bonusRate;
-const MIN_TASK_PRICE = 10;
+const MIN_TASK_PRICE = 2;
+const DEFAULT_TASK_PRICE = 10;
 const MAX_TASK_PRICE = 50;
 const MAX_TOTAL_BUDGET = 1_000_000;
 const DAILY_BONUS_FALLBACK_MS = 24 * 60 * 60 * 1000;
@@ -614,7 +615,7 @@ export default function App() {
   const [promoWizardStep, setPromoWizardStep] = useState<PromoWizardStepId>('project');
   const [taskType, setTaskType] = useState<'subscribe' | 'reaction'>('subscribe');
   const [reactionLink, setReactionLink] = useState('');
-  const [taskPriceInput, setTaskPriceInput] = useState('10');
+  const [taskPriceInput, setTaskPriceInput] = useState(String(DEFAULT_TASK_PRICE));
   const [taskCount, setTaskCount] = useState(1);
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
@@ -665,6 +666,11 @@ export default function App() {
   const wheelRewardRevealTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
+  const taskPriceValueRef = useRef(DEFAULT_TASK_PRICE);
+  const priceStepperHoldTimeoutRef = useRef<number | null>(null);
+  const priceStepperRepeatIntervalRef = useRef<number | null>(null);
+  const priceStepperPointerIdRef = useRef<number | null>(null);
+  const priceStepperSuppressClickRef = useRef(false);
   const applicationsByCampaign = useMemo(() => {
     const map = new Map<string, ApplicationDto>();
     applications.forEach((application) => {
@@ -811,13 +817,93 @@ export default function App() {
     const parsed = Number(taskPriceInput);
     return Number.isFinite(parsed) ? parsed : null;
   }, [taskPriceInput]);
+  useEffect(() => {
+    if (parsedTaskPrice === null || !Number.isFinite(parsedTaskPrice)) {
+      taskPriceValueRef.current = DEFAULT_TASK_PRICE;
+      return;
+    }
+    taskPriceValueRef.current = normalizeTaskPrice(parsedTaskPrice);
+  }, [normalizeTaskPrice, parsedTaskPrice]);
+  const setTaskPriceValue = useCallback(
+    (value: number) => {
+      const normalized = normalizeTaskPrice(value);
+      taskPriceValueRef.current = normalized;
+      setTaskPriceInput(String(normalized));
+    },
+    [normalizeTaskPrice]
+  );
   const adjustTaskPrice = useCallback(
     (delta: number) => {
-      const basePrice = parsedTaskPrice ?? MIN_TASK_PRICE;
-      setTaskPriceInput(String(normalizeTaskPrice(basePrice + delta)));
+      const nextPrice = normalizeTaskPrice(taskPriceValueRef.current + delta);
+      if (nextPrice === taskPriceValueRef.current) return false;
+      taskPriceValueRef.current = nextPrice;
+      setTaskPriceInput(String(nextPrice));
+      return true;
     },
-    [parsedTaskPrice, normalizeTaskPrice]
+    [normalizeTaskPrice]
   );
+  const stopPriceStepperRepeat = useCallback(() => {
+    if (priceStepperHoldTimeoutRef.current !== null) {
+      window.clearTimeout(priceStepperHoldTimeoutRef.current);
+      priceStepperHoldTimeoutRef.current = null;
+    }
+    if (priceStepperRepeatIntervalRef.current !== null) {
+      window.clearInterval(priceStepperRepeatIntervalRef.current);
+      priceStepperRepeatIntervalRef.current = null;
+    }
+    priceStepperPointerIdRef.current = null;
+  }, []);
+  const handlePriceStepperPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>, delta: number) => {
+      if (event.currentTarget.disabled) return;
+      priceStepperSuppressClickRef.current = false;
+      stopPriceStepperRepeat();
+      priceStepperPointerIdRef.current = event.pointerId;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      priceStepperHoldTimeoutRef.current = window.setTimeout(() => {
+        const changed = adjustTaskPrice(delta);
+        if (!changed) {
+          stopPriceStepperRepeat();
+          return;
+        }
+        priceStepperSuppressClickRef.current = true;
+        priceStepperRepeatIntervalRef.current = window.setInterval(() => {
+          const repeated = adjustTaskPrice(delta);
+          if (!repeated) stopPriceStepperRepeat();
+        }, 95);
+      }, 320);
+    },
+    [adjustTaskPrice, stopPriceStepperRepeat]
+  );
+  const handlePriceStepperPointerEnd = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (
+        priceStepperPointerIdRef.current !== null &&
+        event.pointerId !== priceStepperPointerIdRef.current
+      ) {
+        return;
+      }
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      stopPriceStepperRepeat();
+    },
+    [stopPriceStepperRepeat]
+  );
+  const handlePriceStepperClick = useCallback(
+    (delta: number) => {
+      if (priceStepperSuppressClickRef.current) {
+        priceStepperSuppressClickRef.current = false;
+        return;
+      }
+      adjustTaskPrice(delta);
+    },
+    [adjustTaskPrice]
+  );
+  const handlePriceStepperBlur = useCallback(() => {
+    stopPriceStepperRepeat();
+    priceStepperSuppressClickRef.current = false;
+  }, [stopPriceStepperRepeat]);
   const taskPriceValue = parsedTaskPrice ?? 0;
   const balanceAffordableCount = useMemo(() => {
     if (!Number.isFinite(taskPriceValue) || taskPriceValue <= 0) return 0;
@@ -954,7 +1040,6 @@ export default function App() {
       ? 'Подписка'
       : 'Реакция';
   const remainingPointsAfterLaunch = Math.max(0, displayPoints - totalBudget);
-  const budgetSummaryLabel = `${formatNumberRu(taskPriceValue)} ${formatPointsLabel(taskPriceValue)} × ${formatNumberRu(taskCount)} = ${formatNumberRu(totalBudget)} ${formatPointsLabel(totalBudget)}`;
   const promoWizardSteps = useMemo<
     Array<{ id: PromoWizardStepId; label: string; shortLabel: string }>
   >(
@@ -1176,6 +1261,12 @@ export default function App() {
       }
       if (welcomeTimeoutRef.current) {
         window.clearTimeout(welcomeTimeoutRef.current);
+      }
+      if (priceStepperHoldTimeoutRef.current !== null) {
+        window.clearTimeout(priceStepperHoldTimeoutRef.current);
+      }
+      if (priceStepperRepeatIntervalRef.current !== null) {
+        window.clearInterval(priceStepperRepeatIntervalRef.current);
       }
     };
   }, []);
@@ -1889,6 +1980,12 @@ export default function App() {
   }, [promoWizardOpen, createLoading]);
 
   useEffect(() => {
+    if (promoWizardOpen) return;
+    stopPriceStepperRepeat();
+    priceStepperSuppressClickRef.current = false;
+  }, [promoWizardOpen, stopPriceStepperRepeat]);
+
+  useEffect(() => {
     if (applicationsRequestedRef.current) return;
     applicationsRequestedRef.current = true;
     void loadMyApplications({ silent: true });
@@ -2133,6 +2230,7 @@ export default function App() {
 
   const openPromoWizard = (type: 'subscribe' | 'reaction') => {
     setTaskType(type);
+    setTaskPriceValue(DEFAULT_TASK_PRICE);
     setCreateError('');
     setLinkPickerOpen(false);
     setPromoWizardStep('project');
@@ -5134,7 +5232,12 @@ export default function App() {
                           <button
                             className="price-stepper-button"
                             type="button"
-                            onClick={() => adjustTaskPrice(-1)}
+                            onPointerDown={(event) => handlePriceStepperPointerDown(event, -1)}
+                            onPointerUp={handlePriceStepperPointerEnd}
+                            onPointerCancel={handlePriceStepperPointerEnd}
+                            onPointerLeave={handlePriceStepperPointerEnd}
+                            onBlur={handlePriceStepperBlur}
+                            onClick={() => handlePriceStepperClick(-1)}
                             disabled={taskPriceValue <= MIN_TASK_PRICE}
                             aria-label="Уменьшить цену на 1 балл"
                           >
@@ -5149,7 +5252,12 @@ export default function App() {
                           <button
                             className="price-stepper-button"
                             type="button"
-                            onClick={() => adjustTaskPrice(1)}
+                            onPointerDown={(event) => handlePriceStepperPointerDown(event, 1)}
+                            onPointerUp={handlePriceStepperPointerEnd}
+                            onPointerCancel={handlePriceStepperPointerEnd}
+                            onPointerLeave={handlePriceStepperPointerEnd}
+                            onBlur={handlePriceStepperBlur}
+                            onClick={() => handlePriceStepperClick(1)}
                             disabled={taskPriceValue >= MAX_TASK_PRICE}
                             aria-label="Увеличить цену на 1 балл"
                           >
@@ -5182,16 +5290,18 @@ export default function App() {
                       </div>
                     </label>
 
-                    <div className="promo-budget-total">
-                      <span>Итог</span>
-                      <strong>
-                        {formatNumberRu(totalBudget)} {formatPointsLabel(totalBudget)}
-                      </strong>
-                      <p>
-                        Остаток: {formatNumberRu(remainingPointsAfterLaunch)} {formatPointsLabel(remainingPointsAfterLaunch)}.
-                      </p>
+                    <div className="promo-budget-total" role="status" aria-live="polite" aria-atomic="true">
+                      <div className="promo-budget-total-item">
+                        <span>Сумма списания</span>
+                        <strong>
+                          {formatNumberRu(totalBudget)} {formatPointsLabel(totalBudget)}
+                        </strong>
+                      </div>
+                      <div className="promo-budget-total-item">
+                        <span>Количество действий</span>
+                        <strong>{formatActionsCountRu(taskCount)}</strong>
+                      </div>
                     </div>
-                    <div className="promo-step-summary">{budgetSummaryLabel}</div>
                   </>
                 )}
 
@@ -5227,9 +5337,6 @@ export default function App() {
                         <strong>{formatActionsCountRu(taskCount)}</strong>
                       </div>
                     </div>
-                    {taskType === 'reaction' && reactionLinkTrimmed && (
-                      <div className="promo-step-summary promo-review-link">Пост: {reactionLinkTrimmed}</div>
-                    )}
                     <div className={`promo-review-status ${createCtaState.blocked ? 'warn' : ''}`}>
                       {createCtaState.blocked
                         ? createCtaState.label === 'Пополните баланс'
