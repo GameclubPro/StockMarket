@@ -10,6 +10,7 @@ import {
   applyCampaign,
   cleanupStaleApplications,
   createCampaign,
+  createPlatformSwitchLink,
   fetchAdminModeration,
   fetchAdminPanelStats,
   fetchCampaigns,
@@ -37,9 +38,13 @@ import {
   type ReferralBonus,
   type ReferralListItem,
   type ReferralStats,
+  type RuntimePlatform,
   verifyInitData,
 } from './api';
 import {
+  clearPlatformLinkCodeFromUrl,
+  getPlatformLinkCode,
+  getRuntimePlatform,
   getInitDataRaw,
   getUserLabel,
   getUserPhotoUrl,
@@ -235,6 +240,11 @@ type ParsedReactionPostLink = {
   scope: 'username' | 'chat';
   projectKey: string;
   messageId: number;
+};
+type ParsedVkPostLink = {
+  wall: string;
+  ownerKey: string;
+  postId: number;
 };
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
@@ -477,6 +487,61 @@ const parseReactionPostLink = (rawLink: string): ParsedReactionPostLink | null =
   };
 };
 
+const parseVkReactionPostLink = (rawLink: string): ParsedVkPostLink | null => {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawLink);
+  } catch {
+    return null;
+  }
+  if (parsedUrl.protocol !== 'https:') return null;
+  const host = parsedUrl.hostname.toLowerCase();
+  if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') return null;
+  const path = parsedUrl.pathname.replace(/^\/+/, '').trim();
+  const match = path.match(/^wall(-?\d+)_(\d+)$/i);
+  if (!match) return null;
+  const ownerKey = match[1] ?? '';
+  const postId = Number(match[2] ?? '');
+  if (!ownerKey) return null;
+  if (!Number.isInteger(postId) || postId <= 0) return null;
+  return {
+    wall: path.toLowerCase(),
+    ownerKey,
+    postId,
+  };
+};
+
+const parseVkGroupOwnerKey = (rawLink: string) => {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawLink);
+  } catch {
+    return null;
+  }
+  if (parsedUrl.protocol !== 'https:') return null;
+  const host = parsedUrl.hostname.toLowerCase();
+  if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') return null;
+  const slug = parsedUrl.pathname
+    .replace(/^\/+/, '')
+    .split('/')[0]
+    ?.trim()
+    .toLowerCase();
+  if (!slug) return null;
+
+  const communityMatch = slug.match(/^(public|club|event)(\d+)$/i);
+  if (communityMatch?.[2]) return `-${communityMatch[2]}`;
+
+  const userMatch = slug.match(/^id(\d+)$/i);
+  if (userMatch?.[1]) return userMatch[1];
+
+  const wallMatch = slug.match(/^wall(-?\d+)_\d+$/i);
+  if (wallMatch?.[1]) return wallMatch[1];
+
+  return null;
+};
+
+const formatPlatformLabel = (platform: RuntimePlatform) => (platform === 'VK' ? 'VK' : 'TG');
+
 const isDevVisualAdminEnabled = () => {
   if (!import.meta.env.DEV) return false;
   if (typeof window === 'undefined') return false;
@@ -563,6 +628,9 @@ export default function App() {
   const [totalEarned, setTotalEarned] = useState(0);
   const [userId, setUserId] = useState('');
   const [tgUsername, setTgUsername] = useState('');
+  const runtimePlatform = useMemo<RuntimePlatform>(() => getRuntimePlatform(), []);
+  const isVkRuntime = runtimePlatform === 'VK';
+  const oppositePlatform: RuntimePlatform = isVkRuntime ? 'TELEGRAM' : 'VK';
   const [activeTab, setActiveTab] = useState<
     'home' | 'promo' | 'tasks' | 'wheel' | 'referrals' | 'admin'
   >('home');
@@ -601,6 +669,8 @@ export default function App() {
   const [adminStaleCleanupLoading, setAdminStaleCleanupLoading] = useState(false);
   const [adminUnblockUserId, setAdminUnblockUserId] = useState('');
   const [blockedState, setBlockedState] = useState<BlockedPayload | null>(null);
+  const [platformSwitchLoading, setPlatformSwitchLoading] = useState<RuntimePlatform | ''>('');
+  const [platformSwitchError, setPlatformSwitchError] = useState('');
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
@@ -969,6 +1039,30 @@ export default function App() {
           hint: '',
         };
       }
+      if (runtimePlatform === 'VK') {
+        const parsedLink = parseVkReactionPostLink(reactionLinkTrimmed);
+        if (!parsedLink) {
+          return {
+            state: 'invalid',
+            label: 'Неверный формат',
+            hint: 'vk.com/wall-1_1',
+          };
+        }
+        const projectOwnerKey = parseVkGroupOwnerKey(selectedGroupEntity?.inviteLink ?? '');
+        if (projectOwnerKey && parsedLink.ownerKey !== projectOwnerKey) {
+          return {
+            state: 'foreign_project',
+            label: 'Другой проект',
+            hint: 'Ссылка не из выбранного VK-сообщества',
+          };
+        }
+        return {
+          state: 'valid',
+          label: 'OK',
+          hint: '',
+        };
+      }
+
       const parsedLink = parseReactionPostLink(reactionLinkTrimmed);
       if (!parsedLink) {
         return {
@@ -999,7 +1093,7 @@ export default function App() {
         hint: parsedLink.scope === 'chat' && !projectChatId ? 'Формат корректен' : '',
       };
     },
-    [reactionLinkTrimmed, selectedGroupEntity, taskType]
+    [reactionLinkTrimmed, runtimePlatform, selectedGroupEntity, taskType]
   );
   const isProjectSelected = Boolean(selectedGroupId);
   const createCtaState = useMemo(() => {
@@ -1108,6 +1202,7 @@ export default function App() {
   const activeCampaigns = useMemo(() => {
     const acknowledgedSet = new Set(acknowledgedIds);
     return campaigns.filter((campaign) => {
+      if (campaign.platform !== runtimePlatform) return false;
       if (hiddenCampaignIdsSet.has(campaign.id)) return false;
       const status = applicationsByCampaign.get(campaign.id)?.status;
       if (status === 'APPROVED' && acknowledgedSet.has(campaign.id)) return false;
@@ -1115,7 +1210,7 @@ export default function App() {
       if (userId && campaign.owner?.id && campaign.owner.id === userId) return false;
       return true;
     });
-  }, [applicationsByCampaign, campaigns, userId, acknowledgedIds, hiddenCampaignIdsSet]);
+  }, [applicationsByCampaign, campaigns, runtimePlatform, userId, acknowledgedIds, hiddenCampaignIdsSet]);
   const visibleCampaigns = useMemo(() => {
     const type = taskTypeFilter === 'subscribe' ? 'SUBSCRIBE' : 'REACTION';
     const base = activeCampaigns.filter((campaign) => campaign.actionType === type);
@@ -1136,6 +1231,7 @@ export default function App() {
     return applications
       .filter(
         (application) =>
+          application.campaign.platform === runtimePlatform &&
           application.status === 'APPROVED' &&
           application.campaign.actionType === type &&
           !hiddenCampaignIdsSet.has(application.campaign.id)
@@ -1145,7 +1241,7 @@ export default function App() {
           new Date(b.reviewedAt ?? b.createdAt).getTime() -
           new Date(a.reviewedAt ?? a.createdAt).getTime()
       );
-  }, [applications, taskTypeFilter, hiddenCampaignIdsSet]);
+  }, [applications, hiddenCampaignIdsSet, runtimePlatform, taskTypeFilter]);
   const taskStatusCounters = useMemo(() => {
     return taskTypeCampaigns.reduce(
       (acc, campaign) => {
@@ -1157,6 +1253,10 @@ export default function App() {
       { pending: 0, ready: 0 }
     );
   }, [applicationsByCampaign, taskTypeCampaigns]);
+  const platformMyCampaigns = useMemo(
+    () => myCampaigns.filter((campaign) => campaign.platform === runtimePlatform),
+    [myCampaigns, runtimePlatform]
+  );
   const taskHintText = useMemo(() => {
     if (taskListFilter === 'history') {
       return `Подтверждено: ${historyApplications.length}. Журнал начислений и завершённых заданий.`;
@@ -1167,8 +1267,8 @@ export default function App() {
     if (taskStatusCounters.pending > 0) {
       return `На проверке: ${taskStatusCounters.pending}. Новые задания можно брать параллельно.`;
     }
-    return 'Нажмите «Получить», выполните задание в Telegram и вернитесь за наградой.';
-  }, [historyApplications.length, taskListFilter, taskStatusCounters.pending, taskStatusCounters.ready]);
+    return `Нажмите «Получить», выполните задание в ${runtimePlatform === 'VK' ? 'VK' : 'Telegram'} и вернитесь за наградой.`;
+  }, [historyApplications.length, runtimePlatform, taskListFilter, taskStatusCounters.pending, taskStatusCounters.ready]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -1188,6 +1288,7 @@ export default function App() {
       if (profile.photoUrl) setUserPhoto(profile.photoUrl);
     });
     const initData = getInitDataRaw();
+    const linkCode = getPlatformLinkCode();
     const username =
       extractUsernameFromInitData(initData) || extractUsernameFromTelegramUnsafe();
     setTgUsername(username);
@@ -1196,10 +1297,13 @@ export default function App() {
       if (!initData) return;
 
       try {
-        const data = await verifyInitData(initData);
+        const data = await verifyInitData(initData, linkCode ? { linkCode } : undefined);
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
+        if (linkCode) {
+          clearPlatformLinkCodeFromUrl();
+        }
         if (data.referralBonus?.amount && data.referralBonus.amount > 0 && data.user?.id) {
           const key = `jr:referralWelcomeSeen:${data.user.id}`;
           const seen = localStorage.getItem(key);
@@ -2086,6 +2190,9 @@ export default function App() {
   };
 
   const getGroupSecondaryLabel = (group: GroupDto) => {
+    if (group.platform === 'VK') {
+      return group.inviteLink || group.username || '';
+    }
     const username = group.username?.trim();
     if (username) return username.startsWith('@') ? username : `@${username}`;
     if (group.inviteLink) return group.inviteLink;
@@ -2094,6 +2201,7 @@ export default function App() {
   };
 
   const getGroupAvatarUrl = (group: GroupDto) => {
+    if (group.platform === 'VK') return '';
     const username = group.username?.trim();
     if (!username) return '';
     const clean = username.startsWith('@') ? username.slice(1) : username;
@@ -2216,6 +2324,20 @@ export default function App() {
   };
 
   const openCampaignLink = (campaign: CampaignDto) => {
+    if (campaign.platform === 'VK') {
+      let url = campaign.group.inviteLink;
+      const targetId = campaign.targetMessageId ?? null;
+      if (campaign.actionType === 'REACTION' && targetId) {
+        const ownerKey = parseVkGroupOwnerKey(campaign.group.inviteLink);
+        if (ownerKey) {
+          url = `https://vk.com/wall${ownerKey}_${targetId}`;
+        }
+      }
+      if (!url) return;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     const username = campaign.group.username?.trim();
     const targetId = campaign.targetMessageId ?? null;
     let url = campaign.group.inviteLink;
@@ -2551,7 +2673,11 @@ export default function App() {
     setCreateError('');
     const groupId = resolveGroupId();
     if (!groupId) {
-      setCreateError('Сначала подключите канал/группу и выберите ее из списка.');
+      setCreateError(
+        runtimePlatform === 'VK'
+          ? 'Сначала подключите VK-сообщество и выберите его из списка.'
+          : 'Сначала подключите канал/группу и выберите ее из списка.'
+      );
       return false;
     }
     if (parsedTaskPrice === null) {
@@ -2918,6 +3044,32 @@ export default function App() {
       setDailyBonusError(error?.message ?? 'Не удалось получить бонус.');
     }
   };
+
+  const handlePlatformSwitch = useCallback(
+    async (targetPlatform: RuntimePlatform) => {
+      if (targetPlatform === runtimePlatform) return;
+      if (platformSwitchLoading) return;
+      setPlatformSwitchError('');
+      setPlatformSwitchLoading(targetPlatform);
+      try {
+        const data = await createPlatformSwitchLink(targetPlatform);
+        if (!data.ok || !data.url) {
+          throw new Error('Не удалось подготовить переход между платформами.');
+        }
+
+        const opened = window.open(data.url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          window.location.href = data.url;
+        }
+      } catch (error: any) {
+        if (handleBlockedApiError(error)) return;
+        setPlatformSwitchError(error?.message ?? 'Не удалось открыть другую платформу.');
+      } finally {
+        setPlatformSwitchLoading('');
+      }
+    },
+    [handleBlockedApiError, platformSwitchLoading, runtimePlatform]
+  );
 
   const markInviteCopied = () => {
     setInviteCopied(true);
@@ -3316,6 +3468,69 @@ export default function App() {
                   <path d="M12.5 7.8L16.7 12l-4.2 4.2" />
                 </svg>
               </button>
+            </section>
+            <section
+              className={`platform-switch-card ${platformSwitchLoading ? 'loading' : ''}`}
+              aria-label="Переключение платформы"
+            >
+              <div className="platform-switch-card-head">
+                <div className="platform-switch-kicker">Платформа аккаунта</div>
+                <div className="platform-switch-title">VK ↔ TG · один баланс</div>
+                <div className="platform-switch-sub">
+                  Переключайтесь между мини-приложениями, история и баллы останутся общими.
+                </div>
+              </div>
+              <div
+                className={`platform-switch-segment ${
+                  runtimePlatform === 'VK' ? 'vk-active' : 'tg-active'
+                }`}
+                role="tablist"
+                aria-label="Текущая платформа"
+              >
+                <span className="platform-switch-indicator" aria-hidden="true" />
+                <button
+                  className={`platform-switch-button ${isVkRuntime ? 'active' : ''}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isVkRuntime}
+                  onClick={() => void handlePlatformSwitch('VK')}
+                  disabled={isVkRuntime || platformSwitchLoading !== ''}
+                >
+                  <span className="platform-switch-button-label">VK</span>
+                  <span className="platform-switch-button-meta">
+                    {platformSwitchLoading === 'VK'
+                      ? 'Открываем…'
+                      : isVkRuntime
+                        ? 'Сейчас'
+                        : 'Перейти'}
+                  </span>
+                </button>
+                <button
+                  className={`platform-switch-button ${!isVkRuntime ? 'active' : ''}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={!isVkRuntime}
+                  onClick={() => void handlePlatformSwitch('TELEGRAM')}
+                  disabled={!isVkRuntime || platformSwitchLoading !== ''}
+                >
+                  <span className="platform-switch-button-label">TG</span>
+                  <span className="platform-switch-button-meta">
+                    {platformSwitchLoading === 'TELEGRAM'
+                      ? 'Открываем…'
+                      : !isVkRuntime
+                        ? 'Сейчас'
+                        : 'Перейти'}
+                  </span>
+                </button>
+              </div>
+              <div className="platform-switch-note">
+                Активно: {formatPlatformLabel(runtimePlatform)}. Следующая платформа: {formatPlatformLabel(oppositePlatform)}.
+              </div>
+              {platformSwitchError && (
+                <div className="platform-switch-error" role="alert">
+                  {platformSwitchError}
+                </div>
+              )}
             </section>
           </>
         )}
@@ -4626,7 +4841,7 @@ export default function App() {
                 onClick={() => setMyTasksTab('mine')}
               >
                 <span className="promo-mode-title">Мои размещенные</span>
-                <span className="promo-mode-meta">{myCampaigns.length} кампаний</span>
+                <span className="promo-mode-meta">{platformMyCampaigns.length} кампаний</span>
               </button>
             </div>
 
@@ -4635,7 +4850,7 @@ export default function App() {
                 <div className="promo-entry-head">
                   <h3 className="promo-entry-title">Что продвигаем?</h3>
                   <p className="promo-entry-sub">
-                    Выберите формат и настройте кампанию за пару шагов.
+                    Выберите формат и настройте кампанию в {isVkRuntime ? 'VK' : 'Telegram'} за пару шагов.
                   </p>
                 </div>
                 <div className="promo-type-grid">
@@ -4651,7 +4866,11 @@ export default function App() {
                       <span className="promo-type-chip">Рост базы</span>
                     </span>
                     <span className="promo-type-title">Подписка</span>
-                    <span className="promo-type-meta">Продвижение вступлений в канал или группу</span>
+                    <span className="promo-type-meta">
+                      {isVkRuntime
+                        ? 'Продвижение вступлений в VK-сообщество'
+                        : 'Продвижение вступлений в канал или группу'}
+                    </span>
                     <span className="promo-type-cta">Запустить</span>
                   </button>
                   <button
@@ -4666,7 +4885,11 @@ export default function App() {
                       <span className="promo-type-chip">Вовлечение</span>
                     </span>
                     <span className="promo-type-title">Реакции</span>
-                    <span className="promo-type-meta">Продвижение поста по ссылке из вашего проекта</span>
+                    <span className="promo-type-meta">
+                      {isVkRuntime
+                        ? 'Реакции по ссылке на пост VK'
+                        : 'Продвижение поста по ссылке из вашего проекта'}
+                    </span>
                     <span className="promo-type-cta">Запустить</span>
                   </button>
                 </div>
@@ -4685,7 +4908,7 @@ export default function App() {
                 <div className="promo-mine-overview">
                   <div className="promo-mine-stat">
                     <span>Кампаний</span>
-                    <strong>{myCampaigns.length}</strong>
+                    <strong>{platformMyCampaigns.length}</strong>
                   </div>
                   <div className="promo-mine-stat">
                     <span>Загрузка</span>
@@ -4697,12 +4920,12 @@ export default function App() {
                 {!myCampaignsLoading && myCampaignsError && (
                   <div className="task-form-placeholder error">{myCampaignsError}</div>
                 )}
-                {!myCampaignsLoading && !myCampaignsError && myCampaigns.length === 0 && (
+                {!myCampaignsLoading && !myCampaignsError && platformMyCampaigns.length === 0 && (
                   <div className="task-form-placeholder">Пока нет размещенных кампаний.</div>
                 )}
                 {!myCampaignsLoading &&
                   !myCampaignsError &&
-                  myCampaigns.map((campaign) => {
+                  platformMyCampaigns.map((campaign) => {
                     const badgeLabel = `${campaign.rewardPoints} ${formatPointsLabel(
                       campaign.rewardPoints
                     )}`;
@@ -4712,10 +4935,15 @@ export default function App() {
                         <div className="task-card-head">
                           <TaskAvatar group={campaign.group} getAvatarUrl={getGroupAvatarUrl} />
                           <div className="task-info">
-                            <div className="task-title-row">
-                              <div className="task-title">{campaign.group.title}</div>
-                              <span className="badge sticker">{badgeLabel}</span>
-                            </div>
+                              <div className="task-title-row">
+                                <div className="task-title">{campaign.group.title}</div>
+                                <span
+                                  className={`task-platform-badge ${campaign.platform === 'VK' ? 'vk' : 'tg'}`}
+                                >
+                                  {formatPlatformLabel(campaign.platform)}
+                                </span>
+                                <span className="badge sticker">{badgeLabel}</span>
+                              </div>
                             <div className="task-handle">
                               {getGroupSecondaryLabel(campaign.group)}
                             </div>
@@ -4908,6 +5136,11 @@ export default function App() {
                             <div className="task-info">
                               <div className="task-title-row">
                                 <div className="task-title">{campaign.group.title}</div>
+                                <span
+                                  className={`task-platform-badge ${campaign.platform === 'VK' ? 'vk' : 'tg'}`}
+                                >
+                                  {formatPlatformLabel(campaign.platform)}
+                                </span>
                               </div>
                               <div className="task-handle">
                                 {getGroupSecondaryLabel(campaign.group)}
@@ -4999,6 +5232,11 @@ export default function App() {
                             <div className="task-info">
                               <div className="task-title-row">
                                 <div className="task-title">{campaign.group.title}</div>
+                                <span
+                                  className={`task-platform-badge ${campaign.platform === 'VK' ? 'vk' : 'tg'}`}
+                                >
+                                  {formatPlatformLabel(campaign.platform)}
+                                </span>
                               </div>
                               <div className="task-handle">
                                 {getGroupSecondaryLabel(campaign.group)}
@@ -5120,22 +5358,30 @@ export default function App() {
                           setLinkPickerOpen((prev) => !prev);
                         }}
                       >
-                        Выбрать проект · Мои проекты
+                        {isVkRuntime ? 'Выбрать VK-проект · Мои сообщества' : 'Выбрать проект · Мои проекты'}
                       </button>
                       <div className={`promo-project-chip ${isProjectSelected ? 'ready' : 'empty'}`}>
                         {selectedProjectLabel}
                       </div>
                       <div className="link-hint promo-project-hint">
-                        {isProjectSelected ? 'Бот — админ проекта.' : 'Выберите проект.'}
+                        {isProjectSelected
+                          ? isVkRuntime
+                            ? 'Проект VK выбран.'
+                            : 'Бот — админ проекта.'
+                          : isVkRuntime
+                            ? 'Выберите VK-сообщество.'
+                            : 'Выберите проект.'}
                       </div>
-                      <div className="promo-project-actions">
-                        <button className="link-tool secondary" type="button" onClick={openChannelSetup}>
-                          Подключить канал
-                        </button>
-                        <button className="link-tool secondary" type="button" onClick={openGroupSetup}>
-                          Подключить группу
-                        </button>
-                      </div>
+                      {!isVkRuntime && (
+                        <div className="promo-project-actions">
+                          <button className="link-tool secondary" type="button" onClick={openChannelSetup}>
+                            Подключить канал
+                          </button>
+                          <button className="link-tool secondary" type="button" onClick={openGroupSetup}>
+                            Подключить группу
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {linkPickerOpen && (
                       <div className="link-picker" id="promo-wizard-link-picker" ref={linkPickerRef}>
@@ -5172,7 +5418,9 @@ export default function App() {
                           <div className="link-picker-status error">{myGroupsError}</div>
                         )}
                         {!myGroupsLoading && !myGroupsError && myGroupsLoaded && myGroups.length === 0 && (
-                          <div className="link-picker-status">Пока нет добавленных групп.</div>
+                          <div className="link-picker-status">
+                            {isVkRuntime ? 'Пока нет добавленных VK-сообществ.' : 'Пока нет добавленных групп.'}
+                          </div>
                         )}
                         {!myGroupsLoading &&
                           !myGroupsError &&
@@ -5216,7 +5464,7 @@ export default function App() {
                       <span>Ссылка на пост</span>
                       <input
                         type="text"
-                        placeholder="https://t.me/channel/123"
+                        placeholder={isVkRuntime ? 'https://vk.com/wall-1_1' : 'https://t.me/channel/123'}
                         value={reactionLink}
                         onChange={(event) => setReactionLink(event.target.value)}
                       />

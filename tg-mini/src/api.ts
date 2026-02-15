@@ -11,6 +11,8 @@ import type {
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
+  RuntimePlatform,
+  SwitchLinkResponse,
   UserDto,
 } from './types/app';
 import { getInitDataRaw } from './telegram';
@@ -31,6 +33,8 @@ export type {
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
+  RuntimePlatform,
+  SwitchLinkResponse,
   UserDto,
 } from './types/app';
 
@@ -81,13 +85,19 @@ const request = async (path: string, options: RequestInit = {}) => {
   return response.json();
 };
 
-export const verifyInitData = async (initData: string) => {
+export const verifyInitData = async (
+  initData: string,
+  options?: { linkCode?: string }
+) => {
   const response = await fetch(`${API_BASE}/api/auth/verify`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ initData }),
+    body: JSON.stringify({
+      initData,
+      ...(options?.linkCode ? { linkCode: options.linkCode } : {}),
+    }),
   });
 
   if (!response.ok) {
@@ -123,7 +133,22 @@ export const verifyInitData = async (initData: string) => {
 
 export const fetchMe = async () => {
   const data = await request('/api/me');
-  return data as { ok: boolean; user: UserDto; balance: number; stats: { groups: number; campaigns: number; applications: number } };
+  return data as {
+    ok: boolean;
+    user: UserDto;
+    runtimePlatform?: RuntimePlatform;
+    balance: number;
+    stats: { groups: number; campaigns: number; applications: number };
+  };
+};
+
+export const createPlatformSwitchLink = async (targetPlatform: RuntimePlatform) => {
+  const data = await request('/api/platform/switch-link', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ targetPlatform }),
+  });
+  return data as SwitchLinkResponse;
 };
 
 export const fetchAdminPanelStats = async (period: 'today' | '7d' | '30d' = 'today') => {

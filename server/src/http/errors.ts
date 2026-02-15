@@ -44,9 +44,16 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'invalid query' ||
     message === 'cannot apply own campaign' ||
     message === 'insufficient_balance' ||
-    message === 'budget too small'
+    message === 'budget too small' ||
+    message === 'invalid link code' ||
+    message === 'platform_link_code_invalid' ||
+    message === 'platform_link_code_already_used' ||
+    message === 'platform_link_code_expired'
   ) {
     return 400;
+  }
+  if (message === 'already on target platform') {
+    return 409;
   }
   if (message === 'user_blocked') {
     return 423;
@@ -78,6 +85,11 @@ export const toPublicErrorMessage = (message: string) => {
   if (message === 'budget empty') return 'Бюджет исчерпан.';
   if (message === 'campaign paused') return 'Задание приостановлено.';
   if (message === 'already reviewed') return 'Заявка уже обработана.';
+  if (message === 'invalid link code') return 'Код переключения платформы некорректен.';
+  if (message === 'platform_link_code_invalid') return 'Код переключения недействителен.';
+  if (message === 'platform_link_code_already_used') return 'Код переключения уже использован.';
+  if (message === 'platform_link_code_expired') return 'Срок действия кода переключения истек.';
+  if (message === 'already on target platform') return 'Вы уже на этой платформе.';
   if (message === 'user_blocked') return 'user_blocked';
   return message;
 };

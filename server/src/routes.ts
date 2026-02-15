@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './db.js';
-import { type Prisma, type User } from '@prisma/client';
+import { type Platform, type Prisma, type User } from '@prisma/client';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import {
@@ -36,6 +36,15 @@ import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.
 
 const authBodySchema = z.object({
   initData: z.string().min(1).transform((value) => value.trim()),
+  linkCode: z
+    .string()
+    .max(32)
+    .optional()
+    .transform((value) => (value && value.trim() ? value.trim().toUpperCase() : undefined)),
+});
+
+const platformSwitchSchema = z.object({
+  targetPlatform: z.enum(['TELEGRAM', 'VK']),
 });
 
 const groupCreateSchema = z.object({
@@ -349,6 +358,7 @@ type AdminPanelStats = {
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
+type RuntimePlatform = 'TELEGRAM' | 'VK';
 type UserBlockPayload = {
   reason: string | null;
   blockedUntil: string | null;
@@ -359,7 +369,7 @@ type UserBlockResolution = {
   blocked: UserBlockPayload | null;
 };
 type MiniAppAuthIdentity = {
-  platform: 'telegram' | 'vk';
+  platform: RuntimePlatform;
   externalId: string;
   username?: string;
   firstName?: string;
@@ -367,6 +377,18 @@ type MiniAppAuthIdentity = {
   photoUrl?: string;
   startParam?: string;
 };
+type UserIdentityRecord = {
+  userId: string;
+  platform: RuntimePlatform;
+  externalId: string;
+};
+
+const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
+const PLATFORM_LINK_CODE_BYTES = 6;
+const PLATFORM_LINK_CODE_ATTEMPTS = 6;
+const TG_LINK_CODE_PREFIX = 'link_';
+const TG_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения Telegram-аккаунта.';
+const VK_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения VK-аккаунта.';
 
 const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
   const rawPayload = authPayload.trim();
@@ -374,9 +396,11 @@ const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity =>
 
   if (isVkLaunchParamsPayload(rawPayload)) {
     const vkData = verifyVkLaunchParams(rawPayload, config.vkAppSecret, config.maxAuthAgeSec);
+    const vkUserId = String(vkData.vk_user_id ?? '').trim();
+    if (!vkUserId) throw new Error('vk_user_id missing');
     return {
-      platform: 'vk',
-      externalId: `vk:${vkData.vk_user_id}`,
+      platform: 'VK',
+      externalId: vkUserId,
       startParam: vkData.vk_ref,
     };
   }
@@ -386,7 +410,7 @@ const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity =>
   if (!tgUser) throw new Error('no user');
 
   return {
-    platform: 'telegram',
+    platform: 'TELEGRAM',
     externalId: String(tgUser.id),
     username: tgUser.username,
     firstName: tgUser.first_name,
@@ -394,6 +418,422 @@ const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity =>
     photoUrl: tgUser.photo_url,
     startParam: tgAuth.start_param,
   };
+};
+
+const getLegacyTelegramIdByIdentity = (identity: MiniAppAuthIdentity) =>
+  identity.platform === 'VK' ? `vk:${identity.externalId}` : identity.externalId;
+
+const resolveUserLegacyPlatform = (telegramId: string): RuntimePlatform =>
+  telegramId.startsWith('vk:') ? 'VK' : 'TELEGRAM';
+
+const normalizePlatformLinkCode = (value: string) => value.trim().toUpperCase();
+
+const isPlatformLinkCode = (value: string) =>
+  new RegExp(`^${PLATFORM_LINK_CODE_PREFIX}[A-Z0-9]{8,32}$`).test(value);
+
+const buildPlatformLinkCode = () =>
+  `${PLATFORM_LINK_CODE_PREFIX}${crypto.randomBytes(PLATFORM_LINK_CODE_BYTES).toString('hex').toUpperCase()}`;
+
+const createUniquePlatformLinkCode = async (db: DbClient) => {
+  for (let attempt = 0; attempt < PLATFORM_LINK_CODE_ATTEMPTS; attempt += 1) {
+    const code = buildPlatformLinkCode();
+    const exists = await db.platformLinkCode.findUnique({
+      where: { code },
+      select: { id: true },
+    });
+    if (!exists) return code;
+  }
+  throw new Error('platform_link_code_collision');
+};
+
+const resolveRequestPlatformFromInitData = (request: FastifyRequest): RuntimePlatform | null => {
+  const initData = request.headers['x-init-data'];
+  if (typeof initData !== 'string' || !initData.trim()) return null;
+  try {
+    return resolveMiniAppAuthIdentity(initData).platform;
+  } catch {
+    return null;
+  }
+};
+
+const resolveRequestPlatform = (request: FastifyRequest, user?: Pick<User, 'telegramId'>): RuntimePlatform => {
+  const byInitData = resolveRequestPlatformFromInitData(request);
+  if (byInitData) return byInitData;
+  if (user?.telegramId) return resolveUserLegacyPlatform(user.telegramId);
+  return 'TELEGRAM';
+};
+
+const updateUserFromIdentity = async (db: DbClient, user: User, identity: MiniAppAuthIdentity) => {
+  const data: Prisma.UserUpdateInput = {};
+  if (identity.username !== undefined) data.username = identity.username;
+  if (identity.firstName !== undefined) data.firstName = identity.firstName;
+  if (identity.lastName !== undefined) data.lastName = identity.lastName;
+  if (identity.photoUrl !== undefined) data.photoUrl = identity.photoUrl;
+
+  if (Object.keys(data).length === 0) return user;
+  return await db.user.update({
+    where: { id: user.id },
+    data,
+  });
+};
+
+const upsertUserIdentity = async (
+  db: DbClient,
+  payload: { userId: string; identity: MiniAppAuthIdentity }
+) => {
+  const { userId, identity } = payload;
+  await db.userIdentity.upsert({
+    where: {
+      userId_platform: {
+        userId,
+        platform: identity.platform,
+      },
+    },
+    update: {
+      externalId: identity.externalId,
+      username: identity.username,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      photoUrl: identity.photoUrl,
+    },
+    create: {
+      userId,
+      platform: identity.platform,
+      externalId: identity.externalId,
+      username: identity.username,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      photoUrl: identity.photoUrl,
+    },
+  });
+};
+
+const loadUserByIdentity = async (db: DbClient, identity: MiniAppAuthIdentity) => {
+  const identityRecord = await db.userIdentity.findUnique({
+    where: {
+      platform_externalId: {
+        platform: identity.platform,
+        externalId: identity.externalId,
+      },
+    },
+    include: { user: true },
+  });
+  if (identityRecord) return identityRecord.user;
+
+  const legacyTelegramId = getLegacyTelegramIdByIdentity(identity);
+  return await db.user.findUnique({ where: { telegramId: legacyTelegramId } });
+};
+
+const ensureIdentityUser = async (
+  db: DbClient,
+  identity: MiniAppAuthIdentity,
+  now = new Date()
+): Promise<{ user: User; isFirstAuth: boolean }> => {
+  let user = await loadUserByIdentity(db, identity);
+  let isFirstAuth = false;
+
+  if (!user) {
+    const referralCode = await createUniqueReferralCode(db);
+    user = await db.user.create({
+      data: {
+        telegramId: getLegacyTelegramIdByIdentity(identity),
+        username: identity.username,
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        photoUrl: identity.photoUrl,
+        balance: 30,
+        totalEarned: 0,
+        rating: 0,
+        firstAuthAt: now,
+        referralCode,
+      },
+    });
+    isFirstAuth = true;
+  } else {
+    isFirstAuth = !user.firstAuthAt;
+    user = await updateUserFromIdentity(db, user, identity);
+    if (!user.firstAuthAt) {
+      user = await db.user.update({
+        where: { id: user.id },
+        data: { firstAuthAt: now },
+      });
+      isFirstAuth = true;
+    }
+  }
+
+  await upsertUserIdentity(db, { userId: user.id, identity });
+  return { user, isFirstAuth };
+};
+
+const consumePlatformLinkCode = async (
+  db: Prisma.TransactionClient,
+  payload: { code: string; targetPlatform: RuntimePlatform; now?: Date }
+) => {
+  const now = payload.now ?? new Date();
+  const code = normalizePlatformLinkCode(payload.code);
+  const link = await db.platformLinkCode.findUnique({
+    where: { code },
+  });
+  if (!link || link.targetPlatform !== payload.targetPlatform) {
+    throw new Error('platform_link_code_invalid');
+  }
+  if (link.consumedAt) {
+    throw new Error('platform_link_code_already_used');
+  }
+  if (link.expiresAt.getTime() <= now.getTime()) {
+    throw new Error('platform_link_code_expired');
+  }
+
+  await db.platformLinkCode.update({
+    where: { id: link.id },
+    data: { consumedAt: now },
+  });
+
+  return link;
+};
+
+const dedupeAndMoveByUniqueCampaign = async (
+  tx: Prisma.TransactionClient,
+  payload: {
+    masterUserId: string;
+    secondaryUserId: string;
+    model: 'hiddenCampaign' | 'campaignReport' | 'application';
+    campaignField: 'campaignId';
+    userField: 'userId' | 'reporterId' | 'applicantId';
+  }
+) => {
+  if (payload.model === 'hiddenCampaign') {
+    const masterCampaigns = await tx.hiddenCampaign.findMany({
+      where: { userId: payload.masterUserId },
+      select: { campaignId: true },
+    });
+    if (masterCampaigns.length > 0) {
+      await tx.hiddenCampaign.deleteMany({
+        where: {
+          userId: payload.secondaryUserId,
+          campaignId: { in: masterCampaigns.map((item) => item.campaignId) },
+        },
+      });
+    }
+    await tx.hiddenCampaign.updateMany({
+      where: { userId: payload.secondaryUserId },
+      data: { userId: payload.masterUserId },
+    });
+    return;
+  }
+
+  if (payload.model === 'campaignReport') {
+    const masterCampaigns = await tx.campaignReport.findMany({
+      where: { reporterId: payload.masterUserId },
+      select: { campaignId: true },
+    });
+    if (masterCampaigns.length > 0) {
+      await tx.campaignReport.deleteMany({
+        where: {
+          reporterId: payload.secondaryUserId,
+          campaignId: { in: masterCampaigns.map((item) => item.campaignId) },
+        },
+      });
+    }
+    await tx.campaignReport.updateMany({
+      where: { reporterId: payload.secondaryUserId },
+      data: { reporterId: payload.masterUserId },
+    });
+    return;
+  }
+
+  const masterCampaigns = await tx.application.findMany({
+    where: { applicantId: payload.masterUserId },
+    select: { campaignId: true },
+  });
+  if (masterCampaigns.length > 0) {
+    await tx.application.deleteMany({
+      where: {
+        applicantId: payload.secondaryUserId,
+        campaignId: { in: masterCampaigns.map((item) => item.campaignId) },
+      },
+    });
+  }
+  await tx.application.updateMany({
+    where: { applicantId: payload.secondaryUserId },
+    data: { applicantId: payload.masterUserId },
+  });
+};
+
+const mergeUsersWithTelegramMaster = async (
+  tx: Prisma.TransactionClient,
+  payload: { userAId: string; userBId: string }
+) => {
+  if (payload.userAId === payload.userBId) {
+    const sameUser = await tx.user.findUnique({ where: { id: payload.userAId } });
+    if (!sameUser) throw new Error('user not found');
+    return sameUser;
+  }
+
+  const [userA, userB, identities] = await Promise.all([
+    tx.user.findUnique({ where: { id: payload.userAId } }),
+    tx.user.findUnique({ where: { id: payload.userBId } }),
+    tx.userIdentity.findMany({
+      where: {
+        userId: { in: [payload.userAId, payload.userBId] },
+      },
+      select: { userId: true, platform: true, externalId: true },
+    }),
+  ]);
+  if (!userA || !userB) throw new Error('user not found');
+
+  const hasTgA = identities.some((item) => item.userId === userA.id && item.platform === 'TELEGRAM');
+  const hasTgB = identities.some((item) => item.userId === userB.id && item.platform === 'TELEGRAM');
+  const masterUserId = hasTgA && !hasTgB ? userA.id : hasTgB && !hasTgA ? userB.id : userA.id;
+  const secondaryUserId = masterUserId === userA.id ? userB.id : userA.id;
+
+  const [masterUser, secondaryUser] = masterUserId === userA.id ? [userA, userB] : [userB, userA];
+
+  const masterGroupAdminIds = await tx.groupAdmin.findMany({
+    where: { userId: masterUser.id },
+    select: { groupId: true },
+  });
+  if (masterGroupAdminIds.length > 0) {
+    await tx.groupAdmin.deleteMany({
+      where: {
+        userId: secondaryUser.id,
+        groupId: { in: masterGroupAdminIds.map((item) => item.groupId) },
+      },
+    });
+  }
+  await tx.groupAdmin.updateMany({
+    where: { userId: secondaryUser.id },
+    data: { userId: masterUser.id },
+  });
+
+  await dedupeAndMoveByUniqueCampaign(tx, {
+    masterUserId: masterUser.id,
+    secondaryUserId: secondaryUser.id,
+    model: 'hiddenCampaign',
+    campaignField: 'campaignId',
+    userField: 'userId',
+  });
+  await dedupeAndMoveByUniqueCampaign(tx, {
+    masterUserId: masterUser.id,
+    secondaryUserId: secondaryUser.id,
+    model: 'campaignReport',
+    campaignField: 'campaignId',
+    userField: 'reporterId',
+  });
+  await dedupeAndMoveByUniqueCampaign(tx, {
+    masterUserId: masterUser.id,
+    secondaryUserId: secondaryUser.id,
+    model: 'application',
+    campaignField: 'campaignId',
+    userField: 'applicantId',
+  });
+
+  await tx.group.updateMany({
+    where: { ownerId: secondaryUser.id },
+    data: { ownerId: masterUser.id },
+  });
+  await tx.campaign.updateMany({
+    where: { ownerId: secondaryUser.id },
+    data: { ownerId: masterUser.id },
+  });
+  await tx.ledgerEntry.updateMany({
+    where: { userId: secondaryUser.id },
+    data: { userId: masterUser.id },
+  });
+  await tx.referral.updateMany({
+    where: { referrerId: secondaryUser.id },
+    data: { referrerId: masterUser.id },
+  });
+
+  const [masterReferred, secondaryReferred] = await Promise.all([
+    tx.referral.findUnique({
+      where: { referredUserId: masterUser.id },
+      select: { id: true },
+    }),
+    tx.referral.findUnique({
+      where: { referredUserId: secondaryUser.id },
+      select: { id: true },
+    }),
+  ]);
+
+  if (secondaryReferred) {
+    if (masterReferred) {
+      await tx.referral.delete({ where: { id: secondaryReferred.id } });
+    } else {
+      await tx.referral.update({
+        where: { id: secondaryReferred.id },
+        data: { referredUserId: masterUser.id },
+      });
+    }
+  }
+
+  const [masterIdentities, secondaryIdentities] = await Promise.all([
+    tx.userIdentity.findMany({ where: { userId: masterUser.id } }),
+    tx.userIdentity.findMany({ where: { userId: secondaryUser.id } }),
+  ]);
+  const masterByPlatform = new Map<RuntimePlatform, UserIdentityRecord>();
+  for (const identity of masterIdentities) {
+    masterByPlatform.set(identity.platform as RuntimePlatform, {
+      userId: identity.userId,
+      platform: identity.platform as RuntimePlatform,
+      externalId: identity.externalId,
+    });
+  }
+  for (const identity of secondaryIdentities) {
+    const existing = masterByPlatform.get(identity.platform as RuntimePlatform);
+    if (existing) {
+      await tx.userIdentity.delete({ where: { id: identity.id } });
+      continue;
+    }
+    await tx.userIdentity.update({
+      where: { id: identity.id },
+      data: { userId: masterUser.id },
+    });
+  }
+
+  let mergedMaster = await tx.user.update({
+    where: { id: masterUser.id },
+    data: {
+      balance: { increment: secondaryUser.balance },
+      totalEarned: { increment: secondaryUser.totalEarned },
+    },
+  });
+
+  const masterTelegramIdentity = await tx.userIdentity.findUnique({
+    where: {
+      userId_platform: {
+        userId: masterUser.id,
+        platform: 'TELEGRAM',
+      },
+    },
+    select: { externalId: true },
+  });
+  if (masterTelegramIdentity && mergedMaster.telegramId !== masterTelegramIdentity.externalId) {
+    mergedMaster = await tx.user.update({
+      where: { id: masterUser.id },
+      data: { telegramId: masterTelegramIdentity.externalId },
+    });
+  }
+
+  await tx.user.delete({ where: { id: secondaryUser.id } });
+  return mergedMaster;
+};
+
+const resolveTelegramNumericId = async (db: DbClient, user: User) => {
+  const identity = await db.userIdentity.findUnique({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform: 'TELEGRAM',
+      },
+    },
+    select: { externalId: true },
+  });
+
+  const candidate = identity?.externalId ?? (user.telegramId.startsWith('vk:') ? '' : user.telegramId);
+  const numeric = Number(candidate);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric;
 };
 
 const buildUserBlockPayload = (user: Pick<User, 'blockReason' | 'blockedUntil'>): UserBlockPayload => ({
@@ -1829,6 +2269,76 @@ const parseMessageLink = (value: string) => {
   }
 };
 
+const parseVkPostLink = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    const host = url.hostname.toLowerCase();
+    if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') return null;
+    const path = url.pathname.replace(/^\/+/, '');
+    const match = path.match(/^wall(-?\d+)_(\d+)$/i);
+    if (!match) return null;
+    const ownerKey = match[1] ?? '';
+    const postId = Number(match[2] ?? '');
+    if (!ownerKey || !Number.isInteger(postId) || postId <= 0) return null;
+    return { wall: path.toLowerCase(), ownerKey, postId };
+  } catch {
+    return null;
+  }
+};
+
+const parseVkGroupOwnerKey = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    const host = url.hostname.toLowerCase();
+    if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') return null;
+    const slug = url.pathname
+      .replace(/^\/+/, '')
+      .split('/')[0]
+      ?.trim()
+      .toLowerCase();
+    if (!slug) return null;
+
+    const communityMatch = slug.match(/^(public|club|event)(\d+)$/i);
+    if (communityMatch?.[2]) return `-${communityMatch[2]}`;
+
+    const userMatch = slug.match(/^id(\d+)$/i);
+    if (userMatch?.[1]) return userMatch[1];
+
+    const wallMatch = slug.match(/^wall(-?\d+)_\d+$/i);
+    if (wallMatch?.[1]) return wallMatch[1];
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const buildTelegramSwitchUrl = (code: string) => {
+  const fallback = `https://t.me/JoinRush_bot?startapp=${TG_LINK_CODE_PREFIX}${encodeURIComponent(code)}`;
+  try {
+    const parsed = new URL(config.tgMiniAppUrl || fallback);
+    parsed.searchParams.set('startapp', `${TG_LINK_CODE_PREFIX}${code}`);
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+};
+
+const buildVkSwitchUrl = (code: string) => {
+  const fallback = `https://vk.com/app54453849?jr_link_code=${encodeURIComponent(code)}`;
+  try {
+    const parsed = new URL(config.vkMiniAppUrl || fallback);
+    parsed.searchParams.set('jr_link_code', code);
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+};
+
 const resolveChatIdentity = (chat?: { username?: string; id?: number }) => {
   const username = chat?.username?.trim() ?? '';
   const chatId = typeof chat?.id === 'number' ? String(chat.id) : '';
@@ -1838,10 +2348,10 @@ const resolveChatIdentity = (chat?: { username?: string; id?: number }) => {
 const findGroupByChat = async (chat?: { username?: string; id?: number }) => {
   const { username, chatId } = resolveChatIdentity(chat);
   if (username) {
-    return await prisma.group.findFirst({ where: { username } });
+    return await prisma.group.findFirst({ where: { username, platform: 'TELEGRAM' } });
   }
   if (chatId) {
-    return await prisma.group.findFirst({ where: { telegramChatId: chatId } });
+    return await prisma.group.findFirst({ where: { telegramChatId: chatId, platform: 'TELEGRAM' } });
   }
   return null;
 };
@@ -1857,11 +2367,26 @@ const getOptionalUser = async (request: FastifyRequest) => {
   const authHeader =
     typeof request.headers.authorization === 'string' ? request.headers.authorization : undefined;
   const bearer = getToken(authHeader);
-  if (!bearer) return null;
+  if (bearer) {
+    try {
+      const payload = await verifySession(bearer);
+      const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user) return null;
+      const ensured = await ensureLegacyStats(user);
+      const resolved = await resolveUserBlockState(prisma, ensured);
+      if (resolved.blocked) return null;
+      return resolved.user;
+    } catch {
+      return null;
+    }
+  }
+
+  const initData = request.headers['x-init-data'];
+  if (typeof initData !== 'string' || !initData.trim()) return null;
+
   try {
-    const payload = await verifySession(bearer);
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) return null;
+    const identity = resolveMiniAppAuthIdentity(initData);
+    const { user } = await ensureIdentityUser(prisma, identity);
     const ensured = await ensureLegacyStats(user);
     const resolved = await resolveUserBlockState(prisma, ensured);
     if (resolved.blocked) return null;
@@ -1986,16 +2511,47 @@ const ensureLegacyStats = async (user: User) => {
     data.referralCode = code;
   }
 
-  if (Object.keys(data).length === 0) return user;
-  return await prisma.user.update({ where: { id: user.id }, data });
+  const ensuredUser =
+    Object.keys(data).length === 0 ? user : await prisma.user.update({ where: { id: user.id }, data });
+
+  const legacyPlatform = resolveUserLegacyPlatform(ensuredUser.telegramId);
+  const legacyExternalId =
+    legacyPlatform === 'VK' ? ensuredUser.telegramId.replace(/^vk:/, '') : ensuredUser.telegramId;
+  await prisma.userIdentity.upsert({
+    where: {
+      userId_platform: {
+        userId: ensuredUser.id,
+        platform: legacyPlatform,
+      },
+    },
+    update: {
+      externalId: legacyExternalId,
+      username: ensuredUser.username,
+      firstName: ensuredUser.firstName,
+      lastName: ensuredUser.lastName,
+      photoUrl: ensuredUser.photoUrl,
+    },
+    create: {
+      userId: ensuredUser.id,
+      platform: legacyPlatform,
+      externalId: legacyExternalId,
+      username: ensuredUser.username,
+      firstName: ensuredUser.firstName,
+      lastName: ensuredUser.lastName,
+      photoUrl: ensuredUser.photoUrl,
+    },
+  });
+
+  return ensuredUser;
 };
 
 const syncGroupAdminsForUser = async (user: User) => {
-  const telegramId = Number(user.telegramId);
-  if (!Number.isFinite(telegramId)) return;
+  const telegramId = await resolveTelegramNumericId(prisma, user);
+  if (telegramId === null) return;
 
   const candidates = await prisma.group.findMany({
     where: {
+      platform: 'TELEGRAM',
       OR: [{ username: { not: null } }, { telegramChatId: { not: null } }],
       admins: { none: { userId: user.id } },
     },
@@ -2048,26 +2604,7 @@ const requireUser = async (request: FastifyRequest) => {
   const initData = request.headers['x-init-data'];
   if (typeof initData === 'string') {
     const identity = resolveMiniAppAuthIdentity(initData);
-
-    const user = await prisma.user.upsert({
-      where: { telegramId: identity.externalId },
-      update: {
-        username: identity.username,
-        firstName: identity.firstName,
-        lastName: identity.lastName,
-        photoUrl: identity.photoUrl,
-      },
-      create: {
-        telegramId: identity.externalId,
-        username: identity.username,
-        firstName: identity.firstName,
-        lastName: identity.lastName,
-        photoUrl: identity.photoUrl,
-        balance: 30,
-        totalEarned: 0,
-        rating: 0,
-      },
-    });
+    const { user } = await ensureIdentityUser(prisma, identity);
 
     const ensured = await ensureLegacyStats(user);
     const resolved = await resolveUserBlockState(prisma, ensured);
@@ -2083,8 +2620,17 @@ const requireUser = async (request: FastifyRequest) => {
 const requireAdminUser = async (request: FastifyRequest) => {
   await ensureDefaultBotPanelAccess();
   const user = await requireUser(request);
+  const telegramIdentity = await prisma.userIdentity.findUnique({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform: 'TELEGRAM',
+      },
+    },
+    select: { externalId: true },
+  });
   const allowed = await hasBotPanelAccess({
-    telegramId: user.telegramId,
+    telegramId: telegramIdentity?.externalId ?? '',
     username: user.username ?? undefined,
   });
   if (!allowed) {
@@ -2622,55 +3168,90 @@ export const registerRoutes = (app: FastifyInstance) => {
     }
   });
 
+  app.post('/platform/switch-link', async (request, reply) => {
+    const parsed = platformSwitchSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
+
+    try {
+      const user = await requireUser(request);
+      const currentPlatform = resolveRequestPlatform(request, user);
+      if (parsed.data.targetPlatform === currentPlatform) {
+        return reply.code(400).send({ ok: false, error: 'already on target platform' });
+      }
+
+      const now = new Date();
+      const ttlSec = Math.max(30, Math.floor(config.platformLinkCodeTtlSec || 300));
+      const expiresAt = new Date(now.getTime() + ttlSec * 1000);
+
+      const code = await prisma.$transaction(async (tx) => {
+        const generated = await createUniquePlatformLinkCode(tx);
+        await tx.platformLinkCode.create({
+          data: {
+            code: generated,
+            sourceUserId: user.id,
+            targetPlatform: parsed.data.targetPlatform,
+            expiresAt,
+          },
+        });
+        return generated;
+      });
+
+      const url =
+        parsed.data.targetPlatform === 'TELEGRAM'
+          ? buildTelegramSwitchUrl(code)
+          : buildVkSwitchUrl(code);
+
+      return {
+        ok: true,
+        url,
+        code,
+        expiresAt: expiresAt.toISOString(),
+      };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
   app.post('/auth/verify', async (request, reply) => {
     const parsed = authBodySchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
     try {
       const identity = resolveMiniAppAuthIdentity(parsed.data.initData);
-
       const rawStartParam =
-        typeof identity.startParam === 'string' ? normalizeReferralCode(identity.startParam) : '';
-      const startParam = rawStartParam && isValidReferralCode(rawStartParam) ? rawStartParam : '';
+        typeof identity.startParam === 'string' ? identity.startParam.trim() : '';
+      const startLinkCode = rawStartParam.startsWith(TG_LINK_CODE_PREFIX)
+        ? normalizePlatformLinkCode(rawStartParam.slice(TG_LINK_CODE_PREFIX.length))
+        : '';
+      const bodyLinkCode = parsed.data.linkCode ? normalizePlatformLinkCode(parsed.data.linkCode) : '';
+      const linkCode = bodyLinkCode || (isPlatformLinkCode(startLinkCode) ? startLinkCode : '');
+      if (bodyLinkCode && !isPlatformLinkCode(bodyLinkCode)) {
+        return reply.code(400).send({ ok: false, error: 'invalid link code' });
+      }
+      const referralCandidate =
+        rawStartParam && !startLinkCode ? normalizeReferralCode(rawStartParam) : '';
+      const startParam =
+        referralCandidate && isValidReferralCode(referralCandidate) ? referralCandidate : '';
       const now = new Date();
 
       const result = await prisma.$transaction(async (tx) => {
-        const existing = await tx.user.findUnique({
-          where: { telegramId: identity.externalId },
-        });
-        let current: User;
-        let isFirstAuth = false;
+        let { user: current, isFirstAuth } = await ensureIdentityUser(tx, identity, now);
         let referralBonus: { amount: number; reason: string } | null = null;
 
-        if (existing) {
-          const updateData: Prisma.UserUpdateInput = {
-            username: identity.username,
-            firstName: identity.firstName,
-            lastName: identity.lastName,
-            photoUrl: identity.photoUrl,
-          };
-          if (!existing.firstAuthAt) {
-            updateData.firstAuthAt = now;
-            isFirstAuth = true;
-          }
-          current = await tx.user.update({ where: { id: existing.id }, data: updateData });
-        } else {
-          const referralCode = await createUniqueReferralCode(tx);
-          current = await tx.user.create({
-            data: {
-              telegramId: identity.externalId,
-              username: identity.username,
-              firstName: identity.firstName,
-              lastName: identity.lastName,
-              photoUrl: identity.photoUrl,
-              balance: 30,
-              totalEarned: 0,
-              rating: 0,
-              firstAuthAt: now,
-              referralCode,
-            },
+        if (linkCode) {
+          const link = await consumePlatformLinkCode(tx, {
+            code: linkCode,
+            targetPlatform: identity.platform,
+            now,
           });
-          isFirstAuth = true;
+          if (link.sourceUserId !== current.id) {
+            current = await mergeUsersWithTelegramMaster(tx, {
+              userAId: link.sourceUserId,
+              userBId: current.id,
+            });
+            await upsertUserIdentity(tx, { userId: current.id, identity });
+            isFirstAuth = false;
+          }
         }
 
         if (!current.referralCode) {
@@ -2723,18 +3304,23 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/me', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const [groups, campaigns, applications] = await Promise.all([
         prisma.group.count({
           where: {
+            platform: runtimePlatform,
             OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
           },
         }),
-        prisma.campaign.count({ where: { ownerId: user.id } }),
-        prisma.application.count({ where: { applicantId: user.id } }),
+        prisma.campaign.count({ where: { ownerId: user.id, platform: runtimePlatform } }),
+        prisma.application.count({
+          where: { applicantId: user.id, campaign: { platform: runtimePlatform } },
+        }),
       ]);
       return {
         ok: true,
         user,
+        runtimePlatform,
         balance: user.balance,
         stats: { groups, campaigns, applications },
       };
@@ -3087,9 +3673,13 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/groups/my', async (request, reply) => {
     try {
       const user = await requireUser(request);
-      await syncGroupAdminsForUser(user);
+      const runtimePlatform = resolveRequestPlatform(request, user);
+      if (runtimePlatform === 'TELEGRAM') {
+        await syncGroupAdminsForUser(user);
+      }
       const groups = await prisma.group.findMany({
         where: {
+          platform: runtimePlatform,
           OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
         },
         orderBy: { createdAt: 'desc' },
@@ -3103,8 +3693,62 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.post('/groups', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const parsed = groupCreateSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
+
+      if (runtimePlatform === 'VK') {
+        try {
+          const inviteUrl = new URL(parsed.data.inviteLink);
+          const host = inviteUrl.hostname.toLowerCase();
+          if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') {
+            return reply.code(400).send({
+              ok: false,
+              error: 'Для VK-проекта используйте ссылку vk.com.',
+            });
+          }
+        } catch {
+          return reply.code(400).send({ ok: false, error: 'invalid body' });
+        }
+
+        let group = await prisma.group.findFirst({
+          where: {
+            ownerId: user.id,
+            platform: 'VK',
+            inviteLink: parsed.data.inviteLink,
+          },
+        });
+        if (group) {
+          group = await prisma.group.update({
+            where: { id: group.id },
+            data: {
+              title: parsed.data.title,
+              inviteLink: parsed.data.inviteLink,
+              description: parsed.data.description,
+              category: parsed.data.category,
+            },
+          });
+        } else {
+          group = await prisma.group.create({
+            data: {
+              ownerId: user.id,
+              title: parsed.data.title,
+              inviteLink: parsed.data.inviteLink,
+              description: parsed.data.description,
+              category: parsed.data.category,
+              platform: 'VK',
+            },
+          });
+        }
+
+        await prisma.groupAdmin.upsert({
+          where: { groupId_userId: { groupId: group.id, userId: user.id } },
+          update: {},
+          create: { groupId: group.id, userId: user.id },
+        });
+
+        return { ok: true, group };
+      }
 
       const resolvedUsername = extractUsername(parsed.data.username ?? parsed.data.inviteLink);
       if (!resolvedUsername) {
@@ -3116,9 +3760,9 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       await ensureBotIsAdmin(config.botToken, resolvedUsername);
 
-      const telegramId = Number(user.telegramId);
-      if (!Number.isFinite(telegramId)) {
-        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+      const telegramId = await resolveTelegramNumericId(prisma, user);
+      if (telegramId === null) {
+        return reply.code(400).send({ ok: false, error: TG_IDENTITY_REQUIRED_MESSAGE });
       }
       const memberStatus = await getChatMemberStatus(
         config.botToken,
@@ -3139,6 +3783,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           inviteLink: parsed.data.inviteLink,
           description: parsed.data.description,
           category: parsed.data.category,
+          platform: 'TELEGRAM',
         },
         create: {
           ownerId: user.id,
@@ -3147,6 +3792,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           inviteLink: parsed.data.inviteLink,
           description: parsed.data.description,
           category: parsed.data.category,
+          platform: 'TELEGRAM',
         },
       });
 
@@ -3168,8 +3814,10 @@ export const registerRoutes = (app: FastifyInstance) => {
 
     const { category, limit, actionType } = parsed.data;
     const viewer = await getOptionalUser(request);
+    const runtimePlatform = resolveRequestPlatform(request, viewer ?? undefined);
     const campaigns = await prisma.campaign.findMany({
       where: {
+        platform: runtimePlatform,
         status: 'ACTIVE',
         remainingBudget: { gt: 0 },
         ownerId: viewer ? { not: viewer.id } : undefined,
@@ -3200,8 +3848,9 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/campaigns/my', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const campaigns = await prisma.campaign.findMany({
-        where: { ownerId: user.id },
+        where: { ownerId: user.id, platform: runtimePlatform },
         include: { group: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -3305,6 +3954,7 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.post('/campaigns', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const parsed = campaignCreateSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
@@ -3316,27 +3966,29 @@ export const registerRoutes = (app: FastifyInstance) => {
         where: { id: parsed.data.groupId },
         include: { admins: { where: { userId: user.id }, select: { userId: true } } },
       });
-      if (!group) {
+      if (!group || group.platform !== runtimePlatform) {
         return reply.code(404).send({ ok: false, error: 'group not found' });
       }
 
       let isGroupAdmin = group.ownerId === user.id || (group.admins?.length ?? 0) > 0;
-      const groupChatId = group.username ?? group.telegramChatId ?? '';
-      if (!isGroupAdmin && groupChatId) {
-        const telegramId = Number(user.telegramId);
-        if (Number.isFinite(telegramId)) {
-          try {
-            const status = await getChatMemberStatus(config.botToken, groupChatId, telegramId);
-            if (isAdminMemberStatus(status)) {
-              await prisma.groupAdmin.upsert({
-                where: { groupId_userId: { groupId: group.id, userId: user.id } },
-                update: {},
-                create: { groupId: group.id, userId: user.id },
-              });
-              isGroupAdmin = true;
+      if (runtimePlatform === 'TELEGRAM') {
+        const groupChatId = group.username ?? group.telegramChatId ?? '';
+        if (!isGroupAdmin && groupChatId) {
+          const telegramId = await resolveTelegramNumericId(prisma, user);
+          if (telegramId !== null) {
+            try {
+              const status = await getChatMemberStatus(config.botToken, groupChatId, telegramId);
+              if (isAdminMemberStatus(status)) {
+                await prisma.groupAdmin.upsert({
+                  where: { groupId_userId: { groupId: group.id, userId: user.id } },
+                  update: {},
+                  create: { groupId: group.id, userId: user.id },
+                });
+                isGroupAdmin = true;
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
           }
         }
       }
@@ -3350,55 +4002,75 @@ export const registerRoutes = (app: FastifyInstance) => {
           return reply.code(400).send({
             ok: false,
             error:
-              'Для реакций нужна ссылка на пост (формат https://t.me/username/123 или https://t.me/c/123456/789).',
+              runtimePlatform === 'VK'
+                ? 'Для VK-реакций нужна ссылка на пост вида https://vk.com/wall-1_1.'
+                : 'Для реакций нужна ссылка на пост (формат https://t.me/username/123 или https://t.me/c/123456/789).',
           });
         }
-        const parsedLink = parseMessageLink(parsed.data.targetMessageLink);
-        if (!parsedLink) {
-          return reply.code(400).send({
-            ok: false,
-            error:
-              'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
-          });
-        }
-        const groupUsername = group.username?.trim();
-        const groupChatId = group.telegramChatId?.trim();
-        if (parsedLink.username) {
-          if (!groupUsername) {
+        if (runtimePlatform === 'VK') {
+          const parsedLink = parseVkPostLink(parsed.data.targetMessageLink);
+          if (!parsedLink) {
             return reply.code(400).send({
               ok: false,
-              error: 'У группы нет публичного @username для проверки реакций.',
+              error: 'Ссылка на пост VK некорректна. Нужен формат https://vk.com/wall-1_1.',
             });
           }
-          if (parsedLink.username.toLowerCase() !== groupUsername.toLowerCase()) {
+          const groupOwnerKey = parseVkGroupOwnerKey(group.inviteLink);
+          if (groupOwnerKey && parsedLink.ownerKey !== groupOwnerKey) {
             return reply.code(400).send({
               ok: false,
-              error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+              error: 'Ссылка на пост должна быть из выбранного VK-сообщества.',
             });
           }
-        }
-        if (parsedLink.chatId) {
-          if (!groupChatId) {
+          targetMessageId = parsedLink.postId;
+        } else {
+          const parsedLink = parseMessageLink(parsed.data.targetMessageLink);
+          if (!parsedLink) {
             return reply.code(400).send({
               ok: false,
-              error: 'У группы нет данных для приватной ссылки. Добавьте бота в группу заново.',
+              error:
+                'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
             });
           }
-          if (parsedLink.chatId !== groupChatId) {
+          const groupUsername = group.username?.trim();
+          const groupChatId = group.telegramChatId?.trim();
+          if (parsedLink.username) {
+            if (!groupUsername) {
+              return reply.code(400).send({
+                ok: false,
+                error: 'У группы нет публичного @username для проверки реакций.',
+              });
+            }
+            if (parsedLink.username.toLowerCase() !== groupUsername.toLowerCase()) {
+              return reply.code(400).send({
+                ok: false,
+                error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+              });
+            }
+          }
+          if (parsedLink.chatId) {
+            if (!groupChatId) {
+              return reply.code(400).send({
+                ok: false,
+                error: 'У группы нет данных для приватной ссылки. Добавьте бота в группу заново.',
+              });
+            }
+            if (parsedLink.chatId !== groupChatId) {
+              return reply.code(400).send({
+                ok: false,
+                error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+              });
+            }
+          }
+          if (!parsedLink.username && !parsedLink.chatId) {
             return reply.code(400).send({
               ok: false,
-              error: 'Ссылка на пост должна быть из выбранной группы/канала.',
+              error:
+                'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
             });
           }
+          targetMessageId = parsedLink.messageId;
         }
-        if (!parsedLink.username && !parsedLink.chatId) {
-          return reply.code(400).send({
-            ok: false,
-            error:
-              'Ссылка на пост некорректна. Нужен формат https://t.me/username/123 или https://t.me/c/123456/789.',
-          });
-        }
-        targetMessageId = parsedLink.messageId;
       }
 
       const campaign = await prisma.$transaction(async (tx) => {
@@ -3418,6 +4090,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             ownerId: user.id,
             actionType: parsed.data.actionType === 'subscribe' ? 'SUBSCRIBE' : 'REACTION',
             targetMessageId,
+            platform: runtimePlatform,
             rewardPoints: parsed.data.rewardPoints,
             totalBudget: parsed.data.totalBudget,
             remainingBudget: parsed.data.totalBudget,
@@ -3448,12 +4121,16 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.post<{ Params: { id: string } }>('/campaigns/:id/apply', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const campaignId = request.params.id;
       const campaign = await prisma.campaign.findUnique({
         where: { id: campaignId },
         include: { group: true },
       });
       if (!campaign) return reply.code(404).send({ ok: false, error: 'campaign not found' });
+      if (campaign.platform !== runtimePlatform) {
+        return reply.code(404).send({ ok: false, error: 'campaign not found' });
+      }
       if (campaign.ownerId === user.id) {
         return reply.code(400).send({ ok: false, error: 'cannot apply own campaign' });
       }
@@ -3491,6 +4168,18 @@ export const registerRoutes = (app: FastifyInstance) => {
         existing = await prisma.application.update({ where: { id: existing.id }, data });
       }
 
+      if (runtimePlatform === 'VK') {
+        if (existing) return { ok: true, application: existing };
+        const application = await prisma.application.create({
+          data: {
+            campaignId,
+            applicantId: user.id,
+            reactionBaseline: campaign.actionType === 'REACTION' ? campaign.reactionCount ?? null : null,
+          },
+        });
+        return { ok: true, application };
+      }
+
       if (campaign.actionType === 'REACTION') {
         if (existing) return { ok: true, application: existing };
         const application = await prisma.application.create({
@@ -3510,9 +4199,9 @@ export const registerRoutes = (app: FastifyInstance) => {
           .send({ ok: false, error: 'У группы нет данных для проверки вступления.' });
       }
 
-      const telegramId = Number(user.telegramId);
-      if (!Number.isFinite(telegramId)) {
-        return reply.code(400).send({ ok: false, error: 'Не удалось определить Telegram ID.' });
+      const telegramId = await resolveTelegramNumericId(prisma, user);
+      if (telegramId === null) {
+        return reply.code(400).send({ ok: false, error: TG_IDENTITY_REQUIRED_MESSAGE });
       }
 
       const status = await getChatMemberStatus(config.botToken, chatId, telegramId);
@@ -3581,10 +4270,12 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/applications/my', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const applications = await prisma.application.findMany({
         where: {
           applicantId: user.id,
           campaign: {
+            platform: runtimePlatform,
             hiddenByUsers: {
               none: {
                 userId: user.id,
@@ -3604,8 +4295,9 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.get('/applications/incoming', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const applications = await prisma.application.findMany({
-        where: { campaign: { ownerId: user.id }, status: 'PENDING' },
+        where: { campaign: { ownerId: user.id, platform: runtimePlatform }, status: 'PENDING' },
         include: {
           applicant: true,
           campaign: { include: { group: true } },
@@ -3621,6 +4313,7 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.post<{ Params: { id: string } }>('/applications/:id/approve', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const applicationId = request.params.id;
 
       const application = await prisma.application.findUnique({
@@ -3630,6 +4323,9 @@ export const registerRoutes = (app: FastifyInstance) => {
       if (!application) return reply.code(404).send({ ok: false, error: 'application not found' });
       if (application.campaign.ownerId !== user.id) {
         return reply.code(403).send({ ok: false, error: 'not owner' });
+      }
+      if (application.campaign.platform !== runtimePlatform) {
+        return reply.code(404).send({ ok: false, error: 'application not found' });
       }
       if (application.status !== 'PENDING') {
         return reply.code(409).send({ ok: false, error: 'already reviewed' });
@@ -3672,6 +4368,7 @@ export const registerRoutes = (app: FastifyInstance) => {
   app.post<{ Params: { id: string } }>('/applications/:id/reject', async (request, reply) => {
     try {
       const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
       const applicationId = request.params.id;
 
       const application = await prisma.application.findUnique({
@@ -3681,6 +4378,9 @@ export const registerRoutes = (app: FastifyInstance) => {
       if (!application) return reply.code(404).send({ ok: false, error: 'application not found' });
       if (application.campaign.ownerId !== user.id) {
         return reply.code(403).send({ ok: false, error: 'not owner' });
+      }
+      if (application.campaign.platform !== runtimePlatform) {
+        return reply.code(404).send({ ok: false, error: 'application not found' });
       }
 
       const updated = await prisma.application.update({

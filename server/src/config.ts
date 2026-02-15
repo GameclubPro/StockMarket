@@ -12,6 +12,9 @@ export const config = {
   botToken: process.env.BOT_TOKEN ?? '',
   vkAppSecret: process.env.VK_APP_SECRET ?? '',
   appSecret: process.env.APP_SECRET ?? '',
+  tgMiniAppUrl: process.env.TG_MINIAPP_URL ?? 'https://t.me/JoinRush_bot?startapp=home',
+  vkMiniAppUrl: process.env.VK_MINIAPP_URL ?? 'https://vk.com/app54453849',
+  platformLinkCodeTtlSec: toNumber(process.env.PLATFORM_LINK_CODE_TTL_SEC, 300),
   botWebhookSecret: process.env.BOT_WEBHOOK_SECRET ?? '',
   maxAuthAgeSec: toNumber(process.env.MAX_AUTH_AGE_SEC, 86400),
   corsOrigins: (process.env.CORS_ORIGINS ?? '')

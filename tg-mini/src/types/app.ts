@@ -1,3 +1,5 @@
+export type RuntimePlatform = 'TELEGRAM' | 'VK';
+
 export type UserDto = {
   id: string;
   username?: string | null;
@@ -15,11 +17,13 @@ export type GroupDto = {
   inviteLink: string;
   description?: string | null;
   category?: string | null;
+  platform: RuntimePlatform;
   createdAt: string;
 };
 
 export type CampaignDto = {
   id: string;
+  platform: RuntimePlatform;
   actionType: 'SUBSCRIBE' | 'REACTION';
   targetMessageId?: number | null;
   rewardPoints: number;
@@ -29,6 +33,13 @@ export type CampaignDto = {
   createdAt: string;
   group: GroupDto;
   owner?: UserDto;
+};
+
+export type SwitchLinkResponse = {
+  ok: true;
+  url: string;
+  code: string;
+  expiresAt: string;
 };
 
 export type CampaignReportReason =

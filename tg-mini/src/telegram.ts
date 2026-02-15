@@ -39,6 +39,10 @@ export type PlatformUserProfile = {
   label?: string;
   photoUrl?: string;
 };
+export type RuntimePlatform = 'TELEGRAM' | 'VK';
+
+const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
+const TG_LINK_PARAM_PREFIX = 'link_';
 
 let initialized = false;
 let vkInitialized = false;
@@ -293,6 +297,132 @@ export const isVk = () => {
 };
 
 export const getVkLaunchParamsRaw = () => getVkLaunchParams().toString();
+export const getRuntimePlatform = (): RuntimePlatform => (isVk() ? 'VK' : 'TELEGRAM');
+
+const normalizePlatformLinkCode = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
+};
+
+const readUrlParam = (key: string) => {
+  if (typeof window === 'undefined') return '';
+  const search = new URLSearchParams(window.location.search || '');
+  const fromSearch = search.get(key);
+  if (fromSearch) return fromSearch;
+
+  const hash = window.location.hash || '';
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex < 0) return '';
+  const hashParams = new URLSearchParams(hash.slice(queryIndex + 1));
+  return hashParams.get(key) ?? '';
+};
+
+const getTelegramInitDataRaw = () => {
+  try {
+    const raw = initData.raw?.();
+    if (raw) return raw;
+  } catch {
+    // noop
+  }
+
+  try {
+    const globalInitData = (window as any)?.Telegram?.WebApp?.initData;
+    if (typeof globalInitData === 'string' && globalInitData) {
+      return globalInitData;
+    }
+  } catch {
+    // noop
+  }
+
+  try {
+    const params: any = retrieveLaunchParams();
+    return (
+      params?.tgWebAppDataRaw ||
+      params?.tgWebAppData?.raw ||
+      params?.tgWebAppDataUnsafe?.raw ||
+      params?.tgWebAppDataUnsafe?.initData ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+};
+
+const getTelegramStartParam = () => {
+  try {
+    const raw = getTelegramInitDataRaw();
+    if (raw) {
+      const params = new URLSearchParams(raw);
+      const value = params.get('start_param');
+      if (value) return value.trim();
+    }
+  } catch {
+    // noop
+  }
+
+  try {
+    const launch: any = retrieveLaunchParams();
+    const candidate =
+      launch?.tgWebAppStartParam ||
+      launch?.tgWebAppData?.start_param ||
+      launch?.tgWebAppDataUnsafe?.start_param;
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  } catch {
+    // noop
+  }
+
+  try {
+    const unsafeStart = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    if (typeof unsafeStart === 'string' && unsafeStart.trim()) return unsafeStart.trim();
+  } catch {
+    // noop
+  }
+
+  return '';
+};
+
+export const getPlatformLinkCode = () => {
+  if (isVk()) {
+    const vkCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
+    return normalizePlatformLinkCode(vkCode);
+  }
+
+  const startParam = getTelegramStartParam();
+  if (startParam) {
+    if (startParam.startsWith(TG_LINK_PARAM_PREFIX)) {
+      return normalizePlatformLinkCode(startParam.slice(TG_LINK_PARAM_PREFIX.length));
+    }
+    if (startParam.startsWith(PLATFORM_LINK_CODE_PREFIX)) {
+      return normalizePlatformLinkCode(startParam);
+    }
+  }
+
+  const fallbackCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
+  return normalizePlatformLinkCode(fallbackCode);
+};
+
+export const clearPlatformLinkCodeFromUrl = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('jr_link_code');
+    url.searchParams.delete('link_code');
+
+    if (url.hash.includes('?')) {
+      const [hashPath, hashQuery] = url.hash.split('?');
+      const hashParams = new URLSearchParams(hashQuery ?? '');
+      hashParams.delete('jr_link_code');
+      hashParams.delete('link_code');
+      const nextHashQuery = hashParams.toString();
+      url.hash = nextHashQuery ? `${hashPath}?${nextHashQuery}` : hashPath;
+    }
+
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, '', next);
+  } catch {
+    // noop
+  }
+};
 
 const initVk = () => {
   if (vkInitialized || !isVk()) return;
@@ -431,35 +561,7 @@ export const getInitDataRaw = () => {
   if (isVk()) {
     return getVkLaunchParamsRaw();
   }
-
-  try {
-    const raw = initData.raw?.();
-    if (raw) return raw;
-  } catch {
-    // noop
-  }
-
-  try {
-    const globalInitData = (window as any)?.Telegram?.WebApp?.initData;
-    if (typeof globalInitData === 'string' && globalInitData) {
-      return globalInitData;
-    }
-  } catch {
-    // noop
-  }
-
-  try {
-    const params: any = retrieveLaunchParams();
-    return (
-      params?.tgWebAppDataRaw ||
-      params?.tgWebAppData?.raw ||
-      params?.tgWebAppDataUnsafe?.raw ||
-      params?.tgWebAppDataUnsafe?.initData ||
-      ''
-    );
-  } catch {
-    return '';
-  }
+  return getTelegramInitDataRaw();
 };
 
 export const initTelegram = () => {
