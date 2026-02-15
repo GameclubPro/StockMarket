@@ -2333,6 +2333,19 @@ const buildVkSwitchUrl = (code: string) => {
   try {
     const parsed = new URL(config.vkMiniAppUrl || fallback);
     parsed.searchParams.set('jr_link_code', code);
+    const hashRaw = parsed.hash.replace(/^#/, '');
+    if (!hashRaw) {
+      parsed.hash = `jr_link_code=${encodeURIComponent(code)}`;
+    } else {
+      const [hashPath, hashQuery = ''] = hashRaw.split('?');
+      const hashParams = new URLSearchParams(hashQuery || hashPath);
+      hashParams.set('jr_link_code', code);
+      if (hashQuery) {
+        parsed.hash = `#${hashPath}?${hashParams.toString()}`;
+      } else {
+        parsed.hash = `#${hashParams.toString()}`;
+      }
+    }
     return parsed.toString();
   } catch {
     return fallback;

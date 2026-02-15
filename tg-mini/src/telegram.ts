@@ -306,15 +306,32 @@ const normalizePlatformLinkCode = (value: string) => {
 
 const readUrlParam = (key: string) => {
   if (typeof window === 'undefined') return '';
-  const search = new URLSearchParams(window.location.search || '');
-  const fromSearch = search.get(key);
+  const readFromParams = (params: URLSearchParams) => {
+    const value = params.get(key);
+    return typeof value === 'string' ? value.trim() : '';
+  };
+
+  const fromSearch = readFromParams(new URLSearchParams(window.location.search || ''));
   if (fromSearch) return fromSearch;
 
-  const hash = window.location.hash || '';
-  const queryIndex = hash.indexOf('?');
-  if (queryIndex < 0) return '';
-  const hashParams = new URLSearchParams(hash.slice(queryIndex + 1));
-  return hashParams.get(key) ?? '';
+  const hashRaw = (window.location.hash || '').replace(/^#/, '').trim();
+  if (hashRaw) {
+    const fromHashDirect = readFromParams(
+      new URLSearchParams(hashRaw.startsWith('?') ? hashRaw.slice(1) : hashRaw)
+    );
+    if (fromHashDirect) return fromHashDirect;
+
+    const queryIndex = hashRaw.indexOf('?');
+    if (queryIndex >= 0) {
+      const fromHashQuery = readFromParams(new URLSearchParams(hashRaw.slice(queryIndex + 1)));
+      if (fromHashQuery) return fromHashQuery;
+    }
+  }
+
+  const fromVkLaunch = readFromParams(getVkLaunchParams());
+  if (fromVkLaunch) return fromVkLaunch;
+
+  return '';
 };
 
 const getTelegramInitDataRaw = () => {
@@ -408,13 +425,28 @@ export const clearPlatformLinkCodeFromUrl = () => {
     url.searchParams.delete('jr_link_code');
     url.searchParams.delete('link_code');
 
-    if (url.hash.includes('?')) {
-      const [hashPath, hashQuery] = url.hash.split('?');
-      const hashParams = new URLSearchParams(hashQuery ?? '');
-      hashParams.delete('jr_link_code');
-      hashParams.delete('link_code');
-      const nextHashQuery = hashParams.toString();
-      url.hash = nextHashQuery ? `${hashPath}?${nextHashQuery}` : hashPath;
+    const hashRaw = url.hash.replace(/^#/, '');
+    if (hashRaw) {
+      let hashPath = '';
+      let hashQuery = hashRaw;
+      const queryIndex = hashRaw.indexOf('?');
+      if (queryIndex >= 0) {
+        hashPath = hashRaw.slice(0, queryIndex);
+        hashQuery = hashRaw.slice(queryIndex + 1);
+      }
+
+      const hashParams = new URLSearchParams(hashQuery);
+      const hadCode = hashParams.has('jr_link_code') || hashParams.has('link_code');
+      if (hadCode) {
+        hashParams.delete('jr_link_code');
+        hashParams.delete('link_code');
+        const nextHashQuery = hashParams.toString();
+        if (hashPath) {
+          url.hash = nextHashQuery ? `#${hashPath}?${nextHashQuery}` : `#${hashPath}`;
+        } else {
+          url.hash = nextHashQuery ? `#${nextHashQuery}` : '';
+        }
+      }
     }
 
     const next = `${url.pathname}${url.search}${url.hash}`;

@@ -49,7 +49,6 @@ import {
   getUserLabel,
   getUserPhotoUrl,
   initTelegram,
-  loadPlatformProfile,
 } from './telegram';
 
 const PLATFORM_FEE_RATE = 0.3;
@@ -541,6 +540,18 @@ const parseVkGroupOwnerKey = (rawLink: string) => {
 };
 
 const formatPlatformLabel = (platform: RuntimePlatform) => (platform === 'VK' ? 'VK' : 'TG');
+const getAccountLabel = (user?: {
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+}) => {
+  if (!user) return '';
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  if (fullName) return fullName;
+  const username = user.username?.trim() ?? '';
+  if (!username) return '';
+  return username.startsWith('@') ? username : `@${username}`;
+};
 
 const isDevVisualAdminEnabled = () => {
   if (!import.meta.env.DEV) return false;
@@ -1282,11 +1293,6 @@ export default function App() {
   useEffect(() => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
-    void loadPlatformProfile().then((profile) => {
-      if (!profile) return;
-      if (profile.label) setUserLabel(profile.label);
-      if (profile.photoUrl) setUserPhoto(profile.photoUrl);
-    });
     const initData = getInitDataRaw();
     const linkCode = getPlatformLinkCode();
     const username =
@@ -1301,6 +1307,9 @@ export default function App() {
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
+        const accountLabel = getAccountLabel(data.user);
+        if (accountLabel) setUserLabel(accountLabel);
+        if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
         if (linkCode) {
           clearPlatformLinkCodeFromUrl();
         }
@@ -1570,6 +1579,9 @@ export default function App() {
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
+        const accountLabel = getAccountLabel(data.user);
+        if (accountLabel) setUserLabel(accountLabel);
+        if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
       }
     } catch (error) {
       if (handleBlockedApiError(error)) return;
