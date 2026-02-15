@@ -11332,3 +11332,145 @@ body::before {
     font-size: 12px;
   }
 }
+
+/* VK auto-check UX: steps + recheck */
+.vk-task-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.vk-task-step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(216, 229, 240, 0.92);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.vk-task-step.done {
+  border-color: rgba(106, 220, 162, 0.55);
+  background: rgba(65, 189, 131, 0.2);
+  color: #e9fff3;
+}
+
+.vk-task-step.active {
+  border-color: rgba(145, 205, 252, 0.55);
+  background: rgba(120, 193, 248, 0.18);
+  color: #e5f5ff;
+}
+
+.vk-task-step.todo {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(193, 207, 219, 0.78);
+}
+
+.vk-task-step.warn {
+  border-color: rgba(255, 167, 135, 0.62);
+  background: rgba(255, 149, 114, 0.18);
+  color: #ffe8df;
+}
+
+.task-manual-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(201, 214, 226, 0.82);
+}
+
+.vk-recheck-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(149, 219, 252, 0.25);
+  background: linear-gradient(175deg, rgba(11, 24, 36, 0.88), rgba(8, 16, 26, 0.94));
+}
+
+.vk-recheck-head {
+  display: grid;
+  gap: 3px;
+}
+
+.vk-recheck-state {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #e9f7ff;
+}
+
+.vk-recheck-state.warn {
+  color: #ffd8cc;
+}
+
+.vk-recheck-timer {
+  font-size: 11px;
+  color: rgba(194, 214, 231, 0.84);
+}
+
+.vk-recheck-button {
+  width: 100%;
+  min-height: 46px;
+  justify-content: center;
+}
+
+.vk-recheck-error {
+  font-size: 11px;
+  color: #ffbeb0;
+  line-height: 1.35;
+}
+
+.promo-flow-brief {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(154, 219, 252, 0.24);
+  background: linear-gradient(170deg, rgba(11, 22, 33, 0.78), rgba(8, 16, 25, 0.9));
+}
+
+.promo-flow-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #eef8ff;
+}
+
+.promo-flow-list {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(205, 223, 236, 0.9);
+}
+
+.content.promo-content .promo-type-card.blocked {
+  opacity: 0.62;
+  border-color: rgba(255, 173, 145, 0.45) !important;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+.content.promo-content .promo-type-card.blocked .promo-type-cta {
+  border-color: rgba(255, 167, 135, 0.45);
+  color: rgba(255, 212, 198, 0.9);
+}
+
+.promo-entry-capability-warn {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 167, 135, 0.42);
+  background: rgba(255, 143, 102, 0.12);
+  color: rgba(255, 217, 202, 0.92);
+  font-size: 11px;
+  line-height: 1.35;
+}

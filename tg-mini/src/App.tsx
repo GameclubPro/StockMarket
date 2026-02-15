@@ -23,6 +23,7 @@ import {
   fetchMyGroups,
   hideCampaign,
   moderateCampaign,
+  recheckApplication,
   reportCampaign,
   spinDailyBonus,
   unblockUser,
@@ -38,7 +39,9 @@ import {
   type ReferralBonus,
   type ReferralListItem,
   type ReferralStats,
+  type RuntimeCapabilities,
   type RuntimePlatform,
+  type VerificationDto,
   verifyInitData,
 } from './api';
 import {
@@ -642,6 +645,15 @@ export default function App() {
   const runtimePlatform = useMemo<RuntimePlatform>(() => getRuntimePlatform(), []);
   const isVkRuntime = runtimePlatform === 'VK';
   const oppositePlatform: RuntimePlatform = isVkRuntime ? 'TELEGRAM' : 'VK';
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities>({
+    vkSubscribeAutoAvailable: true,
+    vkReactionManual: true,
+  });
+  const vkSubscribeAutoAvailable = runtimeCapabilities.vkSubscribeAutoAvailable;
+  const vkSubscribeCapabilityReason =
+    runtimeCapabilities.reason?.trim() ||
+    'Автопроверка вступления VK временно недоступна. Попробуйте позже.';
+  const vkSubscribeCreateBlocked = isVkRuntime && !vkSubscribeAutoAvailable;
   const [activeTab, setActiveTab] = useState<
     'home' | 'promo' | 'tasks' | 'wheel' | 'referrals' | 'admin'
   >('home');
@@ -708,6 +720,8 @@ export default function App() {
   const [createLoading, setCreateLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState('');
+  const [recheckLoadingId, setRecheckLoadingId] = useState('');
+  const [recheckErrorByCampaign, setRecheckErrorByCampaign] = useState<Record<string, string>>({});
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [selectedGroupTitle, setSelectedGroupTitle] = useState('');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
@@ -1109,6 +1123,9 @@ export default function App() {
   const isProjectSelected = Boolean(selectedGroupId);
   const createCtaState = useMemo(() => {
     if (!selectedGroupId) return { blocked: true, label: 'Выберите проект' };
+    if (isVkRuntime && taskType === 'subscribe' && !vkSubscribeAutoAvailable) {
+      return { blocked: true, label: vkSubscribeCapabilityReason };
+    }
     if (taskType === 'reaction' && reactionLinkValidation.state !== 'valid') {
       return { blocked: true, label: 'Проверьте ссылку' };
     }
@@ -1134,9 +1151,12 @@ export default function App() {
     parsedTaskPrice,
     reactionLinkValidation.state,
     selectedGroupId,
+    isVkRuntime,
     taskCount,
     taskType,
     totalBudget,
+    vkSubscribeAutoAvailable,
+    vkSubscribeCapabilityReason,
   ]);
   const isTaskPriceValid =
     parsedTaskPrice !== null &&
@@ -1276,10 +1296,24 @@ export default function App() {
       return `К выдаче: ${taskStatusCounters.ready}. Подтвердите задания с галочкой.`;
     }
     if (taskStatusCounters.pending > 0) {
+      if (isVkRuntime && taskTypeFilter === 'subscribe') {
+        return `Автопроверка VK: ${taskStatusCounters.pending}. Нажмите «Проверить снова» после таймера.`;
+      }
+      if (isVkRuntime && taskTypeFilter === 'reaction') {
+        return `Ожидание ручной проверки владельцем: ${taskStatusCounters.pending}.`;
+      }
       return `На проверке: ${taskStatusCounters.pending}. Новые задания можно брать параллельно.`;
     }
     return `Нажмите «Получить», выполните задание в ${runtimePlatform === 'VK' ? 'VK' : 'Telegram'} и вернитесь за наградой.`;
-  }, [historyApplications.length, runtimePlatform, taskListFilter, taskStatusCounters.pending, taskStatusCounters.ready]);
+  }, [
+    historyApplications.length,
+    isVkRuntime,
+    runtimePlatform,
+    taskListFilter,
+    taskStatusCounters.pending,
+    taskStatusCounters.ready,
+    taskTypeFilter,
+  ]);
 
   const initialLetter = useMemo(() => {
     const trimmed = userLabel.trim();
@@ -1359,6 +1393,24 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, [dailyBonusStatus.nextAvailableAt]);
 
+  const hasPendingVkSubscribeRetry = useMemo(
+    () =>
+      applications.some((application) => {
+        if (application.campaign.platform !== 'VK' || application.campaign.actionType !== 'SUBSCRIBE') {
+          return false;
+        }
+        if (application.status !== 'PENDING') return false;
+        return application.verification?.mode === 'VK_SUBSCRIBE_AUTO';
+      }),
+    [applications]
+  );
+
+  useEffect(() => {
+    if (!hasPendingVkSubscribeRetry) return;
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [hasPendingVkSubscribeRetry]);
+
   useEffect(() => {
     return () => {
       if (spinFrameRef.current) {
@@ -1433,6 +1485,8 @@ export default function App() {
     setTaskActionSheetCampaign(null);
     setTaskActionSheetMode('actions');
     setTaskActionSheetError('');
+    setRecheckErrorByCampaign({});
+    setRecheckLoadingId('');
   }, [userId]);
 
   useEffect(() => {
@@ -1582,6 +1636,13 @@ export default function App() {
         const accountLabel = getAccountLabel(data.user);
         if (accountLabel) setUserLabel(accountLabel);
         if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
+        if (data.capabilities) {
+          setRuntimeCapabilities({
+            vkSubscribeAutoAvailable: Boolean(data.capabilities.vkSubscribeAutoAvailable),
+            vkReactionManual: Boolean(data.capabilities.vkReactionManual),
+            reason: data.capabilities.reason,
+          });
+        }
       }
     } catch (error) {
       if (handleBlockedApiError(error)) return;
@@ -2221,7 +2282,23 @@ export default function App() {
     return `https://t.me/i/userpic/320/${clean}.jpg`;
   };
 
-  const getTaskStatusMeta = (status?: ApplicationDto['status']) => {
+  const isVkSubscribeAutoCampaign = (campaign: CampaignDto) =>
+    campaign.platform === 'VK' && campaign.actionType === 'SUBSCRIBE';
+
+  const isVkReactionManualCampaign = (campaign: CampaignDto) =>
+    campaign.platform === 'VK' && campaign.actionType === 'REACTION';
+
+  const getVerificationRetryLeftMs = (verification?: VerificationDto) => {
+    if (!verification?.nextRetryAt) return 0;
+    const parsed = Date.parse(verification.nextRetryAt);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, parsed - clockNow);
+  };
+
+  const getTaskStatusMeta = (campaign: CampaignDto, application?: ApplicationDto) => {
+    const status = application?.status;
+    const isVkSubscribe = isVkSubscribeAutoCampaign(campaign);
+    const isVkReactionManual = isVkReactionManualCampaign(campaign);
     if (status === 'APPROVED') {
       return {
         label: 'К выплате',
@@ -2232,7 +2309,11 @@ export default function App() {
     }
     if (status === 'PENDING') {
       return {
-        label: 'На проверке',
+        label: isVkSubscribe
+          ? 'Автопроверка'
+          : isVkReactionManual
+            ? 'Ожидание проверки'
+            : 'На проверке',
         className: 'pending',
         actionLabel: 'Открыть',
         shouldApplyBeforeOpen: false,
@@ -2803,8 +2884,49 @@ export default function App() {
     }
   };
 
-  const handleOpenCampaign = async (campaign: CampaignDto, status?: ApplicationDto['status']) => {
-    const statusMeta = getTaskStatusMeta(status);
+  const handleRecheckApplication = async (application: ApplicationDto) => {
+    if (recheckLoadingId === application.id) return false;
+    setActionError('');
+    setRecheckLoadingId(application.id);
+    setRecheckErrorByCampaign((prev) => ({ ...prev, [application.campaign.id]: '' }));
+    try {
+      const data = await recheckApplication(application.id);
+      if (!data.ok) {
+        throw new Error('Не удалось запустить автопроверку.');
+      }
+      if (typeof data.balance === 'number') {
+        setPoints(data.balance);
+      }
+      await loadCampaigns({ silent: true });
+      await loadMyApplications({ silent: true });
+      return true;
+    } catch (error: any) {
+      if (handleBlockedApiError(error)) return false;
+
+      let message = error?.message ?? 'Не удалось выполнить автопроверку.';
+      if (error instanceof ApiRequestError && error.status === 429) {
+        const payload = (error.payload ?? null) as
+          | { retryAfterSec?: unknown; nextRetryAt?: unknown }
+          | null;
+        const retryAfterSec = Number(payload?.retryAfterSec ?? 0);
+        if (Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+          message = `Проверить снова можно через ${retryAfterSec}с.`;
+        } else {
+          message = 'Слишком рано для повторной проверки.';
+        }
+      }
+      setRecheckErrorByCampaign((prev) => ({
+        ...prev,
+        [application.campaign.id]: message,
+      }));
+      return false;
+    } finally {
+      setRecheckLoadingId('');
+    }
+  };
+
+  const handleOpenCampaign = async (campaign: CampaignDto, application?: ApplicationDto) => {
+    const statusMeta = getTaskStatusMeta(campaign, application);
     if (statusMeta.shouldApplyBeforeOpen) {
       if (actionLoadingId === campaign.id) return;
       const applied = await handleApplyCampaign(campaign.id);
@@ -4867,9 +4989,12 @@ export default function App() {
                 </div>
                 <div className="promo-type-grid">
                   <button
-                    className={`promo-type-card ${taskType === 'subscribe' ? 'active' : ''}`}
+                    className={`promo-type-card ${taskType === 'subscribe' ? 'active' : ''} ${
+                      vkSubscribeCreateBlocked ? 'blocked' : ''
+                    }`}
                     type="button"
                     onClick={() => openPromoWizard('subscribe')}
+                    disabled={vkSubscribeCreateBlocked}
                   >
                     <span className="promo-type-head">
                       <span className="promo-type-icon" aria-hidden="true">
@@ -4879,11 +5004,13 @@ export default function App() {
                     </span>
                     <span className="promo-type-title">Подписка</span>
                     <span className="promo-type-meta">
-                      {isVkRuntime
+                      {vkSubscribeCreateBlocked
+                        ? 'Автопроверка сейчас выключена на сервере'
+                        : isVkRuntime
                         ? 'Продвижение вступлений в VK-сообщество'
                         : 'Продвижение вступлений в канал или группу'}
                     </span>
-                    <span className="promo-type-cta">Запустить</span>
+                    <span className="promo-type-cta">{vkSubscribeCreateBlocked ? 'Недоступно' : 'Запустить'}</span>
                   </button>
                   <button
                     className={`promo-type-card ${taskType === 'reaction' ? 'active' : ''}`}
@@ -4911,6 +5038,9 @@ export default function App() {
                       ? `Выбран проект: ${selectedProjectLabel}`
                       : 'Проект выбирается на первом шаге запуска'}
                   </div>
+                  {vkSubscribeCreateBlocked && (
+                    <div className="promo-entry-capability-warn">{vkSubscribeCapabilityReason}</div>
+                  )}
                 </div>
               </div>
             )}
@@ -5130,10 +5260,33 @@ export default function App() {
                   visibleCampaigns.map((campaign) => {
                     const application = applicationsByCampaign.get(campaign.id);
                     const status = application?.status;
-                    const statusMeta = getTaskStatusMeta(status);
+                    const statusMeta = getTaskStatusMeta(campaign, application);
                     const payout = calculatePayout(campaign.rewardPoints);
                     const badgeLabel = `+${payout} ${formatPointsLabel(payout)}`;
                     const readyToClaim = status === 'APPROVED' && !acknowledgedIds.includes(campaign.id);
+                    const isVkSubscribeTask = isVkSubscribeAutoCampaign(campaign);
+                    const isVkReactionTask = isVkReactionManualCampaign(campaign);
+                    const verification = application?.verification;
+                    const verificationState = verification?.state;
+                    const retryLeftMs = getVerificationRetryLeftMs(verification);
+                    const canRecheck =
+                      Boolean(application) &&
+                      status === 'PENDING' &&
+                      isVkSubscribeTask &&
+                      verificationState !== 'UNAVAILABLE' &&
+                      retryLeftMs <= 0;
+                    const isRecheckLoading = application?.id ? recheckLoadingId === application.id : false;
+                    const stepOpenClass = application ? 'done' : 'active';
+                    const stepJoinClass =
+                      status === 'APPROVED' ? 'done' : application ? 'active' : 'todo';
+                    const stepVerifyClass =
+                      status === 'APPROVED'
+                        ? 'done'
+                        : verificationState === 'UNAVAILABLE'
+                          ? 'warn'
+                          : application
+                            ? 'active'
+                            : 'todo';
                     return (
                       <div
                         className={`task-card task-card-live ${readyToClaim ? 'task-card-claimable' : ''} ${
@@ -5157,6 +5310,16 @@ export default function App() {
                               <div className="task-handle">
                                 {getGroupSecondaryLabel(campaign.group)}
                               </div>
+                              {isVkSubscribeTask && (
+                                <div className="vk-task-steps" aria-label="Шаги выполнения VK подписки">
+                                  <span className={`vk-task-step ${stepOpenClass}`}>1 Открыть</span>
+                                  <span className={`vk-task-step ${stepJoinClass}`}>2 Вступить</span>
+                                  <span className={`vk-task-step ${stepVerifyClass}`}>3 Автопроверка</span>
+                                </div>
+                              )}
+                              {isVkReactionTask && (
+                                <div className="task-manual-note">Проверка: вручную владельцем</div>
+                              )}
                             </div>
                           </div>
                           <div className="task-meta">
@@ -5192,7 +5355,7 @@ export default function App() {
                               readyToClaim ? 'task-primary-action-ready' : ''
                             }`}
                             type="button"
-                            onClick={() => void handleOpenCampaign(campaign, status)}
+                            onClick={() => void handleOpenCampaign(campaign, application)}
                             aria-label={statusMeta.actionLabel}
                             disabled={actionLoadingId === campaign.id}
                           >
@@ -5216,6 +5379,39 @@ export default function App() {
                             </button>
                           )}
                         </div>
+                        {isVkSubscribeTask && status === 'PENDING' && application && (
+                          <div className="vk-recheck-panel">
+                            <div className="vk-recheck-head">
+                              <span className={`vk-recheck-state ${verificationState === 'UNAVAILABLE' ? 'warn' : ''}`}>
+                                {verificationState === 'UNAVAILABLE'
+                                  ? 'Автопроверка временно недоступна'
+                                  : verificationState === 'NOT_MEMBER'
+                                    ? 'Вступление не найдено'
+                                    : 'Ожидание автопроверки'}
+                              </span>
+                              <span className="vk-recheck-timer">
+                                {verificationState === 'UNAVAILABLE'
+                                  ? 'Повторите позже'
+                                  : retryLeftMs > 0
+                                    ? `Повтор через ${formatCountdown(retryLeftMs)}`
+                                    : 'Можно проверить сейчас'}
+                              </span>
+                            </div>
+                            {verificationState !== 'UNAVAILABLE' && (
+                              <button
+                                className="open-button secondary vk-recheck-button"
+                                type="button"
+                                onClick={() => void handleRecheckApplication(application)}
+                                disabled={!canRecheck || isRecheckLoading}
+                              >
+                                {isRecheckLoading ? 'Проверяем…' : 'Проверить снова'}
+                              </button>
+                            )}
+                            {recheckErrorByCampaign[campaign.id] && (
+                              <div className="vk-recheck-error">{recheckErrorByCampaign[campaign.id]}</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -5358,6 +5554,31 @@ export default function App() {
 
             <div className="promo-wizard-body">
               <div className="promo-wizard-step-shell" key={promoWizardCurrentStep.id}>
+                <div className="promo-flow-brief">
+                  <div className="promo-flow-title">Как это работает</div>
+                  {isVkRuntime && taskType === 'subscribe' && (
+                    <div className="promo-flow-list">
+                      <span>1. Исполнитель открывает ваше VK-сообщество.</span>
+                      <span>2. Нажимает «Вступить».</span>
+                      <span>3. Система проверяет вступление автоматически и повторяет проверку каждые 10 секунд.</span>
+                    </div>
+                  )}
+                  {isVkRuntime && taskType === 'reaction' && (
+                    <div className="promo-flow-list">
+                      <span>1. Исполнитель открывает пост VK по ссылке.</span>
+                      <span>2. Выполняет реакцию.</span>
+                      <span>3. Проверка вручную владельцем: PENDING → APPROVED/REJECTED.</span>
+                    </div>
+                  )}
+                  {!isVkRuntime && (
+                    <div className="promo-flow-list">
+                      <span>1. Исполнитель открывает задание.</span>
+                      <span>2. Выполняет действие в Telegram.</span>
+                      <span>3. Получает подтверждение и начисление баллов по правилам платформы.</span>
+                    </div>
+                  )}
+                </div>
+
                 {promoWizardCurrentStep.id === 'project' && (
                   <>
                     <div className="promo-project-stage">

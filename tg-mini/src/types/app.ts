@@ -49,13 +49,30 @@ export type CampaignReportReason =
   | 'PROHIBITED_CONTENT'
   | 'OTHER';
 
+export type VerificationMode = 'NONE' | 'VK_SUBSCRIBE_AUTO';
+export type VerificationState = 'APPROVED' | 'PENDING_RETRY' | 'NOT_MEMBER' | 'UNAVAILABLE';
+export type VerificationDto = {
+  mode: VerificationMode;
+  state: VerificationState;
+  checkedAt: string;
+  nextRetryAt?: string;
+  retryAfterSec?: number;
+};
+
 export type ApplicationDto = {
   id: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
   createdAt: string;
   reviewedAt?: string | null;
+  verification?: VerificationDto;
   campaign: CampaignDto;
   applicant?: UserDto;
+};
+
+export type RuntimeCapabilities = {
+  vkSubscribeAutoAvailable: boolean;
+  vkReactionManual: boolean;
+  reason?: string;
 };
 
 export type DailyBonusStatus = {

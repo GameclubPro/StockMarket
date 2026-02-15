@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './db.js';
-import { type Platform, type Prisma, type User } from '@prisma/client';
+import { type Application, type Campaign, type Platform, type Prisma, type User } from '@prisma/client';
 import { config } from './config.js';
 import { signSession, verifySession } from './auth.js';
 import {
@@ -22,6 +22,13 @@ import {
 import { ApiError, normalizeApiError, toPublicErrorMessage } from './http/errors.js';
 import { verifyInitData } from './telegram.js';
 import { isVkLaunchParamsPayload, verifyVkLaunchParams } from './vk.js';
+import {
+  checkVkMembership,
+  isVkSubscribeAutoAvailable,
+  resolveVkGroupId,
+  resolveVkGroupRefFromLink,
+  type VkMembershipResult,
+} from './vk-api.js';
 import {
   ensureBotIsAdmin,
   exportChatInviteLink,
@@ -382,6 +389,20 @@ type UserIdentityRecord = {
   platform: RuntimePlatform;
   externalId: string;
 };
+type VerificationMode = 'NONE' | 'VK_SUBSCRIBE_AUTO';
+type VerificationState = 'APPROVED' | 'PENDING_RETRY' | 'NOT_MEMBER' | 'UNAVAILABLE';
+type VerificationDto = {
+  mode: VerificationMode;
+  state: VerificationState;
+  checkedAt: string;
+  nextRetryAt?: string;
+  retryAfterSec?: number;
+};
+type RuntimeCapabilities = {
+  vkSubscribeAutoAvailable: boolean;
+  vkReactionManual: boolean;
+  reason?: string;
+};
 
 const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
 const PLATFORM_LINK_CODE_BYTES = 6;
@@ -389,6 +410,160 @@ const PLATFORM_LINK_CODE_ATTEMPTS = 6;
 const TG_LINK_CODE_PREFIX = 'link_';
 const TG_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения Telegram-аккаунта.';
 const VK_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения VK-аккаунта.';
+const VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON =
+  'VK SUBSCRIBE временно недоступен: на сервере не настроен VK_API_TOKEN.';
+
+const getVkVerifyRetrySec = () => Math.max(1, Math.floor(config.vkVerifyRetrySec || 10));
+const getVkVerifyCooldownMs = () => getVkVerifyRetrySec() * 1000;
+
+const getRuntimeCapabilities = (): RuntimeCapabilities => {
+  const vkSubscribeAutoAvailable = isVkSubscribeAutoAvailable();
+  return {
+    vkSubscribeAutoAvailable,
+    vkReactionManual: true,
+    reason: vkSubscribeAutoAvailable ? undefined : VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON,
+  };
+};
+
+const getVerificationCheckedAt = (application: {
+  reviewedAt?: Date | null;
+  lastVerificationAt?: Date | null;
+  createdAt: Date;
+}) => {
+  return application.reviewedAt ?? application.lastVerificationAt ?? application.createdAt;
+};
+
+const buildVkSubscribeVerification = (
+  application: Pick<Application, 'status' | 'createdAt' | 'reviewedAt' | 'lastVerificationAt'>,
+  options?: {
+    now?: Date;
+    state?: VerificationState;
+    forceUnavailable?: boolean;
+  }
+): VerificationDto => {
+  const now = options?.now ?? new Date();
+  const checkedAt = getVerificationCheckedAt(application);
+  const cooldownMs = getVkVerifyCooldownMs();
+  const nextRetryAtRaw = checkedAt.getTime() + cooldownMs;
+  const retryMs = Math.max(0, nextRetryAtRaw - now.getTime());
+
+  const defaultState: VerificationState =
+    application.status === 'APPROVED'
+      ? 'APPROVED'
+      : options?.forceUnavailable
+        ? 'UNAVAILABLE'
+        : 'PENDING_RETRY';
+  const state = options?.state ?? defaultState;
+
+  const payload: VerificationDto = {
+    mode: 'VK_SUBSCRIBE_AUTO',
+    state,
+    checkedAt: checkedAt.toISOString(),
+  };
+
+  if (state === 'PENDING_RETRY' || state === 'NOT_MEMBER') {
+    payload.nextRetryAt = new Date(nextRetryAtRaw).toISOString();
+    payload.retryAfterSec = Math.max(0, Math.ceil(retryMs / 1000));
+  }
+
+  return payload;
+};
+
+const buildApplicationVerification = (
+  application: Pick<Application, 'status' | 'createdAt' | 'reviewedAt' | 'lastVerificationAt'>,
+  campaign: Pick<Campaign, 'platform' | 'actionType'>,
+  options?: { now?: Date }
+): VerificationDto | undefined => {
+  if (campaign.platform !== 'VK' || campaign.actionType !== 'SUBSCRIBE') {
+    return undefined;
+  }
+  return buildVkSubscribeVerification(application, {
+    now: options?.now,
+    forceUnavailable: !isVkSubscribeAutoAvailable(),
+  });
+};
+
+const attachApplicationVerification = <
+  T extends Pick<Application, 'status' | 'createdAt' | 'reviewedAt' | 'lastVerificationAt'>
+>(
+  application: T,
+  campaign: Pick<Campaign, 'platform' | 'actionType'>,
+  options?: { now?: Date; verification?: VerificationDto }
+) => {
+  const verification =
+    options?.verification ??
+    buildApplicationVerification(application, campaign, {
+      now: options?.now,
+    });
+  return {
+    ...application,
+    verification,
+  };
+};
+
+const ensureVkSubscribeAutoEnabled = () => {
+  if (!isVkSubscribeAutoAvailable()) {
+    throw new ApiError('vk_subscribe_auto_unavailable', 409);
+  }
+};
+
+const resolveVkSubscribeMembership = async (payload: {
+  inviteLink: string;
+  externalUserId: string;
+}): Promise<{ result: VkMembershipResult; groupId: number | null }> => {
+  const ref = resolveVkGroupRefFromLink(payload.inviteLink);
+  if (!ref) {
+    throw new ApiError('vk_subscribe_link_invalid', 400);
+  }
+  const groupId = await resolveVkGroupId(ref);
+  if (!groupId) {
+    return { result: 'UNAVAILABLE', groupId: null };
+  }
+  const result = await checkVkMembership(groupId, payload.externalUserId);
+  return { result, groupId };
+};
+
+const getVkRetryStateForApplication = (
+  application: Pick<Application, 'lastVerificationAt'>,
+  now = new Date()
+) => {
+  if (!application.lastVerificationAt) {
+    return {
+      onCooldown: false,
+      retryAfterSec: 0,
+      nextRetryAt: now,
+    };
+  }
+  const cooldownMs = getVkVerifyCooldownMs();
+  const nextRetryAt = new Date(application.lastVerificationAt.getTime() + cooldownMs);
+  const retryAfterSec = Math.max(0, Math.ceil((nextRetryAt.getTime() - now.getTime()) / 1000));
+  return {
+    onCooldown: retryAfterSec > 0,
+    retryAfterSec,
+    nextRetryAt,
+  };
+};
+
+const logVkVerifyMetrics = (
+  request: FastifyRequest,
+  payload: {
+    result: VkMembershipResult;
+    durationMs: number;
+    autoApproved?: boolean;
+  }
+) => {
+  request.log.info(
+    {
+      metric: 'vk_verify_attempt_total',
+      result: payload.result,
+      vk_verify_attempt_total: 1,
+      vk_verify_duration_ms: payload.durationMs,
+      vk_verify_auto_approve_total: payload.autoApproved ? 1 : 0,
+      vk_verify_unavailable_total: payload.result === 'UNAVAILABLE' ? 1 : 0,
+    },
+    'vk verify attempt'
+  );
+};
 
 const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
   const rawPayload = authPayload.trim();
@@ -3336,6 +3511,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         runtimePlatform,
         balance: user.balance,
         stats: { groups, campaigns, applications },
+        capabilities: getRuntimeCapabilities(),
       };
     } catch (error) {
       return sendRouteError(reply, error, 400);
@@ -4009,6 +4185,10 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(403).send({ ok: false, error: 'not admin' });
       }
 
+      if (runtimePlatform === 'VK' && parsed.data.actionType === 'subscribe') {
+        ensureVkSubscribeAutoEnabled();
+      }
+
       let targetMessageId: number | null = null;
       if (parsed.data.actionType === 'reaction') {
         if (!parsed.data.targetMessageLink) {
@@ -4163,9 +4343,16 @@ export const registerRoutes = (app: FastifyInstance) => {
       let existing = await prisma.application.findUnique({
         where: { campaignId_applicantId: { campaignId, applicantId: user.id } },
       });
+      const existingStatus = existing?.status;
       if (existing?.status === 'APPROVED') {
         const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
-        return { ok: true, application: existing, balance: updatedUser?.balance ?? user.balance };
+        const verification = buildApplicationVerification(existing, campaign);
+        return {
+          ok: true,
+          application: attachApplicationVerification(existing, campaign, { verification }),
+          balance: updatedUser?.balance ?? user.balance,
+          verification,
+        };
       }
       if (existing?.status === 'REJECTED') {
         return reply.code(400).send({ ok: false, error: 'Заявка отклонена.' });
@@ -4174,6 +4361,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         const data: Prisma.ApplicationUpdateInput = {
           status: 'PENDING',
           reviewedAt: null,
+          verificationChecks: 0,
+          lastVerificationAt: null,
         };
         if (campaign.actionType === 'REACTION') {
           data.reactionBaseline = campaign.reactionCount ?? null;
@@ -4181,8 +4370,177 @@ export const registerRoutes = (app: FastifyInstance) => {
         existing = await prisma.application.update({ where: { id: existing.id }, data });
       }
 
+      if (runtimePlatform === 'VK' && campaign.actionType === 'SUBSCRIBE') {
+        const vkIdentity = await prisma.userIdentity.findUnique({
+          where: {
+            userId_platform: {
+              userId: user.id,
+              platform: 'VK',
+            },
+          },
+          select: { externalId: true },
+        });
+        if (!vkIdentity) {
+          return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
+        }
+
+        ensureVkSubscribeAutoEnabled();
+
+        if (!existing) {
+          existing = await prisma.application.create({
+            data: {
+              campaignId,
+              applicantId: user.id,
+              status: 'PENDING',
+            },
+          });
+        }
+
+        const retryState = getVkRetryStateForApplication(existing, new Date());
+        const hasChecks = existing.verificationChecks > 0;
+        if (existingStatus === 'PENDING' && hasChecks && retryState.onCooldown) {
+          const verification = buildVkSubscribeVerification(existing, {
+            now: new Date(),
+            state: 'PENDING_RETRY',
+          });
+          return {
+            ok: true,
+            application: attachApplicationVerification(existing, campaign, { verification }),
+            verification,
+          };
+        }
+
+        const verifyStartedAt = Date.now();
+        const membership = await resolveVkSubscribeMembership({
+          inviteLink: campaign.group.inviteLink,
+          externalUserId: vkIdentity.externalId,
+        });
+        const verifyDurationMs = Date.now() - verifyStartedAt;
+
+        if (membership.result === 'UNAVAILABLE') {
+          logVkVerifyMetrics(request, {
+            result: membership.result,
+            durationMs: verifyDurationMs,
+            autoApproved: false,
+          });
+          return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+        }
+
+        if (membership.result === 'MEMBER') {
+          const approvedAt = new Date();
+          const result = await prisma.$transaction(async (tx) => {
+            const freshCampaign = await tx.campaign.findUnique({ where: { id: campaign.id } });
+            if (!freshCampaign || freshCampaign.status !== 'ACTIVE') throw new Error('campaign paused');
+            if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) throw new Error('budget empty');
+
+            const freshApplication = await tx.application.findUnique({
+              where: { campaignId_applicantId: { campaignId, applicantId: user.id } },
+            });
+
+            if (freshApplication?.status === 'APPROVED') {
+              return {
+                application: freshApplication,
+                campaign: freshCampaign,
+                alreadyApproved: true,
+              };
+            }
+
+            const application = freshApplication
+              ? await tx.application.update({
+                  where: { id: freshApplication.id },
+                  data: {
+                    status: 'APPROVED',
+                    reviewedAt: approvedAt,
+                    lastVerificationAt: approvedAt,
+                    verificationChecks: { increment: 1 },
+                  },
+                })
+              : await tx.application.create({
+                  data: {
+                    campaignId,
+                    applicantId: user.id,
+                    status: 'APPROVED',
+                    reviewedAt: approvedAt,
+                    verificationChecks: 1,
+                    lastVerificationAt: approvedAt,
+                  },
+                });
+
+            const updatedCampaign = await tx.campaign.update({
+              where: { id: freshCampaign.id },
+              data: {
+                remainingBudget: { decrement: freshCampaign.rewardPoints },
+                status:
+                  freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                    ? 'COMPLETED'
+                    : freshCampaign.status,
+              },
+            });
+
+            await creditUserForCampaign(tx, {
+              userId: user.id,
+              campaign: freshCampaign,
+              reason: 'Вступление в группу',
+            });
+
+            return { application, campaign: updatedCampaign, alreadyApproved: false };
+          });
+
+          const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+          const verification = buildVkSubscribeVerification(result.application, {
+            now: new Date(),
+            state: 'APPROVED',
+          });
+          logVkVerifyMetrics(request, {
+            result: membership.result,
+            durationMs: verifyDurationMs,
+            autoApproved: true,
+          });
+          return {
+            ok: true,
+            application: attachApplicationVerification(result.application, campaign, { verification }),
+            campaign: result.campaign,
+            balance: updatedUser?.balance ?? user.balance,
+            verification,
+          };
+        }
+
+        const pendingAt = new Date();
+        const pendingApplication = await prisma.application.update({
+          where: { id: existing.id },
+          data: {
+            status: 'PENDING',
+            reviewedAt: null,
+            lastVerificationAt: pendingAt,
+            verificationChecks: { increment: 1 },
+          },
+        });
+
+        const verification = buildVkSubscribeVerification(pendingApplication, {
+          now: pendingAt,
+          state: 'PENDING_RETRY',
+        });
+        logVkVerifyMetrics(request, {
+          result: membership.result,
+          durationMs: verifyDurationMs,
+          autoApproved: false,
+        });
+        return {
+          ok: true,
+          application: attachApplicationVerification(pendingApplication, campaign, { verification }),
+          verification,
+        };
+      }
+
       if (runtimePlatform === 'VK') {
-        if (existing) return { ok: true, application: existing };
+        if (existing) {
+          const verification = buildApplicationVerification(existing, campaign);
+          return {
+            ok: true,
+            application: attachApplicationVerification(existing, campaign, { verification }),
+            verification,
+          };
+        }
         const application = await prisma.application.create({
           data: {
             campaignId,
@@ -4190,11 +4548,23 @@ export const registerRoutes = (app: FastifyInstance) => {
             reactionBaseline: campaign.actionType === 'REACTION' ? campaign.reactionCount ?? null : null,
           },
         });
-        return { ok: true, application };
+        const verification = buildApplicationVerification(application, campaign);
+        return {
+          ok: true,
+          application: attachApplicationVerification(application, campaign, { verification }),
+          verification,
+        };
       }
 
       if (campaign.actionType === 'REACTION') {
-        if (existing) return { ok: true, application: existing };
+        if (existing) {
+          const verification = buildApplicationVerification(existing, campaign);
+          return {
+            ok: true,
+            application: attachApplicationVerification(existing, campaign, { verification }),
+            verification,
+          };
+        }
         const application = await prisma.application.create({
           data: {
             campaignId,
@@ -4202,7 +4572,12 @@ export const registerRoutes = (app: FastifyInstance) => {
             reactionBaseline: campaign.reactionCount ?? null,
           },
         });
-        return { ok: true, application };
+        const verification = buildApplicationVerification(application, campaign);
+        return {
+          ok: true,
+          application: attachApplicationVerification(application, campaign, { verification }),
+          verification,
+        };
       }
 
       const chatId = campaign.group.username ?? campaign.group.telegramChatId ?? '';
@@ -4219,14 +4594,26 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       const status = await getChatMemberStatus(config.botToken, chatId, telegramId);
       if (!isActiveMemberStatus(status)) {
-        if (existing) return { ok: true, application: existing };
+        if (existing) {
+          const verification = buildApplicationVerification(existing, campaign);
+          return {
+            ok: true,
+            application: attachApplicationVerification(existing, campaign, { verification }),
+            verification,
+          };
+        }
         const application = await prisma.application.create({
           data: {
             campaignId,
             applicantId: user.id,
           },
         });
-        return { ok: true, application };
+        const verification = buildApplicationVerification(application, campaign);
+        return {
+          ok: true,
+          application: attachApplicationVerification(application, campaign, { verification }),
+          verification,
+        };
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -4269,11 +4656,13 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
 
       const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+      const verification = buildApplicationVerification(result.application, campaign);
       return {
         ok: true,
-        application: result.application,
+        application: attachApplicationVerification(result.application, campaign, { verification }),
         campaign: result.campaign,
         balance: updatedUser?.balance ?? user.balance,
+        verification,
       };
     } catch (error) {
       return sendRouteError(reply, error, 400);
@@ -4299,7 +4688,13 @@ export const registerRoutes = (app: FastifyInstance) => {
         include: { campaign: { include: { group: true, owner: true } } },
         orderBy: { createdAt: 'desc' },
       });
-      return { ok: true, applications };
+      const now = new Date();
+      return {
+        ok: true,
+        applications: applications.map((application) =>
+          attachApplicationVerification(application, application.campaign, { now })
+        ),
+      };
     } catch (error) {
       return sendRouteError(reply, error, 401);
     }
@@ -4310,16 +4705,210 @@ export const registerRoutes = (app: FastifyInstance) => {
       const user = await requireUser(request);
       const runtimePlatform = resolveRequestPlatform(request, user);
       const applications = await prisma.application.findMany({
-        where: { campaign: { ownerId: user.id, platform: runtimePlatform }, status: 'PENDING' },
+        where: {
+          campaign: {
+            ownerId: user.id,
+            platform: runtimePlatform,
+            NOT: { platform: 'VK', actionType: 'SUBSCRIBE' },
+          },
+          status: 'PENDING',
+        },
         include: {
           applicant: true,
           campaign: { include: { group: true } },
         },
         orderBy: { createdAt: 'desc' },
       });
-      return { ok: true, applications };
+      const now = new Date();
+      return {
+        ok: true,
+        applications: applications.map((application) =>
+          attachApplicationVerification(application, application.campaign, { now })
+        ),
+      };
     } catch (error) {
       return sendRouteError(reply, error, 401);
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/applications/:id/recheck', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
+      const applicationId = request.params.id;
+
+      const application = await prisma.application.findUnique({
+        where: { id: applicationId },
+        include: {
+          campaign: {
+            include: {
+              group: true,
+            },
+          },
+        },
+      });
+
+      if (!application) {
+        return reply.code(404).send({ ok: false, error: 'application not found' });
+      }
+      if (application.applicantId !== user.id) {
+        return reply.code(403).send({ ok: false, error: 'not owner' });
+      }
+      if (application.campaign.platform !== runtimePlatform) {
+        return reply.code(404).send({ ok: false, error: 'application not found' });
+      }
+      if (runtimePlatform !== 'VK' || application.campaign.actionType !== 'SUBSCRIBE') {
+        return reply.code(409).send({ ok: false, error: 'vk_recheck_not_supported' });
+      }
+      if (application.status !== 'PENDING') {
+        return reply.code(409).send({ ok: false, error: 'already reviewed' });
+      }
+
+      const vkIdentity = await prisma.userIdentity.findUnique({
+        where: {
+          userId_platform: {
+            userId: user.id,
+            platform: 'VK',
+          },
+        },
+        select: { externalId: true },
+      });
+      if (!vkIdentity) {
+        return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
+      }
+
+      ensureVkSubscribeAutoEnabled();
+
+      const cooldown = getVkRetryStateForApplication(application, new Date());
+      if (cooldown.onCooldown) {
+        return reply.code(429).send({
+          ok: false,
+          error: 'vk_verify_retry_cooldown',
+          retryAfterSec: cooldown.retryAfterSec,
+          nextRetryAt: cooldown.nextRetryAt.toISOString(),
+        });
+      }
+
+      const startedAt = Date.now();
+      const membership = await resolveVkSubscribeMembership({
+        inviteLink: application.campaign.group.inviteLink,
+        externalUserId: vkIdentity.externalId,
+      });
+      const durationMs = Date.now() - startedAt;
+
+      if (membership.result === 'UNAVAILABLE') {
+        logVkVerifyMetrics(request, {
+          result: membership.result,
+          durationMs,
+          autoApproved: false,
+        });
+        return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+      }
+
+      if (membership.result === 'MEMBER') {
+        const approvedAt = new Date();
+        const result = await prisma.$transaction(async (tx) => {
+          const freshApplication = await tx.application.findUnique({
+            where: { id: applicationId },
+            include: { campaign: true },
+          });
+          if (!freshApplication) throw new Error('application not found');
+          if (freshApplication.status === 'APPROVED') {
+            return {
+              application: freshApplication,
+              campaign: freshApplication.campaign,
+              alreadyApproved: true,
+            };
+          }
+          if (freshApplication.status !== 'PENDING') throw new Error('already reviewed');
+
+          const freshCampaign = await tx.campaign.findUnique({
+            where: { id: freshApplication.campaignId },
+          });
+          if (!freshCampaign || freshCampaign.status !== 'ACTIVE') throw new Error('campaign paused');
+          if (freshCampaign.remainingBudget < freshCampaign.rewardPoints) throw new Error('budget empty');
+
+          const approvedApplication = await tx.application.update({
+            where: { id: freshApplication.id },
+            data: {
+              status: 'APPROVED',
+              reviewedAt: approvedAt,
+              lastVerificationAt: approvedAt,
+              verificationChecks: { increment: 1 },
+            },
+          });
+
+          const updatedCampaign = await tx.campaign.update({
+            where: { id: freshCampaign.id },
+            data: {
+              remainingBudget: { decrement: freshCampaign.rewardPoints },
+              status:
+                freshCampaign.remainingBudget - freshCampaign.rewardPoints <= 0
+                  ? 'COMPLETED'
+                  : freshCampaign.status,
+            },
+          });
+
+          await creditUserForCampaign(tx, {
+            userId: freshApplication.applicantId,
+            campaign: freshCampaign,
+            reason: 'Вступление в группу',
+          });
+
+          return {
+            application: approvedApplication,
+            campaign: updatedCampaign,
+            alreadyApproved: false,
+          };
+        });
+
+        const balance = await prisma.user.findUnique({ where: { id: user.id }, select: { balance: true } });
+        const verification = buildVkSubscribeVerification(result.application, {
+          now: new Date(),
+          state: 'APPROVED',
+        });
+        logVkVerifyMetrics(request, {
+          result: membership.result,
+          durationMs,
+          autoApproved: true,
+        });
+        return {
+          ok: true,
+          application: attachApplicationVerification(result.application, result.campaign, { verification }),
+          campaign: result.campaign,
+          balance: balance?.balance ?? user.balance,
+          verification,
+        };
+      }
+
+      const pendingAt = new Date();
+      const updatedApplication = await prisma.application.update({
+        where: { id: application.id },
+        data: {
+          status: 'PENDING',
+          reviewedAt: null,
+          lastVerificationAt: pendingAt,
+          verificationChecks: { increment: 1 },
+        },
+      });
+      const verification = buildVkSubscribeVerification(updatedApplication, {
+        now: pendingAt,
+        state: 'PENDING_RETRY',
+      });
+      logVkVerifyMetrics(request, {
+        result: membership.result,
+        durationMs,
+        autoApproved: false,
+      });
+      return {
+        ok: true,
+        application: attachApplicationVerification(updatedApplication, application.campaign, {
+          verification,
+        }),
+        verification,
+      };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
     }
   });
 
@@ -4339,6 +4928,9 @@ export const registerRoutes = (app: FastifyInstance) => {
       }
       if (application.campaign.platform !== runtimePlatform) {
         return reply.code(404).send({ ok: false, error: 'application not found' });
+      }
+      if (application.campaign.platform === 'VK' && application.campaign.actionType === 'SUBSCRIBE') {
+        return reply.code(409).send({ ok: false, error: 'vk_subscribe_auto_only' });
       }
       if (application.status !== 'PENDING') {
         return reply.code(409).send({ ok: false, error: 'already reviewed' });
@@ -4394,6 +4986,9 @@ export const registerRoutes = (app: FastifyInstance) => {
       }
       if (application.campaign.platform !== runtimePlatform) {
         return reply.code(404).send({ ok: false, error: 'application not found' });
+      }
+      if (application.campaign.platform === 'VK' && application.campaign.actionType === 'SUBSCRIBE') {
+        return reply.code(409).send({ ok: false, error: 'vk_subscribe_auto_only' });
       }
 
       const updated = await prisma.application.update({

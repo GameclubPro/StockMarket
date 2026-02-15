@@ -180,6 +180,8 @@ model Application {
   applicantId String
   status      ApplicationStatus @default(PENDING)
   reactionBaseline Int?
+  verificationChecks Int        @default(0)
+  lastVerificationAt DateTime?
   createdAt   DateTime          @default(now())
   reviewedAt  DateTime?
 
@@ -189,6 +191,8 @@ model Application {
   @@unique([campaignId, applicantId])
   @@index([applicantId, createdAt])
   @@index([campaignId, status, createdAt])
+  @@index([status, lastVerificationAt])
+  @@index([campaignId, applicantId, status])
 }
 
 model LedgerEntry {

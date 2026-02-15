@@ -11,9 +11,11 @@ import type {
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
+  RuntimeCapabilities,
   RuntimePlatform,
   SwitchLinkResponse,
   UserDto,
+  VerificationDto,
 } from './types/app';
 import { getInitDataRaw } from './telegram';
 
@@ -33,9 +35,11 @@ export type {
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
+  RuntimeCapabilities,
   RuntimePlatform,
   SwitchLinkResponse,
   UserDto,
+  VerificationDto,
 } from './types/app';
 
 export class ApiRequestError<T = unknown> extends Error {
@@ -139,6 +143,7 @@ export const fetchMe = async () => {
     runtimePlatform?: RuntimePlatform;
     balance: number;
     stats: { groups: number; campaigns: number; applications: number };
+    capabilities?: RuntimeCapabilities;
   };
 };
 
@@ -270,7 +275,24 @@ export const createCampaign = async (payload: {
 
 export const applyCampaign = async (id: string) => {
   const data = await request(`/api/campaigns/${id}/apply`, { method: 'POST' });
-  return data as { ok: boolean; application?: ApplicationDto; campaign?: CampaignDto; balance?: number };
+  return data as {
+    ok: boolean;
+    application?: ApplicationDto;
+    campaign?: CampaignDto;
+    balance?: number;
+    verification?: VerificationDto;
+  };
+};
+
+export const recheckApplication = async (id: string) => {
+  const data = await request(`/api/applications/${id}/recheck`, { method: 'POST' });
+  return data as {
+    ok: boolean;
+    application?: ApplicationDto;
+    campaign?: CampaignDto;
+    balance?: number;
+    verification?: VerificationDto;
+  };
 };
 
 export const hideCampaign = async (id: string) => {

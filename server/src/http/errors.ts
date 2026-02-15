@@ -35,9 +35,18 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'campaign paused' ||
     message === 'budget empty' ||
     message === 'already reviewed' ||
-    message === 'cooldown'
+    message === 'cooldown' ||
+    message === 'vk_subscribe_auto_unavailable' ||
+    message === 'vk_recheck_not_supported' ||
+    message === 'vk_subscribe_auto_only'
   ) {
     return 409;
+  }
+  if (message === 'vk_verify_retry_cooldown') {
+    return 429;
+  }
+  if (message === 'vk_verify_unavailable') {
+    return 503;
   }
   if (
     message === 'invalid body' ||
@@ -48,7 +57,8 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'invalid link code' ||
     message === 'platform_link_code_invalid' ||
     message === 'platform_link_code_already_used' ||
-    message === 'platform_link_code_expired'
+    message === 'platform_link_code_expired' ||
+    message === 'vk_subscribe_link_invalid'
   ) {
     return 400;
   }
@@ -90,6 +100,24 @@ export const toPublicErrorMessage = (message: string) => {
   if (message === 'platform_link_code_already_used') return 'Код переключения уже использован.';
   if (message === 'platform_link_code_expired') return 'Срок действия кода переключения истек.';
   if (message === 'already on target platform') return 'Вы уже на этой платформе.';
+  if (message === 'vk_subscribe_auto_unavailable') {
+    return 'Автопроверка вступления VK временно недоступна. Попробуйте позже.';
+  }
+  if (message === 'vk_verify_retry_cooldown') {
+    return 'Слишком рано для повторной проверки. Подождите несколько секунд.';
+  }
+  if (message === 'vk_verify_unavailable') {
+    return 'VK API временно недоступен. Повторите проверку чуть позже.';
+  }
+  if (message === 'vk_recheck_not_supported') {
+    return 'Повторная проверка доступна только для VK-заданий типа «Подписка».';
+  }
+  if (message === 'vk_subscribe_auto_only') {
+    return 'Эта VK-подписка проверяется автоматически. Ручная модерация отключена.';
+  }
+  if (message === 'vk_subscribe_link_invalid') {
+    return 'Ссылка на VK-сообщество некорректна. Проверьте формат ссылки.';
+  }
   if (message === 'user_blocked') return 'user_blocked';
   return message;
 };
