@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 export type VkLaunchData = Record<string, string> & {
   vk_user_id: string;
-  sign: string;
+  sign?: string;
   vk_ref?: string;
   vk_platform?: string;
   vk_ts?: string;
@@ -72,22 +72,26 @@ export const verifyVkLaunchParams = (
   appSecret: string,
   maxAgeSec: number
 ) => {
-  if (!appSecret) throw new Error('VK_APP_SECRET is missing');
+  const secret = appSecret.trim();
+  const strictSignValidation = Boolean(secret);
 
   const params = extractVkLaunchParams(launchParams);
   const sign = params.get('sign');
   const userId = params.get('vk_user_id');
-  if (!sign) throw new Error('sign missing');
   if (!userId) throw new Error('vk_user_id missing');
 
-  const dataString = buildSignedDataString(params);
-  const calculatedSign = toBase64Url(
-    crypto.createHmac('sha256', appSecret).update(dataString).digest('base64')
-  );
-  const providedSign = normalizeSign(sign);
+  if (strictSignValidation) {
+    if (!sign) throw new Error('sign missing');
 
-  if (!safeCompare(calculatedSign, providedSign)) {
-    throw new Error('invalid sign');
+    const dataString = buildSignedDataString(params);
+    const calculatedSign = toBase64Url(
+      crypto.createHmac('sha256', secret).update(dataString).digest('base64')
+    );
+    const providedSign = normalizeSign(sign);
+
+    if (!safeCompare(calculatedSign, providedSign)) {
+      throw new Error('invalid sign');
+    }
   }
 
   const tsRaw = params.get('vk_ts');

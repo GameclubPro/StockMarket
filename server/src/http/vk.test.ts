@@ -69,6 +69,18 @@ test('verifyVkLaunchParams checks max age by vk_ts', () => {
   );
 });
 
+test('verifyVkLaunchParams works without app secret', () => {
+  const params = new URLSearchParams({
+    vk_app_id: '123456',
+    vk_platform: 'mobile_android',
+    vk_user_id: '777',
+    sign: 'not-validated-without-secret',
+  });
+
+  const payload = verifyVkLaunchParams(params.toString(), '', 86_400);
+  assert.equal(payload.vk_user_id, '777');
+});
+
 test('extractVkLaunchParams handles query, hash and full URL', () => {
   const fromQuery = extractVkLaunchParams('vk_user_id=1&sign=s');
   assert.equal(fromQuery.get('vk_user_id'), '1');
