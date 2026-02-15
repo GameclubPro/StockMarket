@@ -10543,8 +10543,8 @@ body::before {
 
 /* Promo stepper top-tier pass: fast tap/hold controls with strong hierarchy */
 .content.promo-content .promo-wizard-modal .price-stepper {
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
-  gap: 12px;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -10560,15 +10560,15 @@ body::before {
 }
 
 .content.promo-content .promo-wizard-modal .price-stepper-button {
-  width: 48px;
-  min-width: 48px;
-  min-height: 48px;
+  width: 52px;
+  min-width: 52px;
+  min-height: 52px;
   padding: 0;
   border-radius: 14px;
   border: 1px solid var(--promo-stroke-strong) !important;
   background: linear-gradient(170deg, rgba(35, 40, 46, 0.96), rgba(25, 30, 35, 0.96)) !important;
   color: var(--promo-text-main) !important;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -10636,14 +10636,14 @@ body::before {
 
 @media (max-width: 390px) {
   .content.promo-content .promo-wizard-modal .price-stepper {
-    grid-template-columns: 46px minmax(0, 1fr) 46px;
-    gap: 10px;
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    gap: 7px;
   }
 
   .content.promo-content .promo-wizard-modal .price-stepper-button {
-    width: 46px;
-    min-width: 46px;
-    min-height: 46px;
+    width: 48px;
+    min-width: 48px;
+    min-height: 48px;
     border-radius: 13px;
   }
 
@@ -10655,14 +10655,14 @@ body::before {
 
 @media (max-width: 360px) {
   .content.promo-content .promo-wizard-modal .price-stepper {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
-    gap: 7px;
+    grid-template-columns: 46px minmax(0, 1fr) 46px;
+    gap: 6px;
   }
 
   .content.promo-content .promo-wizard-modal .price-stepper-button {
-    width: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 46px;
+    min-width: 46px;
+    min-height: 46px;
     border-radius: 12px;
   }
 
