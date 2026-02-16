@@ -12,6 +12,8 @@ type VkApiEnvelope<T> = {
 
 type VkGroupByIdResponseItem = {
   id?: number;
+  name?: string;
+  screen_name?: string;
 };
 
 type VkGroupIsMemberResponse =
@@ -26,6 +28,12 @@ type VkGroupIsMemberResponse =
     }>;
 
 export type VkMembershipResult = 'MEMBER' | 'NOT_MEMBER' | 'PENDING_REQUEST' | 'UNAVAILABLE';
+export type VkGroupCreateResolution = {
+  groupId: number;
+  name: string;
+  screenName?: string;
+  canonicalInviteLink: string;
+};
 
 const VK_API_BASE = 'https://api.vk.com/method';
 const VK_ALLOWED_HOSTS = new Set(['vk.com', 'www.vk.com', 'm.vk.com']);
@@ -43,6 +51,41 @@ const toPositiveInt = (value: unknown) => {
 const normalizeVkApiError = (error: unknown) => {
   if (error instanceof Error) return error.message;
   return String(error ?? 'unknown');
+};
+
+const normalizeVkRefToken = (value: string) =>
+  value
+    .trim()
+    .replace(/^@+/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+
+const parseVkRefToken = (value: string) => {
+  const normalized = normalizeVkRefToken(value);
+  if (!normalized) return null;
+
+  const communityMatch = normalized.match(/^(public|club|event)(\d+)$/i);
+  if (communityMatch?.[2]) return `-${communityMatch[2]}`;
+
+  const userMatch = normalized.match(/^id(\d+)$/i);
+  if (userMatch?.[1]) return userMatch[1];
+
+  const wallMatch = normalized.match(/^wall(-?\d+)_\d+$/i);
+  if (wallMatch?.[1]) return wallMatch[1];
+
+  if (/^-?\d+$/.test(normalized)) return normalized;
+  if (/^[a-z0-9_.]{2,64}$/i.test(normalized)) return normalized;
+
+  return null;
+};
+
+const normalizeVkScreenName = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  const normalized = normalizeVkRefToken(value);
+  if (!normalized) return undefined;
+  if (!/^[a-z0-9_.]{2,64}$/i.test(normalized)) return undefined;
+  return normalized;
 };
 
 const requestVkMethod = async <T>(
@@ -117,6 +160,12 @@ export const resolveVkGroupRefFromLink = (inviteLink: string) => {
   const raw = inviteLink.trim();
   if (!raw) return null;
 
+  const directRef = parseVkRefToken(raw.split(/[?#]/)[0] ?? '');
+  const looksLikeDomain = /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw);
+  if (directRef && !raw.includes('://') && !looksLikeDomain) {
+    return directRef;
+  }
+
   try {
     const parsed = new URL(withHttpsPrefix(raw));
     const host = parsed.hostname.toLowerCase();
@@ -127,18 +176,7 @@ export const resolveVkGroupRefFromLink = (inviteLink: string) => {
       .split('/')[0]
       ?.trim();
     if (!slug) return null;
-
-    const normalized = slug.toLowerCase();
-    const communityMatch = normalized.match(/^(public|club|event)(\d+)$/i);
-    if (communityMatch?.[2]) return `-${communityMatch[2]}`;
-
-    const userMatch = normalized.match(/^id(\d+)$/i);
-    if (userMatch?.[1]) return userMatch[1];
-
-    const wallMatch = normalized.match(/^wall(-?\d+)_\d+$/i);
-    if (wallMatch?.[1]) return wallMatch[1];
-
-    return normalized;
+    return parseVkRefToken(slug);
   } catch {
     return null;
   }
@@ -206,5 +244,47 @@ export const checkVkMembership = async (
       return 'UNAVAILABLE';
     }
     return 'UNAVAILABLE';
+  }
+};
+
+export const resolveVkGroupForCreate = async (
+  inviteLink: string,
+  options?: {
+    token?: string;
+    version?: string;
+    timeoutMs?: number;
+  }
+): Promise<VkGroupCreateResolution | null> => {
+  const ref = resolveVkGroupRefFromLink(inviteLink);
+  if (!ref) return null;
+
+  const numericRef = ref.match(/^-?\d+$/);
+  const groupLookupRef = numericRef ? String(Math.abs(Number(ref))) : ref;
+  if (!groupLookupRef) return null;
+
+  try {
+    const response = await requestVkMethod<VkGroupByIdResponseItem[] | VkGroupByIdResponseItem>(
+      'groups.getById',
+      {
+        group_id: groupLookupRef,
+      },
+      options
+    );
+    const first = Array.isArray(response) ? response[0] : response;
+    const groupId = toPositiveInt(first?.id);
+    const name = typeof first?.name === 'string' ? first.name.trim() : '';
+    if (!groupId || !name) return null;
+
+    const screenName = normalizeVkScreenName(first?.screen_name);
+    const canonicalInviteLink = `https://vk.com/public${groupId}`;
+
+    return {
+      groupId,
+      name,
+      screenName,
+      canonicalInviteLink,
+    };
+  } catch {
+    return null;
   }
 };

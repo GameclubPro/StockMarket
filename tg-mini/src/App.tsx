@@ -10,6 +10,7 @@ import {
   applyCampaign,
   cleanupStaleApplications,
   createCampaign,
+  createGroup,
   createPlatformSwitchLink,
   fetchAdminModeration,
   fetchAdminPanelStats,
@@ -542,6 +543,28 @@ const parseVkGroupOwnerKey = (rawLink: string) => {
   return null;
 };
 
+const isVkGroupLinkCandidate = (rawLink: string) => {
+  const trimmed = rawLink.trim();
+  if (!trimmed) return false;
+  if (/^(public|club|event)\d+$/i.test(trimmed)) return true;
+  if (/^id\d+$/i.test(trimmed)) return true;
+  if (/^wall-?\d+_\d+$/i.test(trimmed)) return true;
+  if (/^[a-z0-9_.]{2,64}$/i.test(trimmed)) return true;
+
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') return false;
+    const slug = parsed.pathname
+      .replace(/^\/+/, '')
+      .split('/')[0]
+      ?.trim();
+    return Boolean(slug);
+  } catch {
+    return false;
+  }
+};
+
 const formatPlatformLabel = (platform: RuntimePlatform) => (platform === 'VK' ? 'VK' : 'TG');
 const getAccountLabel = (user?: {
   firstName?: string | null;
@@ -725,6 +748,12 @@ export default function App() {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [selectedGroupTitle, setSelectedGroupTitle] = useState('');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [vkGroupConnectOpen, setVkGroupConnectOpen] = useState(false);
+  const [vkGroupInviteLink, setVkGroupInviteLink] = useState('');
+  const [vkGroupTitleInput, setVkGroupTitleInput] = useState('');
+  const [vkGroupCategoryInput, setVkGroupCategoryInput] = useState('');
+  const [vkGroupCreateLoading, setVkGroupCreateLoading] = useState(false);
+  const [vkGroupCreateError, setVkGroupCreateError] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
@@ -1047,6 +1076,14 @@ export default function App() {
     () => myGroups.find((group) => group.id === selectedGroupId) ?? null,
     [myGroups, selectedGroupId]
   );
+  const vkGroupInviteLinkTrimmed = vkGroupInviteLink.trim();
+  const vkGroupTitleTrimmed = vkGroupTitleInput.trim();
+  const vkGroupCategoryTrimmed = vkGroupCategoryInput.trim();
+  const vkGroupInviteLinkValid = isVkGroupLinkCandidate(vkGroupInviteLinkTrimmed);
+  const vkGroupTitleValid = !vkGroupTitleTrimmed || vkGroupTitleTrimmed.length >= 3;
+  const vkGroupAddBlocked = isVkRuntime && !vkSubscribeAutoAvailable;
+  const vkGroupConnectSubmitDisabled =
+    vkGroupCreateLoading || vkGroupAddBlocked || !vkGroupInviteLinkValid || !vkGroupTitleValid;
   const reactionLinkTrimmed = reactionLink.trim();
   const reactionLinkValidation = useMemo<{ state: ReactionLinkValidationState; label: string; hint: string }>(
     () => {
@@ -1543,6 +1580,78 @@ export default function App() {
       setMyGroupsLoading(false);
     }
   }, [handleBlockedApiError]);
+
+  const openVkGroupConnectSheet = useCallback(() => {
+    setVkGroupCreateError('');
+    setVkGroupConnectOpen(true);
+    setLinkPickerOpen(false);
+  }, []);
+
+  const closeVkGroupConnectSheet = useCallback(() => {
+    if (vkGroupCreateLoading) return;
+    setVkGroupConnectOpen(false);
+  }, [vkGroupCreateLoading]);
+
+  const handleCreateVkGroup = useCallback(async () => {
+    if (!isVkRuntime) return false;
+
+    setVkGroupCreateError('');
+    if (vkGroupAddBlocked) {
+      setVkGroupCreateError(vkSubscribeCapabilityReason);
+      return false;
+    }
+    if (!vkGroupInviteLinkValid) {
+      setVkGroupCreateError('Укажите корректную ссылку VK-сообщества.');
+      return false;
+    }
+    if (!vkGroupTitleValid) {
+      setVkGroupCreateError('Название проекта должно содержать минимум 3 символа.');
+      return false;
+    }
+
+    setVkGroupCreateLoading(true);
+    try {
+      const data = await createGroup({
+        inviteLink: vkGroupInviteLinkTrimmed,
+        title: vkGroupTitleTrimmed || undefined,
+        category: vkGroupCategoryTrimmed || undefined,
+      });
+      if (!data.ok || !data.group) {
+        throw new Error('Не удалось добавить VK-сообщество.');
+      }
+
+      const newGroup = data.group;
+      setMyGroups((prev) => [newGroup, ...prev.filter((item) => item.id !== newGroup.id)]);
+      setMyGroupsLoaded(true);
+      setMyGroupsError('');
+      setSelectedGroupId(newGroup.id);
+      setSelectedGroupTitle(newGroup.title);
+      setVkGroupInviteLink('');
+      setVkGroupTitleInput('');
+      setVkGroupCategoryInput('');
+      setVkGroupConnectOpen(false);
+      setLinkPickerOpen(false);
+      void loadMyGroups();
+      return true;
+    } catch (error: any) {
+      if (handleBlockedApiError(error)) return false;
+      setVkGroupCreateError(error?.message ?? 'Не удалось добавить VK-сообщество.');
+      return false;
+    } finally {
+      setVkGroupCreateLoading(false);
+    }
+  }, [
+    handleBlockedApiError,
+    isVkRuntime,
+    loadMyGroups,
+    vkGroupAddBlocked,
+    vkGroupCategoryTrimmed,
+    vkGroupInviteLinkTrimmed,
+    vkGroupInviteLinkValid,
+    vkGroupTitleTrimmed,
+    vkGroupTitleValid,
+    vkSubscribeCapabilityReason,
+  ]);
 
   const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -2150,11 +2259,12 @@ export default function App() {
   useEffect(() => {
     if (!promoWizardOpen) {
       if (linkPickerOpen) setLinkPickerOpen(false);
+      if (vkGroupConnectOpen) setVkGroupConnectOpen(false);
       return;
     }
     if (promoWizardSteps.some((step) => step.id === promoWizardStep)) return;
     setPromoWizardStep(promoWizardSteps[0]?.id ?? 'project');
-  }, [linkPickerOpen, promoWizardOpen, promoWizardStep, promoWizardSteps]);
+  }, [linkPickerOpen, promoWizardOpen, promoWizardStep, promoWizardSteps, vkGroupConnectOpen]);
 
   useEffect(() => {
     if (!promoWizardOpen) return;
@@ -2459,6 +2569,8 @@ export default function App() {
     setTaskPriceValue(DEFAULT_TASK_PRICE);
     setCreateError('');
     setLinkPickerOpen(false);
+    setVkGroupConnectOpen(false);
+    setVkGroupCreateError('');
     setPromoWizardStep('project');
     setPromoWizardOpen(true);
   };
@@ -2467,6 +2579,7 @@ export default function App() {
     if (createLoading) return;
     setPromoWizardOpen(false);
     setLinkPickerOpen(false);
+    setVkGroupConnectOpen(false);
   };
 
   const handlePromoWizardBack = () => {
@@ -5588,6 +5701,7 @@ export default function App() {
                         aria-expanded={linkPickerOpen}
                         aria-controls="promo-wizard-link-picker"
                         onClick={() => {
+                          setVkGroupConnectOpen(false);
                           setLinkPickerOpen((prev) => !prev);
                         }}
                       >
@@ -5605,6 +5719,23 @@ export default function App() {
                             ? 'Выберите VK-сообщество.'
                             : 'Выберите проект.'}
                       </div>
+                      {isVkRuntime && (
+                        <div className="promo-project-actions promo-project-actions-vk">
+                          <button
+                            className="link-tool secondary"
+                            type="button"
+                            onClick={openVkGroupConnectSheet}
+                            disabled={vkGroupCreateLoading || vkGroupAddBlocked}
+                          >
+                            Добавить VK-сообщество
+                          </button>
+                        </div>
+                      )}
+                      {isVkRuntime && vkGroupAddBlocked && (
+                        <div className="promo-project-hint promo-project-hint-error">
+                          {vkSubscribeCapabilityReason}
+                        </div>
+                      )}
                       {!isVkRuntime && (
                         <div className="promo-project-actions">
                           <button className="link-tool secondary" type="button" onClick={openChannelSetup}>
@@ -5613,6 +5744,68 @@ export default function App() {
                           <button className="link-tool secondary" type="button" onClick={openGroupSetup}>
                             Подключить группу
                           </button>
+                        </div>
+                      )}
+                      {isVkRuntime && vkGroupConnectOpen && (
+                        <div className="promo-vk-connect-sheet" role="group" aria-label="Добавление VK-сообщества">
+                          <label className="field">
+                            <span>Ссылка на VK-сообщество</span>
+                            <input
+                              type="text"
+                              placeholder="https://vk.com/public123"
+                              value={vkGroupInviteLink}
+                              onChange={(event) => setVkGroupInviteLink(event.target.value)}
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Название (опционально)</span>
+                            <input
+                              type="text"
+                              placeholder="Если пусто, подтянем из VK"
+                              value={vkGroupTitleInput}
+                              onChange={(event) => setVkGroupTitleInput(event.target.value)}
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Категория (опционально)</span>
+                            <input
+                              type="text"
+                              placeholder="Например: Бизнес, Новости"
+                              value={vkGroupCategoryInput}
+                              onChange={(event) => setVkGroupCategoryInput(event.target.value)}
+                            />
+                          </label>
+                          {!vkGroupTitleValid && (
+                            <div className="promo-vk-connect-hint error">
+                              Название проекта должно содержать минимум 3 символа.
+                            </div>
+                          )}
+                          {!vkGroupCreateError && vkGroupInviteLinkTrimmed && !vkGroupInviteLinkValid && (
+                            <div className="promo-vk-connect-hint error">
+                              Укажите корректную ссылку VK-сообщества.
+                            </div>
+                          )}
+                          {vkGroupCreateError && (
+                            <div className="promo-vk-connect-hint error">{vkGroupCreateError}</div>
+                          )}
+                          <div className="promo-vk-connect-actions">
+                            <button
+                              className="link-tool secondary"
+                              type="button"
+                              onClick={closeVkGroupConnectSheet}
+                              disabled={vkGroupCreateLoading}
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              className="link-tool highlight-blue"
+                              type="button"
+                              onClick={() => void handleCreateVkGroup()}
+                              disabled={vkGroupConnectSubmitDisabled}
+                            >
+                              {vkGroupCreateLoading ? 'Добавляем…' : 'Добавить и выбрать'}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -5651,8 +5844,22 @@ export default function App() {
                           <div className="link-picker-status error">{myGroupsError}</div>
                         )}
                         {!myGroupsLoading && !myGroupsError && myGroupsLoaded && myGroups.length === 0 && (
-                          <div className="link-picker-status">
-                            {isVkRuntime ? 'Пока нет добавленных VK-сообществ.' : 'Пока нет добавленных групп.'}
+                          <div className="link-picker-status link-picker-status-empty">
+                            <span>
+                              {isVkRuntime
+                                ? 'Пока нет добавленных VK-сообществ.'
+                                : 'Пока нет добавленных групп.'}
+                            </span>
+                            {isVkRuntime && (
+                              <button
+                                className="link-tool secondary link-picker-empty-action"
+                                type="button"
+                                onClick={openVkGroupConnectSheet}
+                                disabled={vkGroupCreateLoading || vkGroupAddBlocked}
+                              >
+                                Добавить первое VK-сообщество
+                              </button>
+                            )}
                           </div>
                         )}
                         {!myGroupsLoading &&

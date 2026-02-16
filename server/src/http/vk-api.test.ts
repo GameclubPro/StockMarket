@@ -9,6 +9,10 @@ test('resolveVkGroupRefFromLink supports vk community links and wall links', () 
   assert.equal(resolveVkGroupRefFromLink('https://vk.com/wall-555_777'), '-555');
   assert.equal(resolveVkGroupRefFromLink('https://vk.com/id99'), '99');
   assert.equal(resolveVkGroupRefFromLink('https://vk.com/my_project'), 'my_project');
+  assert.equal(resolveVkGroupRefFromLink('public12345'), '-12345');
+  assert.equal(resolveVkGroupRefFromLink('club987'), '-987');
+  assert.equal(resolveVkGroupRefFromLink('wall-555_777'), '-555');
+  assert.equal(resolveVkGroupRefFromLink('my_project'), 'my_project');
 });
 
 test('resolveVkGroupRefFromLink rejects non-vk links', () => {

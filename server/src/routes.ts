@@ -25,6 +25,7 @@ import { isVkLaunchParamsPayload, verifyVkLaunchParams } from './vk.js';
 import {
   checkVkMembership,
   isVkSubscribeAutoAvailable,
+  resolveVkGroupForCreate,
   resolveVkGroupId,
   resolveVkGroupRefFromLink,
   type VkMembershipResult,
@@ -55,9 +56,17 @@ const platformSwitchSchema = z.object({
 });
 
 const groupCreateSchema = z.object({
-  title: z.string().min(3).max(80),
+  title: z
+    .string()
+    .max(80)
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : undefined)),
   username: z.string().max(64).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
-  inviteLink: z.string().url(),
+  inviteLink: z
+    .string()
+    .max(500)
+    .transform((v) => v.trim())
+    .refine((v) => v.length > 0, { message: 'inviteLink is required' }),
   description: z.string().max(500).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
   category: z.string().max(50).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
 });
@@ -411,7 +420,7 @@ const TG_LINK_CODE_PREFIX = 'link_';
 const TG_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения Telegram-аккаунта.';
 const VK_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения VK-аккаунта.';
 const VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON =
-  'VK SUBSCRIBE временно недоступен: на сервере не настроен VK_API_TOKEN.';
+  'VK SUBSCRIBE и подключение сообществ временно недоступны: на сервере не настроен VK_API_TOKEN.';
 
 const getVkVerifyRetrySec = () => Math.max(1, Math.floor(config.vkVerifyRetrySec || 10));
 const getVkVerifyCooldownMs = () => getVkVerifyRetrySec() * 1000;
@@ -504,6 +513,12 @@ const attachApplicationVerification = <
 const ensureVkSubscribeAutoEnabled = () => {
   if (!isVkSubscribeAutoAvailable()) {
     throw new ApiError('vk_subscribe_auto_unavailable', 409);
+  }
+};
+
+const ensureVkGroupAddEnabled = () => {
+  if (!isVkSubscribeAutoAvailable()) {
+    throw new ApiError('vk_group_add_unavailable', 409);
   }
 };
 
@@ -3887,42 +3902,47 @@ export const registerRoutes = (app: FastifyInstance) => {
       if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
       if (runtimePlatform === 'VK') {
-        try {
-          const inviteUrl = new URL(parsed.data.inviteLink);
-          const host = inviteUrl.hostname.toLowerCase();
-          if (host !== 'vk.com' && host !== 'www.vk.com' && host !== 'm.vk.com') {
-            return reply.code(400).send({
-              ok: false,
-              error: 'Для VK-проекта используйте ссылку vk.com.',
-            });
-          }
-        } catch {
-          return reply.code(400).send({ ok: false, error: 'invalid body' });
+        ensureVkGroupAddEnabled();
+
+        const resolved = await resolveVkGroupForCreate(parsed.data.inviteLink);
+        if (!resolved) {
+          throw new ApiError('vk_group_link_invalid', 400);
+        }
+
+        if (parsed.data.title && parsed.data.title.length < 3) {
+          throw new ApiError('group_title_too_short', 400);
+        }
+
+        const resolvedTitle = (parsed.data.title || resolved.name || '').trim();
+        if (!resolvedTitle) {
+          throw new ApiError('vk_group_title_missing', 400);
         }
 
         let group = await prisma.group.findFirst({
           where: {
             ownerId: user.id,
             platform: 'VK',
-            inviteLink: parsed.data.inviteLink,
+            inviteLink: resolved.canonicalInviteLink,
           },
+          orderBy: { createdAt: 'desc' },
         });
         if (group) {
           group = await prisma.group.update({
             where: { id: group.id },
             data: {
-              title: parsed.data.title,
-              inviteLink: parsed.data.inviteLink,
+              title: resolvedTitle,
+              inviteLink: resolved.canonicalInviteLink,
               description: parsed.data.description,
               category: parsed.data.category,
+              platform: 'VK',
             },
           });
         } else {
           group = await prisma.group.create({
             data: {
               ownerId: user.id,
-              title: parsed.data.title,
-              inviteLink: parsed.data.inviteLink,
+              title: resolvedTitle,
+              inviteLink: resolved.canonicalInviteLink,
               description: parsed.data.description,
               category: parsed.data.category,
               platform: 'VK',
@@ -3944,6 +3964,13 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(400).send({
           ok: false,
           error: 'Укажите публичный @username (например, @my_channel).',
+        });
+      }
+
+      if (!parsed.data.title || parsed.data.title.length < 3) {
+        return reply.code(400).send({
+          ok: false,
+          error: 'Название проекта должно быть не короче 3 символов.',
         });
       }
 

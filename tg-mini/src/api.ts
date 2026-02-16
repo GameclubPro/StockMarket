@@ -330,7 +330,7 @@ export const rejectApplication = async (id: string) => {
 };
 
 export const createGroup = async (payload: {
-  title: string;
+  title?: string;
   username?: string;
   inviteLink: string;
   description?: string;

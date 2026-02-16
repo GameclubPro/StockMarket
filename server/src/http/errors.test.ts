@@ -9,6 +9,8 @@ test('normalizeApiError maps common auth and business errors', () => {
   assert.equal(normalizeApiError(new Error('not owner')).status, 403);
   assert.equal(normalizeApiError(new Error('platform_link_code_invalid')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_subscribe_auto_unavailable')).status, 409);
+  assert.equal(normalizeApiError(new Error('vk_group_add_unavailable')).status, 409);
+  assert.equal(normalizeApiError(new Error('vk_group_link_invalid')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_verify_retry_cooldown')).status, 429);
   assert.equal(normalizeApiError(new Error('vk_verify_unavailable')).status, 503);
   assert.equal(normalizeApiError(new Error('user_blocked')).status, 423);
@@ -29,6 +31,14 @@ test('toPublicErrorMessage applies user-friendly replacements', () => {
   assert.equal(
     toPublicErrorMessage('vk_subscribe_auto_only'),
     'Эта VK-подписка проверяется автоматически. Ручная модерация отключена.'
+  );
+  assert.equal(
+    toPublicErrorMessage('vk_group_add_unavailable'),
+    'Подключение VK-сообщества недоступно: на сервере не настроен VK_API_TOKEN.'
+  );
+  assert.equal(
+    toPublicErrorMessage('group_title_too_short'),
+    'Название проекта должно содержать минимум 3 символа.'
   );
   assert.equal(toPublicErrorMessage('user_blocked'), 'user_blocked');
   assert.equal(toPublicErrorMessage('unknown_error'), 'unknown_error');

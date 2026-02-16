@@ -37,6 +37,7 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'already reviewed' ||
     message === 'cooldown' ||
     message === 'vk_subscribe_auto_unavailable' ||
+    message === 'vk_group_add_unavailable' ||
     message === 'vk_recheck_not_supported' ||
     message === 'vk_subscribe_auto_only'
   ) {
@@ -58,7 +59,10 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'platform_link_code_invalid' ||
     message === 'platform_link_code_already_used' ||
     message === 'platform_link_code_expired' ||
-    message === 'vk_subscribe_link_invalid'
+    message === 'vk_subscribe_link_invalid' ||
+    message === 'vk_group_link_invalid' ||
+    message === 'vk_group_title_missing' ||
+    message === 'group_title_too_short'
   ) {
     return 400;
   }
@@ -103,6 +107,9 @@ export const toPublicErrorMessage = (message: string) => {
   if (message === 'vk_subscribe_auto_unavailable') {
     return 'Автопроверка вступления VK временно недоступна. Попробуйте позже.';
   }
+  if (message === 'vk_group_add_unavailable') {
+    return 'Подключение VK-сообщества недоступно: на сервере не настроен VK_API_TOKEN.';
+  }
   if (message === 'vk_verify_retry_cooldown') {
     return 'Слишком рано для повторной проверки. Подождите несколько секунд.';
   }
@@ -117,6 +124,15 @@ export const toPublicErrorMessage = (message: string) => {
   }
   if (message === 'vk_subscribe_link_invalid') {
     return 'Ссылка на VK-сообщество некорректна. Проверьте формат ссылки.';
+  }
+  if (message === 'vk_group_link_invalid') {
+    return 'Не удалось определить VK-сообщество по ссылке. Проверьте ссылку и попробуйте снова.';
+  }
+  if (message === 'vk_group_title_missing') {
+    return 'Не удалось получить название VK-сообщества. Укажите название вручную.';
+  }
+  if (message === 'group_title_too_short') {
+    return 'Название проекта должно содержать минимум 3 символа.';
   }
   if (message === 'user_blocked') return 'user_blocked';
   return message;
