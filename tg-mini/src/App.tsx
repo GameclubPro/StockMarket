@@ -283,7 +283,7 @@ const getHealthTone = (score: number) => {
 
 const mapVkImportTokenErrorMessage = (code: string) => {
   if (code === 'vk_user_token_invalid') {
-    return 'VK не принял текущий токен пользователя для импорта сообществ. Проверьте доступ приложения и повторите.';
+    return 'VK не принял текущий токен пользователя для импорта сообществ. Проверьте доступ приложения, режим тестирования и повторите.';
   }
   if (code === 'vk_user_token_scope_missing') {
     return 'Токен выдан без права `groups`. Разрешите доступ к сообществам VK и повторите.';
@@ -5925,7 +5925,8 @@ export default function App() {
                         <div className="promo-project-hint promo-project-hint-note promo-project-hint-recovery">
                           <span>Если окно доступа не появляется:</span>
                           <span>1. VK -&gt; Настройки -&gt; Приложения и сайты -&gt; удалить доступ приложению.</span>
-                          <span>2. Перезапустите mini app и повторите импорт.</span>
+                          <span>2. В кабинете VK добавьте ваш аккаунт в группу тестирования mini app.</span>
+                          <span>3. Перезапустите mini app и повторите импорт.</span>
                         </div>
                       )}
                       {isVkRuntime && vkImportError && isVkTokenErrorCode(vkImportErrorCode) && (
