@@ -189,6 +189,39 @@ test('resolveVkUserIdByToken maps expired token', { concurrency: false }, async 
   }
 });
 
+test('resolveVkUserIdByToken maps scope missing from code 5 details', { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(
+      JSON.stringify({
+        error: {
+          error_code: 5,
+          error_msg: 'User authorization failed: no access to groups',
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(async () => {
+      try {
+        await resolveVkUserIdByToken('scope-token');
+      } catch (error) {
+        const meta = extractErrorMeta(error);
+        assert.equal(meta.message, 'vk_user_token_scope_missing');
+        assert.equal(meta.code, 'vk_user_token_scope_missing');
+        throw error;
+      }
+    }, /vk_user_token_scope_missing/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('fetchVkAdminGroups maps invalid user token', { concurrency: false }, async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => {

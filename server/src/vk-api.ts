@@ -107,6 +107,26 @@ const classifyVkUserTokenError = (message: string): {
 
   if (!parsed) return null;
 
+  const detailsNormalized = parsed.details.toLowerCase();
+  const scopeMissingByDetails =
+    (detailsNormalized.includes('permission') ||
+      detailsNormalized.includes('access denied') ||
+      detailsNormalized.includes('no access') ||
+      detailsNormalized.includes('scope') ||
+      detailsNormalized.includes('доступ') ||
+      detailsNormalized.includes('прав')) &&
+    (detailsNormalized.includes('group') ||
+      detailsNormalized.includes('groups') ||
+      detailsNormalized.includes('сообществ') ||
+      detailsNormalized.includes('групп'));
+
+  if (scopeMissingByDetails) {
+    return {
+      code: 'vk_user_token_scope_missing',
+      vkApiErrorCode: parsed.code,
+    };
+  }
+
   if (parsed.code === 29) {
     return {
       code: 'vk_verify_unavailable',
