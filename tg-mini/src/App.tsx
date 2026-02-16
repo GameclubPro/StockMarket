@@ -283,10 +283,10 @@ const getHealthTone = (score: number) => {
 
 const mapVkImportTokenErrorMessage = (code: string) => {
   if (code === 'vk_user_token_invalid') {
-    return 'Нет доступа к VK токену. Разрешите доступ к группам и повторите.';
+    return 'VK не принял текущий токен пользователя для импорта сообществ. Проверьте доступ приложения и повторите.';
   }
   if (code === 'vk_user_token_scope_missing') {
-    return 'Приложению не выданы права к группам VK. Разрешите доступ и повторите.';
+    return 'Токен выдан без права `groups`. Разрешите доступ к сообществам VK и повторите.';
   }
   if (code === 'vk_user_token_expired') {
     return 'Токен истек. Повторите импорт и подтвердите доступ.';
@@ -298,7 +298,7 @@ const mapVkImportTokenErrorMessage = (code: string) => {
     return 'VK API временно недоступен. Повторите импорт через несколько секунд.';
   }
   if (code === 'vk_token_access_denied') {
-    return 'Вы отклонили доступ к группам VK. Разрешите доступ и повторите.';
+    return 'Доступ к сообществам VK отклонен. Разрешите доступ и повторите.';
   }
   if (code === 'vk_token_app_id_missing') {
     return 'Не найден VK app id. Нужен `VITE_VK_APP_ID=54453849` в фронте.';
@@ -321,17 +321,29 @@ const isVkTokenErrorCode = (code: string) =>
   code === 'vk_user_token_scope_missing' ||
   code === 'vk_user_token_expired';
 
-const getApiErrorDetailsCode = (error: unknown) => {
-  if (!(error instanceof ApiRequestError)) return '';
+const isVkImportRecoveryCode = (code: string) =>
+  code === 'vk_user_token_scope_missing' ||
+  code === 'vk_user_token_invalid' ||
+  code === 'vk_token_access_denied';
+
+const getApiErrorDetails = (error: unknown) => {
+  if (!(error instanceof ApiRequestError)) return { code: '', vkApiErrorCode: null };
   const payload = error.payload as
     | {
         details?: {
           code?: unknown;
+          vkApiErrorCode?: unknown;
         };
       }
     | null;
   const code = payload?.details?.code;
-  return typeof code === 'string' ? code : '';
+  const vkApiCodeRaw = payload?.details?.vkApiErrorCode;
+  const vkApiErrorCode =
+    typeof vkApiCodeRaw === 'number' && Number.isFinite(vkApiCodeRaw) ? vkApiCodeRaw : null;
+  return {
+    code: typeof code === 'string' ? code : '',
+    vkApiErrorCode,
+  };
 };
 
 const getBlockedPayloadFromError = (error: unknown): BlockedPayload | null => {
@@ -815,6 +827,7 @@ export default function App() {
   const [vkImportLoading, setVkImportLoading] = useState(false);
   const [vkImportErrorCode, setVkImportErrorCode] = useState('');
   const [vkImportError, setVkImportError] = useState('');
+  const [vkImportApiErrorCode, setVkImportApiErrorCode] = useState<number | null>(null);
   const [vkImportStatus, setVkImportStatus] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
@@ -1143,7 +1156,7 @@ export default function App() {
   const vkGroupCategoryTrimmed = vkGroupCategoryInput.trim();
   const vkGroupInviteLinkValid = isVkGroupLinkCandidate(vkGroupInviteLinkTrimmed);
   const vkGroupTitleValid = !vkGroupTitleTrimmed || vkGroupTitleTrimmed.length >= 3;
-  const vkGroupAddBlocked = isVkRuntime && !vkAdminImportAvailable;
+  const vkGroupAddBlocked = isVkRuntime && !vkSubscribeAutoAvailable;
   const vkImportBlocked = isVkRuntime && !vkAdminImportAvailable;
   const vkGroupConnectSubmitDisabled =
     vkGroupCreateLoading || vkGroupAddBlocked || !vkGroupInviteLinkValid || !vkGroupTitleValid;
@@ -1726,6 +1739,7 @@ export default function App() {
 
     setVkImportErrorCode('');
     setVkImportError('');
+    setVkImportApiErrorCode(null);
     setVkImportStatus('');
 
     if (vkImportBlocked) {
@@ -1764,16 +1778,19 @@ export default function App() {
       return true;
     } catch (error: any) {
       if (handleBlockedApiError(error)) return false;
-      const detailsCode = getApiErrorDetailsCode(error);
+      const details = getApiErrorDetails(error);
+      const detailsCode = details.code;
       const messageCode = typeof error?.message === 'string' ? error.message : '';
       const errorCode = detailsCode || messageCode;
       const fallback = 'Не удалось импортировать VK-сообщества.';
       const tokenErrorMessage = mapVkImportTokenErrorMessage(errorCode);
       if (tokenErrorMessage) {
         setVkImportErrorCode(errorCode);
+        setVkImportApiErrorCode(details.vkApiErrorCode);
         setVkImportError(tokenErrorMessage);
       } else {
         setVkImportErrorCode(errorCode);
+        setVkImportApiErrorCode(details.vkApiErrorCode);
         setVkImportError(error?.message ?? fallback);
       }
       return false;
@@ -5893,9 +5910,21 @@ export default function App() {
                           {vkImportError}
                         </div>
                       )}
+                      {isVkRuntime && vkImportError && isVkImportRecoveryCode(vkImportErrorCode) && (
+                        <div className="promo-project-hint promo-project-hint-note promo-project-hint-recovery">
+                          <span>Если окно доступа не появляется:</span>
+                          <span>1. VK -&gt; Настройки -&gt; Приложения и сайты -&gt; удалить доступ приложению.</span>
+                          <span>2. Перезапустите mini app и повторите импорт.</span>
+                        </div>
+                      )}
                       {isVkRuntime && vkImportError && isVkTokenErrorCode(vkImportErrorCode) && (
                         <div className="promo-project-hint promo-project-hint-note">
                           Можно добавить сообщество вручную по ссылке через кнопку выше.
+                        </div>
+                      )}
+                      {isVkRuntime && vkImportError && vkImportApiErrorCode !== null && (
+                        <div className="promo-project-hint promo-project-hint-note">
+                          Код VK API: {vkImportApiErrorCode}
                         </div>
                       )}
                       {isVkRuntime && vkImportStatus && (

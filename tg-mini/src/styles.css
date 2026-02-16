@@ -11088,6 +11088,11 @@ body::before {
   color: rgba(196, 222, 236, 0.9);
 }
 
+.promo-project-hint-recovery {
+  display: grid;
+  gap: 3px;
+}
+
 .promo-vk-connect-sheet {
   display: grid;
   gap: 10px;

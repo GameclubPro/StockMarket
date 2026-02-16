@@ -547,6 +547,13 @@ export const requestVkUserToken = async (scope = 'groups') => {
     throw new Error('vk_token_app_id_missing');
   }
 
+  const normalizeVkScopeList = (value: string) =>
+    value
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
   try {
     const response = (await bridge.send('VKWebAppGetAuthToken', {
       app_id: appId,
@@ -556,9 +563,20 @@ export const requestVkUserToken = async (scope = 'groups') => {
     if (!token) {
       throw new Error('vk_token_bridge_failed');
     }
+    const requestedScope = normalizeVkScopeList(scope);
+    if (requestedScope.length > 0) {
+      const grantedScope = new Set(normalizeVkScopeList(response?.scope ?? ''));
+      const hasAllScopes = requestedScope.every((entry) => grantedScope.has(entry));
+      if (!hasAllScopes) {
+        throw new Error('vk_user_token_scope_missing');
+      }
+    }
     return token;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('vk_token_')) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith('vk_token_') || error.message === 'vk_user_token_scope_missing')
+    ) {
       throw error;
     }
     throw new Error(parseVkBridgeErrorCode(error));

@@ -432,11 +432,11 @@ const VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON =
 const getVkVerifyRetrySec = () => Math.max(1, Math.floor(config.vkVerifyRetrySec || 10));
 const getVkVerifyCooldownMs = () => getVkVerifyRetrySec() * 1000;
 
-const getRuntimeCapabilities = (): RuntimeCapabilities => {
+const getRuntimeCapabilities = (runtimePlatform: RuntimePlatform): RuntimeCapabilities => {
   const vkSubscribeAutoAvailable = isVkSubscribeAutoAvailable();
   return {
     vkSubscribeAutoAvailable,
-    vkAdminImportAvailable: vkSubscribeAutoAvailable,
+    vkAdminImportAvailable: runtimePlatform === 'VK',
     vkReactionManual: true,
     reason: vkSubscribeAutoAvailable ? undefined : VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON,
   };
@@ -3595,7 +3595,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         runtimePlatform,
         balance: user.balance,
         stats: { groups, campaigns, applications },
-        capabilities: getRuntimeCapabilities(),
+        capabilities: getRuntimeCapabilities(runtimePlatform),
       };
     } catch (error) {
       return sendRouteError(reply, error, 400);
@@ -4121,8 +4121,6 @@ export const registerRoutes = (app: FastifyInstance) => {
           details: { code: 'vk_user_token_invalid' },
         });
       }
-
-      ensureVkGroupAddEnabled();
 
       const vkExternalId = await resolveVkExternalId(prisma, user);
       if (!vkExternalId) {
