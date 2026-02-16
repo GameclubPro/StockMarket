@@ -55,6 +55,7 @@ import {
   getUserPhotoUrl,
   initTelegram,
   loadPlatformProfile,
+  requestVkGroupsPermission,
   requestVkUserToken,
 } from './telegram';
 
@@ -832,6 +833,8 @@ export default function App() {
   const [vkGroupCategoryInput, setVkGroupCategoryInput] = useState('');
   const [vkGroupCreateLoading, setVkGroupCreateLoading] = useState(false);
   const [vkGroupCreateError, setVkGroupCreateError] = useState('');
+  const [vkPermissionLoading, setVkPermissionLoading] = useState(false);
+  const [vkPermissionStatus, setVkPermissionStatus] = useState('');
   const [vkImportLoading, setVkImportLoading] = useState(false);
   const [vkImportErrorCode, setVkImportErrorCode] = useState('');
   const [vkImportError, setVkImportError] = useState('');
@@ -1770,6 +1773,7 @@ export default function App() {
   const handleImportVkGroups = useCallback(async () => {
     if (!isVkRuntime) return false;
 
+    setVkPermissionStatus('');
     setVkImportErrorCode('');
     setVkImportError('');
     setVkImportApiErrorCode(null);
@@ -1840,6 +1844,40 @@ export default function App() {
     vkImportBlocked,
     vkSubscribeCapabilityReason,
   ]);
+
+  const handleRequestVkGroupsPermission = useCallback(async () => {
+    if (!isVkRuntime) return false;
+
+    setVkPermissionStatus('');
+    setVkImportErrorCode('');
+    setVkImportError('');
+    setVkImportApiErrorCode(null);
+    setVkImportApiErrorMessage('');
+    setVkImportStatus('');
+
+    if (vkImportBlocked) {
+      setVkImportErrorCode('vk_group_add_unavailable');
+      setVkImportError(vkSubscribeCapabilityReason);
+      return false;
+    }
+
+    setVkPermissionLoading(true);
+    try {
+      await requestVkGroupsPermission();
+      setVkPermissionStatus(
+        'Доступ к группам VK подтвержден. Теперь нажмите «Импортировать мои VK-сообщества».'
+      );
+      return true;
+    } catch (error: any) {
+      const errorCode = typeof error?.message === 'string' ? error.message : '';
+      const tokenErrorMessage = mapVkImportTokenErrorMessage(errorCode);
+      setVkImportErrorCode(errorCode);
+      setVkImportError(tokenErrorMessage || 'Не удалось запросить доступ к группам VK.');
+      return false;
+    } finally {
+      setVkPermissionLoading(false);
+    }
+  }, [isVkRuntime, vkImportBlocked, vkSubscribeCapabilityReason]);
 
   const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -5921,6 +5959,14 @@ export default function App() {
                           <button
                             className="link-tool secondary"
                             type="button"
+                            onClick={() => void handleRequestVkGroupsPermission()}
+                            disabled={vkPermissionLoading || vkImportLoading || vkImportBlocked}
+                          >
+                            {vkPermissionLoading ? 'Запрашиваем доступ…' : 'Разрешить доступ к группам VK'}
+                          </button>
+                          <button
+                            className="link-tool secondary"
+                            type="button"
                             onClick={openVkGroupConnectSheet}
                             disabled={vkGroupCreateLoading || vkGroupAddBlocked}
                           >
@@ -5967,6 +6013,11 @@ export default function App() {
                       {isVkRuntime && vkImportError && vkImportApiErrorMessage && (
                         <div className="promo-project-hint promo-project-hint-note">
                           VK API: {vkImportApiErrorMessage}
+                        </div>
+                      )}
+                      {isVkRuntime && vkPermissionStatus && (
+                        <div className="promo-project-hint promo-project-hint-success">
+                          {vkPermissionStatus}
                         </div>
                       )}
                       {isVkRuntime && vkImportStatus && (
