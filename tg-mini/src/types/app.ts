@@ -85,6 +85,12 @@ export type ImportVkGroupsResponse = {
   syncedAt: string;
 };
 
+export type VkBridgeImportGroup = {
+  id: number;
+  name: string;
+  screen_name?: string;
+};
+
 export type DailyBonusStatus = {
   available: boolean;
   lastSpinAt?: string | null;

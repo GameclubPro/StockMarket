@@ -24,6 +24,7 @@ import {
   fetchMyGroups,
   hideCampaign,
   importVkAdminGroups,
+  importVkAdminGroupsFromBridge,
   moderateCampaign,
   recheckApplication,
   reportCampaign,
@@ -38,6 +39,7 @@ import {
   type CampaignReportReason,
   type DailyBonusStatus,
   type GroupDto,
+  type ImportVkGroupsResponse,
   type ReferralBonus,
   type ReferralListItem,
   type ReferralStats,
@@ -55,6 +57,7 @@ import {
   getUserPhotoUrl,
   initTelegram,
   loadPlatformProfile,
+  fetchVkAdminGroupsViaBridge,
   requestVkUserToken,
 } from './telegram';
 
@@ -1821,9 +1824,30 @@ export default function App() {
     }
 
     setVkImportLoading(true);
+    let usedBridgeFallback = false;
     try {
       const vkUserToken = await requestVkUserToken('groups');
-      const data = await importVkAdminGroups(vkUserToken);
+      let data: ImportVkGroupsResponse;
+      try {
+        data = await importVkAdminGroups(vkUserToken);
+      } catch (error: any) {
+        const details = getApiErrorDetails(error);
+        const detailsCode = details.code;
+        const messageCode = typeof error?.message === 'string' ? error.message : '';
+        const errorCode = detailsCode || messageCode;
+        const shouldUseBridgeFallback = isVkTokenIpMismatchError({
+          code: errorCode,
+          vkApiErrorCode: details.vkApiErrorCode,
+          vkApiErrorMessage: details.vkApiErrorMessage,
+        });
+        if (!shouldUseBridgeFallback) {
+          throw error;
+        }
+        const vkAdminGroups = await fetchVkAdminGroupsViaBridge(vkUserToken);
+        data = await importVkAdminGroupsFromBridge(vkAdminGroups);
+        usedBridgeFallback = true;
+      }
+
       if (!data.ok || !Array.isArray(data.groups)) {
         throw new Error('Не удалось импортировать VK-сообщества.');
       }
@@ -1843,7 +1867,9 @@ export default function App() {
       const updated = Number(data.updated ?? 0);
       const skipped = Number(data.skipped ?? 0);
       if (imported > 0 || updated > 0) {
-        setVkImportStatus(`Импортировано: ${imported}, обновлено: ${updated}, без изменений: ${skipped}.`);
+        setVkImportStatus(
+          `Импортировано: ${imported}, обновлено: ${updated}, без изменений: ${skipped}.${usedBridgeFallback ? ' Данные получены через VK bridge.' : ''}`
+        );
       } else {
         setVkImportStatus('Новых VK-сообществ не найдено. Список уже актуален.');
       }

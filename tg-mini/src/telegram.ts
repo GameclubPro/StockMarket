@@ -41,6 +41,27 @@ type VkBridgeAuthTokenResponse = {
   expires_in?: number;
 };
 
+type VkBridgeApiError = {
+  error_code?: number;
+  error_msg?: string;
+};
+
+type VkBridgeApiMethodResponse<T> = {
+  response?: T;
+  error?: VkBridgeApiError;
+};
+
+type VkBridgeGroupItem = {
+  id?: number;
+  name?: string;
+  screen_name?: string;
+};
+
+type VkBridgeGroupsGetResponse = {
+  count?: number;
+  items?: VkBridgeGroupItem[];
+};
+
 type VkBridgeErrorPayload = {
   error_type?: string;
   error_data?: {
@@ -59,6 +80,11 @@ export type PlatformUserProfile = {
   photoUrl?: string;
 };
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
+type VkBridgeImportGroup = {
+  id: number;
+  name: string;
+  screen_name?: string;
+};
 
 const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
 const TG_LINK_PARAM_PREFIX = 'link_';
@@ -380,6 +406,91 @@ const parseVkBridgeErrorCode = (error: unknown) => {
   return 'vk_token_bridge_failed';
 };
 
+const classifyVkApiTokenErrorCode = (payload: { code: number; message: string }) => {
+  const normalized = payload.message.toLowerCase();
+
+  if (
+    normalized.includes('expired') ||
+    normalized.includes('истек') ||
+    normalized.includes('session expired') ||
+    normalized.includes('token has expired')
+  ) {
+    return 'vk_user_token_expired';
+  }
+
+  const scopeMissingByMessage =
+    (normalized.includes('permission') ||
+      normalized.includes('access denied') ||
+      normalized.includes('no access') ||
+      normalized.includes('scope') ||
+      normalized.includes('доступ') ||
+      normalized.includes('прав')) &&
+    (normalized.includes('group') ||
+      normalized.includes('groups') ||
+      normalized.includes('сообществ') ||
+      normalized.includes('групп'));
+
+  if (scopeMissingByMessage || payload.code === 7 || payload.code === 15) {
+    return 'vk_user_token_scope_missing';
+  }
+
+  return 'vk_user_token_invalid';
+};
+
+const normalizeVkGroupScreenName = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (!/^[a-z0-9_.]{2,64}$/i.test(normalized)) return undefined;
+  return normalized;
+};
+
+const requestVkApiMethodViaBridge = async <T>(
+  method: string,
+  params: Record<'access_token', string> & Record<string, string | number>
+) => {
+  try {
+    const payload = (await bridge.send('VKWebAppCallAPIMethod', {
+      method,
+      request_id: `jr_${method}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      params: {
+        ...params,
+        v: '5.199',
+      },
+    })) as VkBridgeApiMethodResponse<T>;
+
+    if (payload?.error) {
+      const code = Number(payload.error.error_code ?? 0);
+      const message = payload.error.error_msg?.trim() || 'vk_api_error';
+      const classified = classifyVkApiTokenErrorCode({
+        code: Number.isFinite(code) ? code : 0,
+        message,
+      });
+      throw new Error(classified);
+    }
+
+    if (typeof payload?.response === 'undefined') {
+      throw new Error('vk_token_bridge_failed');
+    }
+
+    return payload.response;
+  } catch (error) {
+    if (error instanceof Error) {
+      if (
+        error.message === 'vk_user_token_invalid' ||
+        error.message === 'vk_user_token_scope_missing' ||
+        error.message === 'vk_user_token_expired'
+      ) {
+        throw error;
+      }
+      if (error.message.startsWith('vk_token_')) {
+        throw error;
+      }
+    }
+    throw new Error(parseVkBridgeErrorCode(error));
+  }
+};
+
 const normalizePlatformLinkCode = (value: string) => {
   const normalized = value.trim().toUpperCase();
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
@@ -581,6 +692,56 @@ export const requestVkUserToken = async (scope = 'groups') => {
     }
     throw new Error(parseVkBridgeErrorCode(error));
   }
+};
+
+export const fetchVkAdminGroupsViaBridge = async (vkUserToken: string) => {
+  if (!isVk()) {
+    throw new Error('vk_token_runtime_not_vk');
+  }
+
+  const token = vkUserToken.trim();
+  if (!token) {
+    throw new Error('vk_user_token_invalid');
+  }
+
+  const count = 1000;
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+  let page = 0;
+  const groupsMap = new Map<number, VkBridgeImportGroup>();
+
+  while (offset < total && page < 20) {
+    page += 1;
+    const response = await requestVkApiMethodViaBridge<VkBridgeGroupsGetResponse>('groups.get', {
+      filter: 'admin,editor,moder',
+      extended: 1,
+      count,
+      offset,
+      access_token: token,
+    });
+
+    const items = Array.isArray(response.items) ? response.items : [];
+    const totalRaw = Number(response.count ?? items.length);
+    total = Number.isFinite(totalRaw) && totalRaw >= 0 ? totalRaw : items.length;
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const id = Number(item.id ?? 0);
+      const groupId = Number.isFinite(id) ? Math.floor(id) : 0;
+      const name = typeof item.name === 'string' ? item.name.trim() : '';
+      if (groupId <= 0 || !name) continue;
+      const screenName = normalizeVkGroupScreenName(item.screen_name);
+      groupsMap.set(groupId, {
+        id: groupId,
+        name,
+        ...(screenName ? { screen_name: screenName } : {}),
+      });
+    }
+
+    offset += items.length;
+  }
+
+  return Array.from(groupsMap.values());
 };
 
 const initVk = () => {

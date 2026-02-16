@@ -30,6 +30,7 @@ import {
   resolveVkGroupId,
   resolveVkGroupRefFromLink,
   resolveVkUserIdByToken,
+  type VkImportedGroup,
   type VkMembershipResult,
 } from './vk-api.js';
 import {
@@ -75,6 +76,30 @@ const groupCreateSchema = z.object({
 
 const vkGroupsImportSchema = z.object({
   vkUserToken: z.string().max(4096).transform((value) => value.trim()),
+});
+
+const vkBridgeImportGroupSchema = z
+  .object({
+    id: z.coerce.number().int().positive(),
+    name: z.string().max(200).transform((value) => value.trim()),
+    screen_name: z
+      .string()
+      .max(64)
+      .optional()
+      .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+  })
+  .superRefine((value, context) => {
+    if (!value.name) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['name'],
+        message: 'name is required',
+      });
+    }
+  });
+
+const vkGroupsImportBridgeSchema = z.object({
+  groups: z.array(vkBridgeImportGroupSchema).max(20000),
 });
 
 const campaignCreateSchema = z.object({
@@ -540,6 +565,104 @@ const buildVkInviteLinkCandidates = (groupId: number, screenName?: string) => {
     set.add(`https://vk.com/${screenName.trim().toLowerCase()}`);
   }
   return Array.from(set);
+};
+
+const normalizeVkImportScreenName = (value?: string) => {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (!/^[a-z0-9_.]{2,64}$/i.test(normalized)) return undefined;
+  return normalized;
+};
+
+const toVkImportedGroup = (payload: { id: number; name: string; screen_name?: string }): VkImportedGroup | null => {
+  const groupId = Math.max(1, Math.floor(Number(payload.id)));
+  if (!Number.isFinite(groupId) || groupId <= 0) return null;
+  const name = payload.name.trim();
+  if (!name) return null;
+  const screenName = normalizeVkImportScreenName(payload.screen_name);
+  return {
+    groupId,
+    name,
+    screenName,
+    canonicalInviteLink: `https://vk.com/public${groupId}`,
+  };
+};
+
+const syncVkImportedGroupsForUser = async (payload: {
+  userId: string;
+  importedGroups: VkImportedGroup[];
+}) => {
+  const { userId, importedGroups } = payload;
+
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const vkGroup of importedGroups) {
+      const inviteLinkCandidates = buildVkInviteLinkCandidates(vkGroup.groupId, vkGroup.screenName);
+      const existing = await tx.group.findFirst({
+        where: {
+          ownerId: userId,
+          platform: 'VK',
+          inviteLink: { in: inviteLinkCandidates },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      let groupId: string;
+      if (!existing) {
+        const created = await tx.group.create({
+          data: {
+            ownerId: userId,
+            title: vkGroup.name,
+            inviteLink: vkGroup.canonicalInviteLink,
+            platform: 'VK',
+          },
+        });
+        imported += 1;
+        groupId = created.id;
+      } else {
+        const titleChanged = existing.title.trim() !== vkGroup.name;
+        if (titleChanged || existing.inviteLink !== vkGroup.canonicalInviteLink) {
+          await tx.group.update({
+            where: { id: existing.id },
+            data: {
+              title: vkGroup.name,
+              inviteLink: vkGroup.canonicalInviteLink,
+              platform: 'VK',
+            },
+          });
+          updated += 1;
+        } else {
+          skipped += 1;
+        }
+        groupId = existing.id;
+      }
+
+      await tx.groupAdmin.upsert({
+        where: { groupId_userId: { groupId, userId } },
+        update: {},
+        create: { groupId, userId },
+      });
+    }
+  });
+
+  const groups = await prisma.group.findMany({
+    where: {
+      platform: 'VK',
+      OR: [{ ownerId: userId }, { admins: { some: { userId } } }],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return {
+    imported,
+    updated,
+    skipped,
+    groups,
+  };
 };
 
 const resolveVkSubscribeMembership = async (payload: {
@@ -4269,77 +4392,17 @@ export const registerRoutes = (app: FastifyInstance) => {
         });
       }
 
-      let imported = 0;
-      let updated = 0;
-      let skipped = 0;
-
-      await prisma.$transaction(async (tx) => {
-        for (const vkGroup of importedGroups) {
-          const inviteLinkCandidates = buildVkInviteLinkCandidates(
-            vkGroup.groupId,
-            vkGroup.screenName
-          );
-          const existing = await tx.group.findFirst({
-            where: {
-              ownerId: user.id,
-              platform: 'VK',
-              inviteLink: { in: inviteLinkCandidates },
-            },
-            orderBy: { createdAt: 'desc' },
-          });
-
-          let groupId: string;
-          if (!existing) {
-            const created = await tx.group.create({
-              data: {
-                ownerId: user.id,
-                title: vkGroup.name,
-                inviteLink: vkGroup.canonicalInviteLink,
-                platform: 'VK',
-              },
-            });
-            imported += 1;
-            groupId = created.id;
-          } else {
-            const titleChanged = existing.title.trim() !== vkGroup.name;
-            if (titleChanged || existing.inviteLink !== vkGroup.canonicalInviteLink) {
-              await tx.group.update({
-                where: { id: existing.id },
-                data: {
-                  title: vkGroup.name,
-                  inviteLink: vkGroup.canonicalInviteLink,
-                  platform: 'VK',
-                },
-              });
-              updated += 1;
-            } else {
-              skipped += 1;
-            }
-            groupId = existing.id;
-          }
-
-          await tx.groupAdmin.upsert({
-            where: { groupId_userId: { groupId, userId: user.id } },
-            update: {},
-            create: { groupId, userId: user.id },
-          });
-        }
-      });
-
-      const groups = await prisma.group.findMany({
-        where: {
-          platform: 'VK',
-          OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
-        },
-        orderBy: { createdAt: 'desc' },
+      const syncResult = await syncVkImportedGroupsForUser({
+        userId: user.id,
+        importedGroups,
       });
 
       return {
         ok: true,
-        imported,
-        updated,
-        skipped,
-        groups,
+        imported: syncResult.imported,
+        updated: syncResult.updated,
+        skipped: syncResult.skipped,
+        groups: syncResult.groups,
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
@@ -4351,6 +4414,54 @@ export const registerRoutes = (app: FastifyInstance) => {
           details: { code: 'vk_group_add_unavailable' },
         });
       }
+      return sendRouteError(reply, normalized, 400);
+    }
+  });
+
+  app.post('/groups/import-vk-admin-bridge', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
+      if (runtimePlatform !== 'VK') {
+        return reply.code(409).send({
+          ok: false,
+          error: 'Импорт VK-сообществ доступен только в VK mini-app.',
+        });
+      }
+
+      const parsed = vkGroupsImportBridgeSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid body' });
+      }
+
+      const vkExternalId = await resolveVkExternalId(prisma, user);
+      if (!vkExternalId) {
+        return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
+      }
+
+      const importedGroupsMap = new Map<number, VkImportedGroup>();
+      for (const rawGroup of parsed.data.groups) {
+        const normalizedGroup = toVkImportedGroup(rawGroup);
+        if (!normalizedGroup) continue;
+        importedGroupsMap.set(normalizedGroup.groupId, normalizedGroup);
+      }
+
+      const importedGroups = Array.from(importedGroupsMap.values());
+      const syncResult = await syncVkImportedGroupsForUser({
+        userId: user.id,
+        importedGroups,
+      });
+
+      return {
+        ok: true,
+        imported: syncResult.imported,
+        updated: syncResult.updated,
+        skipped: syncResult.skipped,
+        groups: syncResult.groups,
+        syncedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      const normalized = normalizeApiError(error, 400);
       return sendRouteError(reply, normalized, 400);
     }
   });

@@ -16,6 +16,7 @@ import type {
   RuntimePlatform,
   SwitchLinkResponse,
   UserDto,
+  VkBridgeImportGroup,
   VerificationDto,
 } from './types/app';
 import { getInitDataRaw } from './telegram';
@@ -41,6 +42,7 @@ export type {
   RuntimePlatform,
   SwitchLinkResponse,
   UserDto,
+  VkBridgeImportGroup,
   VerificationDto,
 } from './types/app';
 
@@ -356,6 +358,15 @@ export const importVkAdminGroups = async (vkUserToken: string) => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ vkUserToken }),
+  });
+  return data as ImportVkGroupsResponse;
+};
+
+export const importVkAdminGroupsFromBridge = async (groups: VkBridgeImportGroup[]) => {
+  const data = await request('/api/groups/import-vk-admin-bridge', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ groups }),
   });
   return data as ImportVkGroupsResponse;
 };
