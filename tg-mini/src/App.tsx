@@ -282,6 +282,12 @@ const getHealthTone = (score: number) => {
 };
 
 const mapVkImportTokenErrorMessage = (code: string) => {
+  if (code === 'vk_user_token_invalid') {
+    return 'Нет доступа к VK токену. Разрешите доступ к группам и повторите.';
+  }
+  if (code === 'vk_identity_mismatch') {
+    return 'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.';
+  }
   if (code === 'vk_token_access_denied') {
     return 'Вы отклонили доступ к группам VK. Разрешите доступ и повторите.';
   }
@@ -300,7 +306,8 @@ const mapVkImportTokenErrorMessage = (code: string) => {
   return '';
 };
 
-const isVkTokenErrorCode = (code: string) => code.startsWith('vk_token_');
+const isVkTokenErrorCode = (code: string) =>
+  code.startsWith('vk_token_') || code === 'vk_user_token_invalid';
 
 const getBlockedPayloadFromError = (error: unknown): BlockedPayload | null => {
   if (!(error instanceof ApiRequestError)) return null;
