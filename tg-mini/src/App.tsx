@@ -282,7 +282,29 @@ const getHealthTone = (score: number) => {
   return 'critical';
 };
 
-const mapVkImportTokenErrorMessage = (code: string) => {
+const VK_TEST_MODE_ERROR_MARKERS = ['test mode', 'testing mode', 'тестов', 'режим'];
+
+const isVkTestingModeTokenError = (payload: {
+  code: string;
+  vkApiErrorCode: number | null;
+  vkApiErrorMessage: string;
+}) => {
+  if (payload.code !== 'vk_user_token_invalid') return false;
+  if (payload.vkApiErrorCode !== 5) return false;
+  const normalizedMessage = payload.vkApiErrorMessage.trim().toLowerCase();
+  if (!normalizedMessage) return false;
+  return VK_TEST_MODE_ERROR_MARKERS.some((marker) => normalizedMessage.includes(marker));
+};
+
+const mapVkImportTokenErrorMessage = (payload: {
+  code: string;
+  vkApiErrorCode: number | null;
+  vkApiErrorMessage: string;
+}) => {
+  const { code } = payload;
+  if (isVkTestingModeTokenError(payload)) {
+    return 'VK отклонил токен для этого аккаунта в тестовом режиме. Добавьте аккаунт в тестировщики mini app, удалите доступ приложению в VK и повторите импорт.';
+  }
   if (code === 'vk_user_token_invalid') {
     return 'VK не принял текущий токен пользователя для импорта сообществ. Проверьте доступ приложения, режим тестирования и повторите.';
   }
@@ -1817,7 +1839,11 @@ export default function App() {
       const messageCode = typeof error?.message === 'string' ? error.message : '';
       const errorCode = detailsCode || messageCode;
       const fallback = 'Не удалось импортировать VK-сообщества.';
-      const tokenErrorMessage = mapVkImportTokenErrorMessage(errorCode);
+      const tokenErrorMessage = mapVkImportTokenErrorMessage({
+        code: errorCode,
+        vkApiErrorCode: details.vkApiErrorCode,
+        vkApiErrorMessage: details.vkApiErrorMessage,
+      });
       if (tokenErrorMessage) {
         setVkImportErrorCode(errorCode);
         setVkImportApiErrorCode(details.vkApiErrorCode);
@@ -5949,8 +5975,8 @@ export default function App() {
                       {isVkRuntime && vkImportError && isVkImportRecoveryCode(vkImportErrorCode) && (
                         <div className="promo-project-hint promo-project-hint-note promo-project-hint-recovery">
                           <span>Если окно доступа не появляется:</span>
-                          <span>1. VK -&gt; Настройки -&gt; Приложения и сайты -&gt; удалить доступ приложению.</span>
-                          <span>2. В кабинете VK добавьте ваш аккаунт в группу тестирования mini app.</span>
+                          <span>1. В кабинете VK добавьте ваш аккаунт в группу тестирования mini app.</span>
+                          <span>2. VK -&gt; Настройки -&gt; Приложения и сайты -&gt; удалить доступ приложению.</span>
                           <span>3. Перезапустите mini app и повторите импорт.</span>
                         </div>
                       )}

@@ -642,6 +642,14 @@ const getVkImportTokenErrorMeta = (error: unknown) => {
   };
 };
 
+const VK_IMPORT_LOG_MESSAGE_LIMIT = 200;
+const trimVkImportLogMessage = (value?: string) => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (!normalized) return null;
+  if (normalized.length <= VK_IMPORT_LOG_MESSAGE_LIMIT) return normalized;
+  return `${normalized.slice(0, VK_IMPORT_LOG_MESSAGE_LIMIT)}...`;
+};
+
 const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
   const rawPayload = authPayload.trim();
   if (!rawPayload) throw new Error('empty auth payload');
@@ -4143,6 +4151,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             {
               vk_token_error_code: meta.code,
               vk_api_error_code: meta.vkApiErrorCode ?? null,
+              vk_api_error_message: trimVkImportLogMessage(meta.vkApiErrorMessage),
               vk_user_id: vkExternalId,
               runtimePlatform,
             },
@@ -4223,6 +4232,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             {
               vk_token_error_code: meta.code,
               vk_api_error_code: meta.vkApiErrorCode ?? null,
+              vk_api_error_message: trimVkImportLogMessage(meta.vkApiErrorMessage),
               vk_user_id: vkUserId,
               runtimePlatform,
             },
