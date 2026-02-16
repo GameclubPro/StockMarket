@@ -54,6 +54,7 @@ import {
   getUserLabel,
   getUserPhotoUrl,
   initTelegram,
+  loadPlatformProfile,
   requestVkUserToken,
 } from './telegram';
 
@@ -1444,6 +1445,30 @@ export default function App() {
   useLayoutEffect(() => {
     initTelegram();
   }, []);
+
+  useEffect(() => {
+    if (!isVkRuntime) return;
+    let cancelled = false;
+
+    const syncVkProfile = async () => {
+      try {
+        const profile = await loadPlatformProfile();
+        if (!profile || cancelled) return;
+        const label = profile.label?.trim() ?? '';
+        const photoUrl = profile.photoUrl?.trim() ?? '';
+        if (label) setUserLabel(label);
+        if (photoUrl) setUserPhoto(photoUrl);
+      } catch {
+        // noop
+      }
+    };
+
+    void syncVkProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isVkRuntime]);
 
   useEffect(() => {
     setUserLabel(getUserLabel());
