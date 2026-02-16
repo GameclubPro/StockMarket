@@ -41,13 +41,6 @@ type VkBridgeAuthTokenResponse = {
   expires_in?: number;
 };
 
-type VkBridgeAllowedScopeResponse = {
-  result?: Array<{
-    scope?: string;
-    allowed?: boolean;
-  }>;
-};
-
 type VkBridgeErrorPayload = {
   error_type?: string;
   error_data?: {
@@ -387,38 +380,6 @@ const parseVkBridgeErrorCode = (error: unknown) => {
   return 'vk_token_bridge_failed';
 };
 
-const normalizeVkScopeList = (value: string) =>
-  value
-    .toLowerCase()
-    .split(/[\s,]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
-const checkVkUserScope = async (scope = 'groups') => {
-  const requestedScope = normalizeVkScopeList(scope);
-  if (requestedScope.length === 0) return true;
-
-  try {
-    const response = (await bridge.send('VKWebAppCheckAllowedScopes', {
-      scopes: requestedScope.join(','),
-    })) as VkBridgeAllowedScopeResponse;
-
-    const entries = Array.isArray(response?.result) ? response.result : [];
-    if (entries.length === 0) return false;
-    const allowedMap = new Map<string, boolean>();
-    for (const entry of entries) {
-      const normalizedScope = typeof entry?.scope === 'string' ? entry.scope.trim().toLowerCase() : '';
-      if (!normalizedScope) continue;
-      allowedMap.set(normalizedScope, Boolean(entry?.allowed));
-    }
-    return requestedScope.every((entry) => allowedMap.get(entry) === true);
-  } catch (error) {
-    const parsedCode = parseVkBridgeErrorCode(error);
-    if (parsedCode === 'vk_token_method_unsupported') return null;
-    throw new Error(parsedCode);
-  }
-};
-
 const normalizePlatformLinkCode = (value: string) => {
   const normalized = value.trim().toUpperCase();
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
@@ -586,6 +547,13 @@ export const requestVkUserToken = async (scope = 'groups') => {
     throw new Error('vk_token_app_id_missing');
   }
 
+  const normalizeVkScopeList = (value: string) =>
+    value
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
   try {
     const response = (await bridge.send('VKWebAppGetAuthToken', {
       app_id: appId,
@@ -613,25 +581,6 @@ export const requestVkUserToken = async (scope = 'groups') => {
     }
     throw new Error(parseVkBridgeErrorCode(error));
   }
-};
-
-export const requestVkGroupsPermission = async () => {
-  if (!isVk()) {
-    throw new Error('vk_token_runtime_not_vk');
-  }
-
-  const scope = 'groups';
-  const permissionState = await checkVkUserScope(scope);
-  if (permissionState === true) {
-    return true;
-  }
-
-  await requestVkUserToken(scope);
-  const recheck = await checkVkUserScope(scope);
-  if (recheck === false) {
-    throw new Error('vk_user_token_scope_missing');
-  }
-  return true;
 };
 
 const initVk = () => {
