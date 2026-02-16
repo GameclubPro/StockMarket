@@ -749,11 +749,12 @@ export const fetchVkAdminGroupsViaBridge = async (
       const groupId = Number.isFinite(groupIdRaw) && groupIdRaw > 0 ? Math.round(groupIdRaw) : 0;
       const name = typeof item?.name === 'string' ? item.name.trim() : '';
       if (!groupId || !name) continue;
+      const screenName = normalizeVkScreenName(item?.screen_name);
       resultMap.set(groupId, {
         groupId,
         name,
-        screenName: normalizeVkScreenName(item?.screen_name),
-        canonicalInviteLink: `https://vk.com/public${groupId}`,
+        screenName,
+        canonicalInviteLink: screenName ? `https://vk.com/${screenName}` : `https://vk.com/public${groupId}`,
       });
     }
 

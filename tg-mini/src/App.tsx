@@ -1820,8 +1820,11 @@ export default function App() {
 
       for (const group of bridgeGroups) {
         try {
+          const inviteLink = group.screenName
+            ? `https://vk.com/${group.screenName}`
+            : group.canonicalInviteLink;
           const response = await createGroup({
-            inviteLink: group.canonicalInviteLink,
+            inviteLink,
             title: group.name,
           });
           if (!response.ok || !response.group) {
