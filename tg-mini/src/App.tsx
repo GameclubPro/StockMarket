@@ -40,6 +40,7 @@ import {
   type DailyBonusStatus,
   type GroupDto,
   type ImportVkGroupsResponse,
+  type LinkedPlatforms,
   type ReferralBonus,
   type ReferralListItem,
   type ReferralStats,
@@ -57,6 +58,7 @@ import {
   getUserPhotoUrl,
   initTelegram,
   loadPlatformProfile,
+  loadVkAuthProfile,
   fetchVkAdminGroupsViaBridge,
   requestVkUserToken,
 } from './telegram';
@@ -682,6 +684,10 @@ const isVkGroupLinkCandidate = (rawLink: string) => {
 };
 
 const formatPlatformLabel = (platform: RuntimePlatform) => (platform === 'VK' ? 'VK' : 'TG');
+const buildDefaultLinkedPlatforms = (runtimePlatform: RuntimePlatform): LinkedPlatforms => ({
+  telegram: { connected: runtimePlatform === 'TELEGRAM' },
+  vk: { connected: runtimePlatform === 'VK' },
+});
 const getAccountLabel = (user?: {
   firstName?: string | null;
   lastName?: string | null;
@@ -834,8 +840,12 @@ export default function App() {
   const [adminStaleCleanupLoading, setAdminStaleCleanupLoading] = useState(false);
   const [adminUnblockUserId, setAdminUnblockUserId] = useState('');
   const [blockedState, setBlockedState] = useState<BlockedPayload | null>(null);
+  const [linkedPlatforms, setLinkedPlatforms] = useState<LinkedPlatforms>(() =>
+    buildDefaultLinkedPlatforms(runtimePlatform)
+  );
   const [platformSwitchLoading, setPlatformSwitchLoading] = useState<RuntimePlatform | ''>('');
   const [platformSwitchError, setPlatformSwitchError] = useState('');
+  const [pendingVkBootstrapAfterLink, setPendingVkBootstrapAfterLink] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
   const [wheelRotation, setWheelRotation] = useState(DAILY_WHEEL_BASE_ROTATION);
@@ -1514,6 +1524,7 @@ export default function App() {
   useEffect(() => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
+    setLinkedPlatforms(buildDefaultLinkedPlatforms(runtimePlatform));
     const initData = getInitDataRaw();
     const linkCode = getPlatformLinkCode();
     const username =
@@ -1524,13 +1535,30 @@ export default function App() {
       if (!initData) return;
 
       try {
-        const data = await verifyInitData(initData, linkCode ? { linkCode } : undefined);
+        const vkProfile = isVkRuntime ? await loadVkAuthProfile() : null;
+        const verifyOptions =
+          linkCode || vkProfile
+            ? {
+                ...(linkCode ? { linkCode } : {}),
+                ...(vkProfile ? { vkProfile } : {}),
+              }
+            : undefined;
+        const data = await verifyInitData(initData, verifyOptions);
         if (typeof data.balance === 'number') setPoints(data.balance);
         if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
         if (typeof data.user?.id === 'string') setUserId(data.user.id);
         const accountLabel = getAccountLabel(data.user);
         if (accountLabel) setUserLabel(accountLabel);
         if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
+        if (data.accountLink?.performed) {
+          setLinkedPlatforms({
+            telegram: { connected: true },
+            vk: { connected: true },
+          });
+          if (isVkRuntime) {
+            setPendingVkBootstrapAfterLink(true);
+          }
+        }
         if (linkCode) {
           clearPlatformLinkCodeFromUrl();
         }
@@ -1551,7 +1579,7 @@ export default function App() {
     };
 
     void loadProfile();
-  }, []);
+  }, [isVkRuntime, runtimePlatform]);
 
   useEffect(() => {
     if (adminPanelAllowed) return;
@@ -1909,6 +1937,28 @@ export default function App() {
     vkSubscribeCapabilityReason,
   ]);
 
+  useEffect(() => {
+    if (!pendingVkBootstrapAfterLink || !isVkRuntime) return;
+    let cancelled = false;
+
+    const bootstrapVk = async () => {
+      const imported = await handleImportVkGroups();
+      if (!imported && !cancelled) {
+        setVkImportStatus(
+          'Привязка выполнена. Добавьте VK-сообщество вручную или повторите импорт.'
+        );
+      }
+      if (!cancelled) {
+        setPendingVkBootstrapAfterLink(false);
+      }
+    };
+
+    void bootstrapVk();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleImportVkGroups, isVkRuntime, pendingVkBootstrapAfterLink]);
+
   const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
     if (!silent) {
@@ -2009,6 +2059,12 @@ export default function App() {
             ),
             vkReactionManual: Boolean(data.capabilities.vkReactionManual),
             reason: data.capabilities.reason,
+          });
+        }
+        if (data.linkedPlatforms) {
+          setLinkedPlatforms({
+            telegram: { connected: Boolean(data.linkedPlatforms.telegram?.connected) },
+            vk: { connected: Boolean(data.linkedPlatforms.vk?.connected) },
           });
         }
       }
@@ -4037,6 +4093,16 @@ export default function App() {
               </div>
               <div className="platform-switch-note">
                 Активно: {formatPlatformLabel(runtimePlatform)}. Следующая платформа: {formatPlatformLabel(oppositePlatform)}.
+              </div>
+              <div className="platform-link-status" aria-label="Статус подключенных платформ">
+                <div
+                  className={`platform-link-chip ${linkedPlatforms.telegram.connected ? 'connected' : 'missing'}`}
+                >
+                  TG {linkedPlatforms.telegram.connected ? 'подключен' : 'требуется подключение'}
+                </div>
+                <div className={`platform-link-chip ${linkedPlatforms.vk.connected ? 'connected' : 'missing'}`}>
+                  VK {linkedPlatforms.vk.connected ? 'подключен' : 'требуется подключение'}
+                </div>
               </div>
               {platformSwitchError && (
                 <div className="platform-switch-error" role="alert">

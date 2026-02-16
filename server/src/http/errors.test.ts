@@ -15,6 +15,7 @@ test('normalizeApiError maps common auth and business errors', () => {
   assert.equal(normalizeApiError(new Error('vk_user_token_scope_missing')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_user_token_expired')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_identity_mismatch')).status, 403);
+  assert.equal(normalizeApiError(new Error('vk_profile_id_mismatch')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_verify_retry_cooldown')).status, 429);
   assert.equal(normalizeApiError(new Error('vk_verify_unavailable')).status, 503);
   assert.equal(normalizeApiError(new Error('user_blocked')).status, 423);
@@ -59,6 +60,10 @@ test('toPublicErrorMessage applies user-friendly replacements', () => {
   assert.equal(
     toPublicErrorMessage('vk_identity_mismatch'),
     'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.'
+  );
+  assert.equal(
+    toPublicErrorMessage('vk_profile_id_mismatch'),
+    'VK профиль не совпадает с авторизацией mini app. Проверьте текущий аккаунт VK.'
   );
   assert.equal(toPublicErrorMessage('user_blocked'), 'user_blocked');
   assert.equal(toPublicErrorMessage('unknown_error'), 'unknown_error');

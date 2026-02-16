@@ -42,6 +42,26 @@ export type SwitchLinkResponse = {
   expiresAt: string;
 };
 
+export type VkProfilePayload = {
+  id?: string | number;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string;
+};
+
+export type AccountLinkResult = {
+  performed: boolean;
+  merged: boolean;
+  sourcePlatform?: RuntimePlatform;
+  targetPlatform?: RuntimePlatform;
+};
+
+export type LinkedPlatforms = {
+  telegram: { connected: boolean };
+  vk: { connected: boolean };
+};
+
 export type CampaignReportReason =
   | 'SPAM_SCAM'
   | 'FAKE_TASK'

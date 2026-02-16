@@ -79,6 +79,13 @@ export type PlatformUserProfile = {
   label?: string;
   photoUrl?: string;
 };
+export type VkAuthProfilePayload = {
+  id?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string;
+};
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
 type VkBridgeImportGroup = {
   id: number;
@@ -835,18 +842,11 @@ export const getUserPhotoUrl = () => {
   return user?.photo_url || '';
 };
 
-export const loadPlatformProfile = async (): Promise<PlatformUserProfile | null> => {
+const loadVkBridgeProfile = async (): Promise<VkBridgeUserInfo | null> => {
   if (!isVk()) return null;
 
   if (vkProfileCache) {
-    const label = [vkProfileCache.first_name, vkProfileCache.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    return {
-      label: label || getVkUserLabelFallback(),
-      photoUrl: vkProfileCache.photo_200 || vkProfileCache.photo_100 || vkProfileCache.photo_50 || '',
-    };
+    return vkProfileCache;
   }
 
   if (!vkProfileRequest) {
@@ -865,7 +865,13 @@ export const loadPlatformProfile = async (): Promise<PlatformUserProfile | null>
       });
   }
 
-  const profile = await vkProfileRequest;
+  return await vkProfileRequest;
+};
+
+export const loadPlatformProfile = async (): Promise<PlatformUserProfile | null> => {
+  if (!isVk()) return null;
+
+  const profile = await loadVkBridgeProfile();
   if (!profile) {
     return { label: getVkUserLabelFallback(), photoUrl: '' };
   }
@@ -874,6 +880,25 @@ export const loadPlatformProfile = async (): Promise<PlatformUserProfile | null>
   return {
     label: label || getVkUserLabelFallback(),
     photoUrl: profile.photo_200 || profile.photo_100 || profile.photo_50 || '',
+  };
+};
+
+export const loadVkAuthProfile = async (): Promise<VkAuthProfilePayload | null> => {
+  if (!isVk()) return null;
+  const profile = await loadVkBridgeProfile();
+  const launchId = getVkLaunchData().vk_user_id?.trim() ?? '';
+  const profileId =
+    profile && Number.isFinite(profile.id) && profile.id > 0 ? String(Math.floor(profile.id)) : launchId;
+  const firstName = profile?.first_name?.trim() ?? '';
+  const lastName = profile?.last_name?.trim() ?? '';
+  const photoUrl =
+    profile?.photo_200?.trim() || profile?.photo_100?.trim() || profile?.photo_50?.trim() || '';
+
+  return {
+    id: profileId || undefined,
+    firstName: firstName || undefined,
+    lastName: lastName || undefined,
+    photoUrl: photoUrl || undefined,
   };
 };
 

@@ -66,6 +66,7 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'vk_group_link_invalid' ||
     message === 'vk_group_title_missing' ||
     message === 'group_title_too_short' ||
+    message === 'vk_profile_id_mismatch' ||
     message === 'vk_user_token_invalid' ||
     message === 'vk_user_token_scope_missing' ||
     message === 'vk_user_token_expired'
@@ -127,6 +128,9 @@ export const toPublicErrorMessage = (message: string) => {
   }
   if (message === 'vk_identity_mismatch') {
     return 'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.';
+  }
+  if (message === 'vk_profile_id_mismatch') {
+    return 'VK профиль не совпадает с авторизацией mini app. Проверьте текущий аккаунт VK.';
   }
   if (message === 'vk_verify_retry_cooldown') {
     return 'Слишком рано для повторной проверки. Подождите несколько секунд.';

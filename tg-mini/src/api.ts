@@ -1,4 +1,5 @@
 import type {
+  AccountLinkResult,
   AdminModerationActionPayload,
   AdminModerationSnapshot,
   AdminPanelStats,
@@ -9,6 +10,7 @@ import type {
   DailyBonusStatus,
   GroupDto,
   ImportVkGroupsResponse,
+  LinkedPlatforms,
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
@@ -17,6 +19,7 @@ import type {
   SwitchLinkResponse,
   UserDto,
   VkBridgeImportGroup,
+  VkProfilePayload,
   VerificationDto,
 } from './types/app';
 import { getInitDataRaw } from './telegram';
@@ -24,6 +27,7 @@ import { getInitDataRaw } from './telegram';
 const API_BASE = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE ?? '';
 
 export type {
+  AccountLinkResult,
   AdminModerationActionPayload,
   AdminModerationSnapshot,
   AdminPanelStats,
@@ -35,6 +39,7 @@ export type {
   DailyBonusStatus,
   GroupDto,
   ImportVkGroupsResponse,
+  LinkedPlatforms,
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
@@ -43,6 +48,7 @@ export type {
   SwitchLinkResponse,
   UserDto,
   VkBridgeImportGroup,
+  VkProfilePayload,
   VerificationDto,
 } from './types/app';
 
@@ -95,7 +101,7 @@ const request = async (path: string, options: RequestInit = {}) => {
 
 export const verifyInitData = async (
   initData: string,
-  options?: { linkCode?: string }
+  options?: { linkCode?: string; vkProfile?: VkProfilePayload }
 ) => {
   const response = await fetch(`${API_BASE}/api/auth/verify`, {
     method: 'POST',
@@ -105,6 +111,7 @@ export const verifyInitData = async (
     body: JSON.stringify({
       initData,
       ...(options?.linkCode ? { linkCode: options.linkCode } : {}),
+      ...(options?.vkProfile ? { vkProfile: options.vkProfile } : {}),
     }),
   });
 
@@ -127,6 +134,7 @@ export const verifyInitData = async (
     balance?: number;
     user?: UserDto;
     referralBonus?: ReferralBonus | null;
+    accountLink?: AccountLinkResult;
   };
   if (!data.ok) {
     throw new Error('auth failed');
@@ -148,6 +156,7 @@ export const fetchMe = async () => {
     balance: number;
     stats: { groups: number; campaigns: number; applications: number };
     capabilities?: RuntimeCapabilities;
+    linkedPlatforms?: LinkedPlatforms;
   };
 };
 

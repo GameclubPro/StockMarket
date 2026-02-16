@@ -12,6 +12,13 @@ import {
 } from './domain/economy.js';
 import { calculateAdminFineApplied, resolveAdminBlockUntil } from './domain/moderation.js';
 import {
+  buildAccountLinkResult,
+  pickMasterUserId,
+  resolveMergedBlockState,
+  type AccountLinkResult,
+  type RuntimePlatform,
+} from './domain/account-linking.js';
+import {
   DAILY_BONUS_COOLDOWN_MS,
   DAILY_BONUS_REASON,
   pickDailyBonus,
@@ -45,6 +52,41 @@ import {
 } from './telegram-bot.js';
 import { handleBotWebhookUpdate, type TelegramUpdate } from './telegram-webhook.js';
 
+const vkAuthProfileSchema = z.object({
+  id: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value) => {
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return undefined;
+        const normalized = Math.floor(value);
+        return normalized > 0 ? String(normalized) : undefined;
+      }
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      return undefined;
+    }),
+  username: z
+    .string()
+    .max(128)
+    .optional()
+    .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+  firstName: z
+    .string()
+    .max(120)
+    .optional()
+    .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+  lastName: z
+    .string()
+    .max(120)
+    .optional()
+    .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+  photoUrl: z
+    .string()
+    .max(500)
+    .optional()
+    .transform((value) => (value && value.trim() ? value.trim() : undefined)),
+});
+
 const authBodySchema = z.object({
   initData: z.string().min(1).transform((value) => value.trim()),
   linkCode: z
@@ -52,6 +94,7 @@ const authBodySchema = z.object({
     .max(32)
     .optional()
     .transform((value) => (value && value.trim() ? value.trim().toUpperCase() : undefined)),
+  vkProfile: vkAuthProfileSchema.optional(),
 });
 
 const platformSwitchSchema = z.object({
@@ -405,7 +448,6 @@ type AdminPanelStats = {
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type ReferralMilestone = (typeof REFERRAL_MILESTONES)[number];
-type RuntimePlatform = 'TELEGRAM' | 'VK';
 type UserBlockPayload = {
   reason: string | null;
   blockedUntil: string | null;
@@ -429,6 +471,7 @@ type UserIdentityRecord = {
   platform: RuntimePlatform;
   externalId: string;
 };
+type VkAuthProfile = z.infer<typeof vkAuthProfileSchema>;
 type VerificationMode = 'NONE' | 'VK_SUBSCRIBE_AUTO';
 type VerificationState = 'APPROVED' | 'PENDING_RETRY' | 'NOT_MEMBER' | 'UNAVAILABLE';
 type VerificationDto = {
@@ -803,6 +846,38 @@ const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity =>
   };
 };
 
+const normalizeOptionalIdentityValue = (value?: string) => {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+};
+
+const normalizeVkProfileExternalId = (value?: string) => {
+  const normalized = normalizeOptionalIdentityValue(value);
+  if (!normalized) return '';
+  if (!/^\d+$/.test(normalized)) return normalized;
+  return String(Math.max(1, Math.floor(Number(normalized))));
+};
+
+const applyVkProfileToIdentity = (
+  identity: MiniAppAuthIdentity,
+  vkProfile?: VkAuthProfile
+): MiniAppAuthIdentity => {
+  if (identity.platform !== 'VK' || !vkProfile) return identity;
+
+  const profileId = normalizeVkProfileExternalId(vkProfile.id);
+  if (profileId && profileId !== identity.externalId) {
+    throw new ApiError('vk_profile_id_mismatch', 400);
+  }
+
+  return {
+    ...identity,
+    username: normalizeOptionalIdentityValue(vkProfile.username) ?? identity.username,
+    firstName: normalizeOptionalIdentityValue(vkProfile.firstName) ?? identity.firstName,
+    lastName: normalizeOptionalIdentityValue(vkProfile.lastName) ?? identity.lastName,
+    photoUrl: normalizeOptionalIdentityValue(vkProfile.photoUrl) ?? identity.photoUrl,
+  };
+};
+
 const getLegacyTelegramIdByIdentity = (identity: MiniAppAuthIdentity) =>
   identity.platform === 'VK' ? `vk:${identity.externalId}` : identity.externalId;
 
@@ -847,11 +922,25 @@ const resolveRequestPlatform = (request: FastifyRequest, user?: Pick<User, 'tele
 };
 
 const updateUserFromIdentity = async (db: DbClient, user: User, identity: MiniAppAuthIdentity) => {
+  const shouldFillOnly = identity.platform === 'VK';
   const data: Prisma.UserUpdateInput = {};
-  if (identity.username !== undefined) data.username = identity.username;
-  if (identity.firstName !== undefined) data.firstName = identity.firstName;
-  if (identity.lastName !== undefined) data.lastName = identity.lastName;
-  if (identity.photoUrl !== undefined) data.photoUrl = identity.photoUrl;
+  const applyField = (value: string | undefined, current: string | null, assign: () => void) => {
+    if (value === undefined) return;
+    if (shouldFillOnly && typeof current === 'string' && current.trim()) return;
+    assign();
+  };
+  applyField(identity.username, user.username, () => {
+    data.username = identity.username;
+  });
+  applyField(identity.firstName, user.firstName, () => {
+    data.firstName = identity.firstName;
+  });
+  applyField(identity.lastName, user.lastName, () => {
+    data.lastName = identity.lastName;
+  });
+  applyField(identity.photoUrl, user.photoUrl, () => {
+    data.photoUrl = identity.photoUrl;
+  });
 
   if (Object.keys(data).length === 0) return user;
   return await db.user.update({
@@ -960,17 +1049,16 @@ const consumePlatformLinkCode = async (
   if (!link || link.targetPlatform !== payload.targetPlatform) {
     throw new Error('platform_link_code_invalid');
   }
-  if (link.consumedAt) {
-    throw new Error('platform_link_code_already_used');
-  }
   if (link.expiresAt.getTime() <= now.getTime()) {
     throw new Error('platform_link_code_expired');
   }
-
-  await db.platformLinkCode.update({
-    where: { id: link.id },
+  const consumed = await db.platformLinkCode.updateMany({
+    where: { id: link.id, consumedAt: null },
     data: { consumedAt: now },
   });
+  if (consumed.count === 0) {
+    throw new Error('platform_link_code_already_used');
+  }
 
   return link;
 };
@@ -1067,7 +1155,12 @@ const mergeUsersWithTelegramMaster = async (
 
   const hasTgA = identities.some((item) => item.userId === userA.id && item.platform === 'TELEGRAM');
   const hasTgB = identities.some((item) => item.userId === userB.id && item.platform === 'TELEGRAM');
-  const masterUserId = hasTgA && !hasTgB ? userA.id : hasTgB && !hasTgA ? userB.id : userA.id;
+  const masterUserId = pickMasterUserId({
+    userA,
+    userB,
+    hasTelegramA: hasTgA,
+    hasTelegramB: hasTgB,
+  });
   const secondaryUserId = masterUserId === userA.id ? userB.id : userA.id;
 
   const [masterUser, secondaryUser] = masterUserId === userA.id ? [userA, userB] : [userB, userA];
@@ -1127,6 +1220,10 @@ const mergeUsersWithTelegramMaster = async (
     where: { referrerId: secondaryUser.id },
     data: { referrerId: masterUser.id },
   });
+  await tx.platformLinkCode.updateMany({
+    where: { sourceUserId: secondaryUser.id },
+    data: { sourceUserId: masterUser.id },
+  });
 
   const [masterReferred, secondaryReferred] = await Promise.all([
     tx.referral.findUnique({
@@ -1181,6 +1278,13 @@ const mergeUsersWithTelegramMaster = async (
       totalEarned: { increment: secondaryUser.totalEarned },
     },
   });
+  const mergedBlockState = resolveMergedBlockState(masterUser, secondaryUser);
+  if (mergedBlockState) {
+    mergedMaster = await tx.user.update({
+      where: { id: mergedMaster.id },
+      data: mergedBlockState,
+    });
+  }
 
   const masterTelegramIdentity = await tx.userIdentity.findUnique({
     where: {
@@ -1230,6 +1334,20 @@ const resolveVkExternalId = async (db: DbClient, user: User) => {
     select: { externalId: true },
   });
   return identity?.externalId?.trim() ?? '';
+};
+
+const resolveLinkedPlatforms = async (db: DbClient, userId: string) => {
+  const identities = await db.userIdentity.findMany({
+    where: { userId },
+    select: { platform: true },
+  });
+  const connected = new Set<RuntimePlatform>(
+    identities.map((item) => item.platform as RuntimePlatform)
+  );
+  return {
+    telegram: { connected: connected.has('TELEGRAM') },
+    vk: { connected: connected.has('VK') },
+  };
 };
 
 const buildUserBlockPayload = (user: Pick<User, 'blockReason' | 'blockedUntil'>): UserBlockPayload => ({
@@ -3626,7 +3744,8 @@ export const registerRoutes = (app: FastifyInstance) => {
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'invalid body' });
 
     try {
-      const identity = resolveMiniAppAuthIdentity(parsed.data.initData);
+      const authIdentity = resolveMiniAppAuthIdentity(parsed.data.initData);
+      const identity = applyVkProfileToIdentity(authIdentity, parsed.data.vkProfile);
       const rawStartParam =
         typeof identity.startParam === 'string' ? identity.startParam.trim() : '';
       const startLinkCode = rawStartParam.startsWith(TG_LINK_CODE_PREFIX)
@@ -3644,8 +3763,10 @@ export const registerRoutes = (app: FastifyInstance) => {
       const now = new Date();
 
       const result = await prisma.$transaction(async (tx) => {
-        let { user: current, isFirstAuth } = await ensureIdentityUser(tx, identity, now);
+        let current: User;
+        let isFirstAuth = false;
         let referralBonus: { amount: number; reason: string } | null = null;
+        let accountLink: AccountLinkResult = buildAccountLinkResult();
 
         if (linkCode) {
           const link = await consumePlatformLinkCode(tx, {
@@ -3653,14 +3774,42 @@ export const registerRoutes = (app: FastifyInstance) => {
             targetPlatform: identity.platform,
             now,
           });
-          if (link.sourceUserId !== current.id) {
-            current = await mergeUsersWithTelegramMaster(tx, {
-              userAId: link.sourceUserId,
-              userBId: current.id,
-            });
-            await upsertUserIdentity(tx, { userId: current.id, identity });
-            isFirstAuth = false;
+          accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, false);
+
+          const sourceUser = await tx.user.findUnique({
+            where: { id: link.sourceUserId },
+          });
+          if (!sourceUser) {
+            throw new Error('platform_link_code_invalid');
           }
+
+          const ownedByIdentity = await loadUserByIdentity(tx, identity);
+          if (!ownedByIdentity) {
+            current = await updateUserFromIdentity(tx, sourceUser, identity);
+            await upsertUserIdentity(tx, { userId: current.id, identity });
+          } else if (ownedByIdentity.id === sourceUser.id) {
+            current = await updateUserFromIdentity(tx, ownedByIdentity, identity);
+            await upsertUserIdentity(tx, { userId: current.id, identity });
+          } else {
+            current = await mergeUsersWithTelegramMaster(tx, {
+              userAId: sourceUser.id,
+              userBId: ownedByIdentity.id,
+            });
+            current = await updateUserFromIdentity(tx, current, identity);
+            await upsertUserIdentity(tx, { userId: current.id, identity });
+            accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, true);
+          }
+        } else {
+          const ensured = await ensureIdentityUser(tx, identity, now);
+          current = ensured.user;
+          isFirstAuth = ensured.isFirstAuth;
+        }
+
+        if (!current.firstAuthAt) {
+          current = await tx.user.update({
+            where: { id: current.id },
+            data: { firstAuthAt: now },
+          });
         }
 
         if (!current.referralCode) {
@@ -3684,7 +3833,7 @@ export const registerRoutes = (app: FastifyInstance) => {
           }
         }
 
-        return { user: current, referralBonus };
+        return { user: current, referralBonus, accountLink };
       });
 
       const ensuredUser = await ensureLegacyStats(result.user);
@@ -3704,6 +3853,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         balance: ensuredUser.balance,
         token,
         referralBonus: result.referralBonus,
+        accountLink: result.accountLink,
       };
     } catch (error) {
       return sendRouteError(reply, error, 401);
@@ -3714,7 +3864,7 @@ export const registerRoutes = (app: FastifyInstance) => {
     try {
       const user = await requireUser(request);
       const runtimePlatform = resolveRequestPlatform(request, user);
-      const [groups, campaigns, applications] = await Promise.all([
+      const [groups, campaigns, applications, linkedPlatforms] = await Promise.all([
         prisma.group.count({
           where: {
             platform: runtimePlatform,
@@ -3725,6 +3875,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         prisma.application.count({
           where: { applicantId: user.id, campaign: { platform: runtimePlatform } },
         }),
+        resolveLinkedPlatforms(prisma, user.id),
       ]);
       return {
         ok: true,
@@ -3733,6 +3884,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         balance: user.balance,
         stats: { groups, campaigns, applications },
         capabilities: getRuntimeCapabilities(runtimePlatform),
+        linkedPlatforms,
       };
     } catch (error) {
       return sendRouteError(reply, error, 400);
