@@ -283,6 +283,7 @@ const getHealthTone = (score: number) => {
 };
 
 const VK_TEST_MODE_ERROR_MARKERS = ['test mode', 'testing mode', 'тестов', 'режим'];
+const VK_IP_MISMATCH_ERROR_MARKERS = ['another ip address', 'другого ip', 'другой ip', 'other ip'];
 
 const isVkTestingModeTokenError = (payload: {
   code: string;
@@ -296,12 +297,27 @@ const isVkTestingModeTokenError = (payload: {
   return VK_TEST_MODE_ERROR_MARKERS.some((marker) => normalizedMessage.includes(marker));
 };
 
+const isVkTokenIpMismatchError = (payload: {
+  code: string;
+  vkApiErrorCode: number | null;
+  vkApiErrorMessage: string;
+}) => {
+  if (payload.code !== 'vk_user_token_invalid') return false;
+  if (payload.vkApiErrorCode !== 5) return false;
+  const normalizedMessage = payload.vkApiErrorMessage.trim().toLowerCase();
+  if (!normalizedMessage) return false;
+  return VK_IP_MISMATCH_ERROR_MARKERS.some((marker) => normalizedMessage.includes(marker));
+};
+
 const mapVkImportTokenErrorMessage = (payload: {
   code: string;
   vkApiErrorCode: number | null;
   vkApiErrorMessage: string;
 }) => {
   const { code } = payload;
+  if (isVkTokenIpMismatchError(payload)) {
+    return 'VK отклонил токен: он выдан для другого IP-адреса. Откройте mini app без VPN/прокси, перезапустите VK и повторите импорт.';
+  }
   if (isVkTestingModeTokenError(payload)) {
     return 'VK отклонил токен для этого аккаунта в тестовом режиме. Добавьте аккаунт в тестировщики mini app, удалите доступ приложению в VK и повторите импорт.';
   }
