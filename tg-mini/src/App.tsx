@@ -23,6 +23,7 @@ import {
   fetchMyCampaigns,
   fetchMyGroups,
   hideCampaign,
+  importVkAdminGroups,
   moderateCampaign,
   recheckApplication,
   reportCampaign,
@@ -53,6 +54,7 @@ import {
   getUserLabel,
   getUserPhotoUrl,
   initTelegram,
+  requestVkUserToken,
 } from './telegram';
 
 const PLATFORM_FEE_RATE = 0.3;
@@ -670,9 +672,12 @@ export default function App() {
   const oppositePlatform: RuntimePlatform = isVkRuntime ? 'TELEGRAM' : 'VK';
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities>({
     vkSubscribeAutoAvailable: true,
+    vkAdminImportAvailable: true,
     vkReactionManual: true,
   });
   const vkSubscribeAutoAvailable = runtimeCapabilities.vkSubscribeAutoAvailable;
+  const vkAdminImportAvailable =
+    runtimeCapabilities.vkAdminImportAvailable ?? runtimeCapabilities.vkSubscribeAutoAvailable;
   const vkSubscribeCapabilityReason =
     runtimeCapabilities.reason?.trim() ||
     'Автопроверка вступления VK временно недоступна. Попробуйте позже.';
@@ -754,6 +759,9 @@ export default function App() {
   const [vkGroupCategoryInput, setVkGroupCategoryInput] = useState('');
   const [vkGroupCreateLoading, setVkGroupCreateLoading] = useState(false);
   const [vkGroupCreateError, setVkGroupCreateError] = useState('');
+  const [vkImportLoading, setVkImportLoading] = useState(false);
+  const [vkImportError, setVkImportError] = useState('');
+  const [vkImportStatus, setVkImportStatus] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [myGroupsLoading, setMyGroupsLoading] = useState(false);
@@ -1081,7 +1089,8 @@ export default function App() {
   const vkGroupCategoryTrimmed = vkGroupCategoryInput.trim();
   const vkGroupInviteLinkValid = isVkGroupLinkCandidate(vkGroupInviteLinkTrimmed);
   const vkGroupTitleValid = !vkGroupTitleTrimmed || vkGroupTitleTrimmed.length >= 3;
-  const vkGroupAddBlocked = isVkRuntime && !vkSubscribeAutoAvailable;
+  const vkGroupAddBlocked = isVkRuntime && !vkAdminImportAvailable;
+  const vkImportBlocked = isVkRuntime && !vkAdminImportAvailable;
   const vkGroupConnectSubmitDisabled =
     vkGroupCreateLoading || vkGroupAddBlocked || !vkGroupInviteLinkValid || !vkGroupTitleValid;
   const reactionLinkTrimmed = reactionLink.trim();
@@ -1583,6 +1592,8 @@ export default function App() {
 
   const openVkGroupConnectSheet = useCallback(() => {
     setVkGroupCreateError('');
+    setVkImportError('');
+    setVkImportStatus('');
     setVkGroupConnectOpen(true);
     setLinkPickerOpen(false);
   }, []);
@@ -1596,6 +1607,7 @@ export default function App() {
     if (!isVkRuntime) return false;
 
     setVkGroupCreateError('');
+    setVkImportError('');
     if (vkGroupAddBlocked) {
       setVkGroupCreateError(vkSubscribeCapabilityReason);
       return false;
@@ -1650,6 +1662,65 @@ export default function App() {
     vkGroupInviteLinkValid,
     vkGroupTitleTrimmed,
     vkGroupTitleValid,
+    vkSubscribeCapabilityReason,
+  ]);
+
+  const handleImportVkGroups = useCallback(async () => {
+    if (!isVkRuntime) return false;
+
+    setVkImportError('');
+    setVkImportStatus('');
+
+    if (vkImportBlocked) {
+      setVkImportError(vkSubscribeCapabilityReason);
+      return false;
+    }
+
+    setVkImportLoading(true);
+    try {
+      const vkUserToken = await requestVkUserToken('groups');
+      const data = await importVkAdminGroups(vkUserToken);
+      if (!data.ok || !Array.isArray(data.groups)) {
+        throw new Error('Не удалось импортировать VK-сообщества.');
+      }
+
+      setMyGroups(data.groups);
+      setMyGroupsLoaded(true);
+      setMyGroupsError('');
+      setLinkPickerOpen(true);
+      setVkGroupConnectOpen(false);
+
+      if (!selectedGroupId && data.groups[0]) {
+        setSelectedGroupId(data.groups[0].id);
+        setSelectedGroupTitle(data.groups[0].title);
+      }
+
+      const imported = Number(data.imported ?? 0);
+      const updated = Number(data.updated ?? 0);
+      const skipped = Number(data.skipped ?? 0);
+      if (imported > 0 || updated > 0) {
+        setVkImportStatus(`Импортировано: ${imported}, обновлено: ${updated}, без изменений: ${skipped}.`);
+      } else {
+        setVkImportStatus('Новых VK-сообществ не найдено. Список уже актуален.');
+      }
+      return true;
+    } catch (error: any) {
+      if (handleBlockedApiError(error)) return false;
+      const fallback = 'Не удалось импортировать VK-сообщества.';
+      if (error?.message === 'vk_user_token_invalid') {
+        setVkImportError('Нет доступа к VK токену. Разрешите доступ к сообществам и повторите.');
+      } else {
+        setVkImportError(error?.message ?? fallback);
+      }
+      return false;
+    } finally {
+      setVkImportLoading(false);
+    }
+  }, [
+    handleBlockedApiError,
+    isVkRuntime,
+    selectedGroupId,
+    vkImportBlocked,
     vkSubscribeCapabilityReason,
   ]);
 
@@ -1748,6 +1819,9 @@ export default function App() {
         if (data.capabilities) {
           setRuntimeCapabilities({
             vkSubscribeAutoAvailable: Boolean(data.capabilities.vkSubscribeAutoAvailable),
+            vkAdminImportAvailable: Boolean(
+              data.capabilities.vkAdminImportAvailable ?? data.capabilities.vkSubscribeAutoAvailable
+            ),
             vkReactionManual: Boolean(data.capabilities.vkReactionManual),
             reason: data.capabilities.reason,
           });
@@ -2568,6 +2642,8 @@ export default function App() {
     setTaskType(type);
     setTaskPriceValue(DEFAULT_TASK_PRICE);
     setCreateError('');
+    setVkImportError('');
+    setVkImportStatus('');
     setLinkPickerOpen(false);
     setVkGroupConnectOpen(false);
     setVkGroupCreateError('');
@@ -2580,6 +2656,8 @@ export default function App() {
     setPromoWizardOpen(false);
     setLinkPickerOpen(false);
     setVkGroupConnectOpen(false);
+    setVkImportError('');
+    setVkImportStatus('');
   };
 
   const handlePromoWizardBack = () => {
@@ -5729,12 +5807,26 @@ export default function App() {
                           >
                             Добавить VK-сообщество
                           </button>
+                          <button
+                            className="link-tool highlight-blue"
+                            type="button"
+                            onClick={() => void handleImportVkGroups()}
+                            disabled={vkImportLoading || vkImportBlocked}
+                          >
+                            {vkImportLoading ? 'Импортируем…' : 'Импортировать мои VK-сообщества'}
+                          </button>
                         </div>
                       )}
                       {isVkRuntime && vkGroupAddBlocked && (
                         <div className="promo-project-hint promo-project-hint-error">
                           {vkSubscribeCapabilityReason}
                         </div>
+                      )}
+                      {isVkRuntime && vkImportError && (
+                        <div className="promo-project-hint promo-project-hint-error">{vkImportError}</div>
+                      )}
+                      {isVkRuntime && vkImportStatus && (
+                        <div className="promo-project-hint promo-project-hint-success">{vkImportStatus}</div>
                       )}
                       {!isVkRuntime && (
                         <div className="promo-project-actions">
@@ -5851,14 +5943,24 @@ export default function App() {
                                 : 'Пока нет добавленных групп.'}
                             </span>
                             {isVkRuntime && (
-                              <button
-                                className="link-tool secondary link-picker-empty-action"
-                                type="button"
-                                onClick={openVkGroupConnectSheet}
-                                disabled={vkGroupCreateLoading || vkGroupAddBlocked}
-                              >
-                                Добавить первое VK-сообщество
-                              </button>
+                              <div className="link-picker-empty-actions">
+                                <button
+                                  className="link-tool secondary link-picker-empty-action"
+                                  type="button"
+                                  onClick={openVkGroupConnectSheet}
+                                  disabled={vkGroupCreateLoading || vkGroupAddBlocked}
+                                >
+                                  Добавить первое VK-сообщество
+                                </button>
+                                <button
+                                  className="link-tool highlight-blue link-picker-empty-action"
+                                  type="button"
+                                  onClick={() => void handleImportVkGroups()}
+                                  disabled={vkImportLoading || vkImportBlocked}
+                                >
+                                  {vkImportLoading ? 'Импортируем…' : 'Импортировать'}
+                                </button>
+                              </div>
                             )}
                           </div>
                         )}

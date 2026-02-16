@@ -8,6 +8,7 @@ import type {
   DailyBonusSpin,
   DailyBonusStatus,
   GroupDto,
+  ImportVkGroupsResponse,
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
@@ -32,6 +33,7 @@ export type {
   DailyBonusSpin,
   DailyBonusStatus,
   GroupDto,
+  ImportVkGroupsResponse,
   ReferralBonus,
   ReferralListItem,
   ReferralStats,
@@ -347,6 +349,15 @@ export const createGroup = async (payload: {
 export const fetchMyGroups = async () => {
   const data = await request('/api/groups/my');
   return data as { ok: boolean; groups: GroupDto[] };
+};
+
+export const importVkAdminGroups = async (vkUserToken: string) => {
+  const data = await request('/api/groups/import-vk-admin', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ vkUserToken }),
+  });
+  return data as ImportVkGroupsResponse;
 };
 
 export const fetchDailyBonusStatus = async () => {

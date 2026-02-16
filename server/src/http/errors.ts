@@ -31,6 +31,9 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
   if (message === 'not owner' || message === 'not admin') {
     return 403;
   }
+  if (message === 'vk_identity_mismatch') {
+    return 403;
+  }
   if (
     message === 'campaign paused' ||
     message === 'budget empty' ||
@@ -62,7 +65,8 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'vk_subscribe_link_invalid' ||
     message === 'vk_group_link_invalid' ||
     message === 'vk_group_title_missing' ||
-    message === 'group_title_too_short'
+    message === 'group_title_too_short' ||
+    message === 'vk_user_token_invalid'
   ) {
     return 400;
   }
@@ -109,6 +113,12 @@ export const toPublicErrorMessage = (message: string) => {
   }
   if (message === 'vk_group_add_unavailable') {
     return 'Подключение VK-сообщества недоступно: на сервере не настроен VK_API_TOKEN.';
+  }
+  if (message === 'vk_user_token_invalid') {
+    return 'Нет доступа к VK токену. Разрешите доступ к сообществам и повторите импорт.';
+  }
+  if (message === 'vk_identity_mismatch') {
+    return 'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.';
   }
   if (message === 'vk_verify_retry_cooldown') {
     return 'Слишком рано для повторной проверки. Подождите несколько секунд.';

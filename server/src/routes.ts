@@ -24,10 +24,12 @@ import { verifyInitData } from './telegram.js';
 import { isVkLaunchParamsPayload, verifyVkLaunchParams } from './vk.js';
 import {
   checkVkMembership,
+  fetchVkAdminGroups,
   isVkSubscribeAutoAvailable,
   resolveVkGroupForCreate,
   resolveVkGroupId,
   resolveVkGroupRefFromLink,
+  resolveVkUserIdByToken,
   type VkMembershipResult,
 } from './vk-api.js';
 import {
@@ -69,6 +71,10 @@ const groupCreateSchema = z.object({
     .refine((v) => v.length > 0, { message: 'inviteLink is required' }),
   description: z.string().max(500).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
   category: z.string().max(50).optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
+});
+
+const vkGroupsImportSchema = z.object({
+  vkUserToken: z.string().max(4096).transform((value) => value.trim()),
 });
 
 const campaignCreateSchema = z.object({
@@ -409,6 +415,7 @@ type VerificationDto = {
 };
 type RuntimeCapabilities = {
   vkSubscribeAutoAvailable: boolean;
+  vkAdminImportAvailable: boolean;
   vkReactionManual: boolean;
   reason?: string;
 };
@@ -429,6 +436,7 @@ const getRuntimeCapabilities = (): RuntimeCapabilities => {
   const vkSubscribeAutoAvailable = isVkSubscribeAutoAvailable();
   return {
     vkSubscribeAutoAvailable,
+    vkAdminImportAvailable: vkSubscribeAutoAvailable,
     vkReactionManual: true,
     reason: vkSubscribeAutoAvailable ? undefined : VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON,
   };
@@ -520,6 +528,18 @@ const ensureVkGroupAddEnabled = () => {
   if (!isVkSubscribeAutoAvailable()) {
     throw new ApiError('vk_group_add_unavailable', 409);
   }
+};
+
+const buildVkInviteLinkCandidates = (groupId: number, screenName?: string) => {
+  const set = new Set<string>();
+  const normalizedId = Math.max(1, Math.floor(groupId));
+  set.add(`https://vk.com/public${normalizedId}`);
+  set.add(`https://vk.com/club${normalizedId}`);
+  set.add(`https://vk.com/event${normalizedId}`);
+  if (screenName?.trim()) {
+    set.add(`https://vk.com/${screenName.trim().toLowerCase()}`);
+  }
+  return Array.from(set);
 };
 
 const resolveVkSubscribeMembership = async (payload: {
@@ -1024,6 +1044,19 @@ const resolveTelegramNumericId = async (db: DbClient, user: User) => {
   const numeric = Number(candidate);
   if (!Number.isFinite(numeric)) return null;
   return numeric;
+};
+
+const resolveVkExternalId = async (db: DbClient, user: User) => {
+  const identity = await db.userIdentity.findUnique({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform: 'VK',
+      },
+    },
+    select: { externalId: true },
+  });
+  return identity?.externalId?.trim() ?? '';
 };
 
 const buildUserBlockPayload = (user: Pick<User, 'blockReason' | 'blockedUntil'>): UserBlockPayload => ({
@@ -3917,12 +3950,16 @@ export const registerRoutes = (app: FastifyInstance) => {
         if (!resolvedTitle) {
           throw new ApiError('vk_group_title_missing', 400);
         }
+        const inviteLinkCandidates = buildVkInviteLinkCandidates(
+          resolved.groupId,
+          resolved.screenName
+        );
 
         let group = await prisma.group.findFirst({
           where: {
             ownerId: user.id,
             platform: 'VK',
-            inviteLink: resolved.canonicalInviteLink,
+            inviteLink: { in: inviteLinkCandidates },
           },
           orderBy: { createdAt: 'desc' },
         });
@@ -4019,6 +4056,142 @@ export const registerRoutes = (app: FastifyInstance) => {
       });
 
       return { ok: true, group };
+    } catch (error) {
+      return sendRouteError(reply, error, 400);
+    }
+  });
+
+  app.post('/groups/import-vk-admin', async (request, reply) => {
+    try {
+      const user = await requireUser(request);
+      const runtimePlatform = resolveRequestPlatform(request, user);
+      if (runtimePlatform !== 'VK') {
+        return reply.code(409).send({
+          ok: false,
+          error: 'Импорт VK-сообществ доступен только в VK mini-app.',
+        });
+      }
+
+      const parsed = vkGroupsImportSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid body' });
+      }
+
+      const vkUserToken = parsed.data.vkUserToken.trim();
+      if (!vkUserToken) {
+        return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+      }
+
+      ensureVkGroupAddEnabled();
+
+      const vkExternalId = await resolveVkExternalId(prisma, user);
+      if (!vkExternalId) {
+        return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
+      }
+
+      let vkUserId: number | null = null;
+      try {
+        vkUserId = await resolveVkUserIdByToken(vkUserToken);
+      } catch (error) {
+        const normalized = normalizeApiError(error, 400);
+        if (normalized.message === 'vk_user_token_invalid') {
+          return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        }
+        return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+      }
+      if (!vkUserId) {
+        return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+      }
+      if (String(vkUserId) !== vkExternalId) {
+        return reply.code(403).send({ ok: false, error: 'vk_identity_mismatch' });
+      }
+
+      let importedGroups: Awaited<ReturnType<typeof fetchVkAdminGroups>> = [];
+      try {
+        importedGroups = await fetchVkAdminGroups(vkUserToken, {
+          roles: ['admin', 'editor', 'moder'],
+        });
+      } catch (error) {
+        const normalized = normalizeApiError(error, 400);
+        if (normalized.message === 'vk_user_token_invalid') {
+          return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        }
+        return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+      }
+
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      await prisma.$transaction(async (tx) => {
+        for (const vkGroup of importedGroups) {
+          const inviteLinkCandidates = buildVkInviteLinkCandidates(
+            vkGroup.groupId,
+            vkGroup.screenName
+          );
+          const existing = await tx.group.findFirst({
+            where: {
+              ownerId: user.id,
+              platform: 'VK',
+              inviteLink: { in: inviteLinkCandidates },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          let groupId: string;
+          if (!existing) {
+            const created = await tx.group.create({
+              data: {
+                ownerId: user.id,
+                title: vkGroup.name,
+                inviteLink: vkGroup.canonicalInviteLink,
+                platform: 'VK',
+              },
+            });
+            imported += 1;
+            groupId = created.id;
+          } else {
+            const titleChanged = existing.title.trim() !== vkGroup.name;
+            if (titleChanged || existing.inviteLink !== vkGroup.canonicalInviteLink) {
+              await tx.group.update({
+                where: { id: existing.id },
+                data: {
+                  title: vkGroup.name,
+                  inviteLink: vkGroup.canonicalInviteLink,
+                  platform: 'VK',
+                },
+              });
+              updated += 1;
+            } else {
+              skipped += 1;
+            }
+            groupId = existing.id;
+          }
+
+          await tx.groupAdmin.upsert({
+            where: { groupId_userId: { groupId, userId: user.id } },
+            update: {},
+            create: { groupId, userId: user.id },
+          });
+        }
+      });
+
+      const groups = await prisma.group.findMany({
+        where: {
+          platform: 'VK',
+          OR: [{ ownerId: user.id }, { admins: { some: { userId: user.id } } }],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        ok: true,
+        imported,
+        updated,
+        skipped,
+        groups,
+        syncedAt: new Date().toISOString(),
+      };
     } catch (error) {
       return sendRouteError(reply, error, 400);
     }
@@ -4398,16 +4571,8 @@ export const registerRoutes = (app: FastifyInstance) => {
       }
 
       if (runtimePlatform === 'VK' && campaign.actionType === 'SUBSCRIBE') {
-        const vkIdentity = await prisma.userIdentity.findUnique({
-          where: {
-            userId_platform: {
-              userId: user.id,
-              platform: 'VK',
-            },
-          },
-          select: { externalId: true },
-        });
-        if (!vkIdentity) {
+        const vkExternalId = await resolveVkExternalId(prisma, user);
+        if (!vkExternalId) {
           return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
         }
 
@@ -4440,7 +4605,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         const verifyStartedAt = Date.now();
         const membership = await resolveVkSubscribeMembership({
           inviteLink: campaign.group.inviteLink,
-          externalUserId: vkIdentity.externalId,
+          externalUserId: vkExternalId,
         });
         const verifyDurationMs = Date.now() - verifyStartedAt;
 
@@ -4791,16 +4956,8 @@ export const registerRoutes = (app: FastifyInstance) => {
         return reply.code(409).send({ ok: false, error: 'already reviewed' });
       }
 
-      const vkIdentity = await prisma.userIdentity.findUnique({
-        where: {
-          userId_platform: {
-            userId: user.id,
-            platform: 'VK',
-          },
-        },
-        select: { externalId: true },
-      });
-      if (!vkIdentity) {
+      const vkExternalId = await resolveVkExternalId(prisma, user);
+      if (!vkExternalId) {
         return reply.code(400).send({ ok: false, error: VK_IDENTITY_REQUIRED_MESSAGE });
       }
 
@@ -4819,7 +4976,7 @@ export const registerRoutes = (app: FastifyInstance) => {
       const startedAt = Date.now();
       const membership = await resolveVkSubscribeMembership({
         inviteLink: application.campaign.group.inviteLink,
-        externalUserId: vkIdentity.externalId,
+        externalUserId: vkExternalId,
       });
       const durationMs = Date.now() - startedAt;
 

@@ -6423,6 +6423,11 @@ body::before {
   gap: 8px;
 }
 
+.link-picker-empty-actions {
+  display: grid;
+  gap: 8px;
+}
+
 .link-picker-empty-action {
   min-height: 46px;
   width: 100%;
@@ -11073,6 +11078,10 @@ body::before {
 
 .promo-project-hint-error {
   color: rgba(255, 196, 196, 0.94);
+}
+
+.promo-project-hint-success {
+  color: rgba(188, 249, 215, 0.94);
 }
 
 .promo-vk-connect-sheet {

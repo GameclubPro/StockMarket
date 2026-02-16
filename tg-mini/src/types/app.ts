@@ -71,8 +71,18 @@ export type ApplicationDto = {
 
 export type RuntimeCapabilities = {
   vkSubscribeAutoAvailable: boolean;
+  vkAdminImportAvailable?: boolean;
   vkReactionManual: boolean;
   reason?: string;
+};
+
+export type ImportVkGroupsResponse = {
+  ok: true;
+  imported: number;
+  updated: number;
+  skipped: number;
+  groups: GroupDto[];
+  syncedAt: string;
 };
 
 export type DailyBonusStatus = {

@@ -16,6 +16,15 @@ type VkGroupByIdResponseItem = {
   screen_name?: string;
 };
 
+type VkUserResponseItem = {
+  id?: number;
+};
+
+type VkGroupsGetResponse = {
+  count?: number;
+  items?: VkGroupByIdResponseItem[];
+};
+
 type VkGroupIsMemberResponse =
   | number
   | {
@@ -29,6 +38,13 @@ type VkGroupIsMemberResponse =
 
 export type VkMembershipResult = 'MEMBER' | 'NOT_MEMBER' | 'PENDING_REQUEST' | 'UNAVAILABLE';
 export type VkGroupCreateResolution = {
+  groupId: number;
+  name: string;
+  screenName?: string;
+  canonicalInviteLink: string;
+};
+export type VkGroupImportRole = 'admin' | 'editor' | 'moder';
+export type VkImportedGroup = {
   groupId: number;
   name: string;
   screenName?: string;
@@ -51,6 +67,15 @@ const toPositiveInt = (value: unknown) => {
 const normalizeVkApiError = (error: unknown) => {
   if (error instanceof Error) return error.message;
   return String(error ?? 'unknown');
+};
+
+const isVkTokenInvalidMessage = (message: string) => {
+  return (
+    message.startsWith('vk_api_5:') ||
+    message.startsWith('vk_api_27:') ||
+    message.startsWith('vk_api_1114:') ||
+    message.startsWith('vk_api_1117:')
+  );
 };
 
 const normalizeVkRefToken = (value: string) =>
@@ -287,4 +312,100 @@ export const resolveVkGroupForCreate = async (
   } catch {
     return null;
   }
+};
+
+export const resolveVkUserIdByToken = async (
+  vkUserToken: string,
+  options?: {
+    version?: string;
+    timeoutMs?: number;
+  }
+) => {
+  const token = vkUserToken.trim();
+  if (!token) return null;
+
+  try {
+    const response = await requestVkMethod<VkUserResponseItem[] | VkUserResponseItem>(
+      'users.get',
+      {},
+      {
+        token,
+        version: options?.version,
+        timeoutMs: options?.timeoutMs,
+      }
+    );
+    const first = Array.isArray(response) ? response[0] : response;
+    return toPositiveInt(first?.id);
+  } catch (error) {
+    const message = normalizeVkApiError(error);
+    if (isVkTokenInvalidMessage(message)) {
+      throw new Error('vk_user_token_invalid');
+    }
+    throw error;
+  }
+};
+
+export const fetchVkAdminGroups = async (
+  vkUserToken: string,
+  options?: {
+    roles?: VkGroupImportRole[];
+    version?: string;
+    timeoutMs?: number;
+  }
+): Promise<VkImportedGroup[]> => {
+  const token = vkUserToken.trim();
+  if (!token) {
+    throw new Error('vk_user_token_invalid');
+  }
+
+  const roles = options?.roles?.length ? options.roles : ['admin', 'editor', 'moder'];
+  const filter = Array.from(new Set(roles)).join(',');
+  const count = 1000;
+  const resultMap = new Map<number, VkImportedGroup>();
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+  let page = 0;
+
+  while (offset < total && page < 20) {
+    page += 1;
+    let response: VkGroupsGetResponse;
+    try {
+      response = await requestVkMethod<VkGroupsGetResponse>('groups.get', {
+        filter,
+        extended: 1,
+        count,
+        offset,
+      }, {
+        token,
+        version: options?.version,
+        timeoutMs: options?.timeoutMs,
+      });
+    } catch (error) {
+      const message = normalizeVkApiError(error);
+      if (isVkTokenInvalidMessage(message)) {
+        throw new Error('vk_user_token_invalid');
+      }
+      throw error;
+    }
+
+    const items = Array.isArray(response.items) ? response.items : [];
+    total = Math.max(0, Number(response.count ?? items.length));
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const groupId = toPositiveInt(item.id);
+      const name = typeof item.name === 'string' ? item.name.trim() : '';
+      if (!groupId || !name) continue;
+      resultMap.set(groupId, {
+        groupId,
+        name,
+        screenName: normalizeVkScreenName(item.screen_name),
+        canonicalInviteLink: `https://vk.com/public${groupId}`,
+      });
+    }
+
+    offset += items.length;
+  }
+
+  return Array.from(resultMap.values());
 };

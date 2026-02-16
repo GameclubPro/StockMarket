@@ -35,6 +35,12 @@ type VkBridgeUserInfo = {
   photo_50?: string;
 };
 
+type VkBridgeAuthTokenResponse = {
+  access_token?: string;
+  scope?: string;
+  expires_in?: number;
+};
+
 export type PlatformUserProfile = {
   label?: string;
   photoUrl?: string;
@@ -299,6 +305,16 @@ export const isVk = () => {
 export const getVkLaunchParamsRaw = () => getVkLaunchParams().toString();
 export const getRuntimePlatform = (): RuntimePlatform => (isVk() ? 'VK' : 'TELEGRAM');
 
+const resolveVkAppId = () => {
+  const fromLaunch = Number(getVkLaunchData().vk_app_id ?? '');
+  if (Number.isFinite(fromLaunch) && fromLaunch > 0) return fromLaunch;
+
+  const fromEnv = Number(import.meta.env.VITE_VK_APP_ID ?? '');
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+
+  return null;
+};
+
 const normalizePlatformLinkCode = (value: string) => {
   const normalized = value.trim().toUpperCase();
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
@@ -453,6 +469,31 @@ export const clearPlatformLinkCodeFromUrl = () => {
     window.history.replaceState(window.history.state, '', next);
   } catch {
     // noop
+  }
+};
+
+export const requestVkUserToken = async (scope = 'groups') => {
+  if (!isVk()) {
+    throw new Error('vk_user_token_invalid');
+  }
+
+  const appId = resolveVkAppId();
+  if (!appId) {
+    throw new Error('vk_user_token_invalid');
+  }
+
+  try {
+    const response = (await bridge.send('VKWebAppGetAuthToken', {
+      app_id: appId,
+      scope,
+    })) as VkBridgeAuthTokenResponse;
+    const token = response?.access_token?.trim();
+    if (!token) {
+      throw new Error('vk_user_token_invalid');
+    }
+    return token;
+  } catch {
+    throw new Error('vk_user_token_invalid');
   }
 };
 
