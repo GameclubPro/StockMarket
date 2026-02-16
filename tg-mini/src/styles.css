@@ -11084,6 +11084,10 @@ body::before {
   color: rgba(188, 249, 215, 0.94);
 }
 
+.promo-project-hint-note {
+  color: rgba(196, 222, 236, 0.9);
+}
+
 .promo-vk-connect-sheet {
   display: grid;
   gap: 10px;

@@ -41,6 +41,19 @@ type VkBridgeAuthTokenResponse = {
   expires_in?: number;
 };
 
+type VkBridgeErrorPayload = {
+  error_type?: string;
+  error_data?: {
+    error_reason?: string;
+    error_description?: string;
+    error_code?: number | string;
+    [key: string]: unknown;
+  };
+  message?: string;
+  type?: string;
+  [key: string]: unknown;
+};
+
 export type PlatformUserProfile = {
   label?: string;
   photoUrl?: string;
@@ -315,6 +328,58 @@ const resolveVkAppId = () => {
   return null;
 };
 
+const serializeVkBridgeError = (error: unknown) => {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || error.name;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const parseVkBridgeErrorCode = (error: unknown) => {
+  const payload = (error as VkBridgeErrorPayload | null) ?? null;
+  const textParts = [
+    payload?.error_type,
+    payload?.type,
+    payload?.message,
+    payload?.error_data?.error_reason,
+    payload?.error_data?.error_description,
+    serializeVkBridgeError(error),
+  ]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    textParts.includes('access_denied') ||
+    textParts.includes('user_denied') ||
+    textParts.includes('permission denied') ||
+    textParts.includes('auth denied') ||
+    textParts.includes('cancel') ||
+    textParts.includes('отказ')
+  ) {
+    return 'vk_token_access_denied';
+  }
+
+  if (
+    textParts.includes('unsupported') ||
+    textParts.includes('not supported') ||
+    textParts.includes('method is not available') ||
+    textParts.includes('method is not supported') ||
+    textParts.includes('bridge_unavailable') ||
+    textParts.includes('client is not vk') ||
+    textParts.includes('unknown_method') ||
+    textParts.includes('not implemented')
+  ) {
+    return 'vk_token_method_unsupported';
+  }
+
+  return 'vk_token_bridge_failed';
+};
+
 const normalizePlatformLinkCode = (value: string) => {
   const normalized = value.trim().toUpperCase();
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
@@ -474,12 +539,12 @@ export const clearPlatformLinkCodeFromUrl = () => {
 
 export const requestVkUserToken = async (scope = 'groups') => {
   if (!isVk()) {
-    throw new Error('vk_user_token_invalid');
+    throw new Error('vk_token_runtime_not_vk');
   }
 
   const appId = resolveVkAppId();
   if (!appId) {
-    throw new Error('vk_user_token_invalid');
+    throw new Error('vk_token_app_id_missing');
   }
 
   try {
@@ -489,11 +554,14 @@ export const requestVkUserToken = async (scope = 'groups') => {
     })) as VkBridgeAuthTokenResponse;
     const token = response?.access_token?.trim();
     if (!token) {
-      throw new Error('vk_user_token_invalid');
+      throw new Error('vk_token_bridge_failed');
     }
     return token;
-  } catch {
-    throw new Error('vk_user_token_invalid');
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('vk_token_')) {
+      throw error;
+    }
+    throw new Error(parseVkBridgeErrorCode(error));
   }
 };
 

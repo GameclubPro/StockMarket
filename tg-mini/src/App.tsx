@@ -281,6 +281,27 @@ const getHealthTone = (score: number) => {
   return 'critical';
 };
 
+const mapVkImportTokenErrorMessage = (code: string) => {
+  if (code === 'vk_token_access_denied') {
+    return 'Вы отклонили доступ к группам VK. Разрешите доступ и повторите.';
+  }
+  if (code === 'vk_token_app_id_missing') {
+    return 'Не найден VK app id. Нужен `VITE_VK_APP_ID=54453849` в фронте.';
+  }
+  if (code === 'vk_token_method_unsupported') {
+    return 'Эта среда не поддерживает выдачу VK токена. Откройте mini app внутри VK.';
+  }
+  if (code === 'vk_token_runtime_not_vk') {
+    return 'Импорт доступен только внутри VK mini app.';
+  }
+  if (code === 'vk_token_bridge_failed') {
+    return 'VK временно не выдал токен. Повторите через несколько секунд.';
+  }
+  return '';
+};
+
+const isVkTokenErrorCode = (code: string) => code.startsWith('vk_token_');
+
 const getBlockedPayloadFromError = (error: unknown): BlockedPayload | null => {
   if (!(error instanceof ApiRequestError)) return null;
   if (error.status !== 423) return null;
@@ -760,6 +781,7 @@ export default function App() {
   const [vkGroupCreateLoading, setVkGroupCreateLoading] = useState(false);
   const [vkGroupCreateError, setVkGroupCreateError] = useState('');
   const [vkImportLoading, setVkImportLoading] = useState(false);
+  const [vkImportErrorCode, setVkImportErrorCode] = useState('');
   const [vkImportError, setVkImportError] = useState('');
   const [vkImportStatus, setVkImportStatus] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
@@ -1592,6 +1614,7 @@ export default function App() {
 
   const openVkGroupConnectSheet = useCallback(() => {
     setVkGroupCreateError('');
+    setVkImportErrorCode('');
     setVkImportError('');
     setVkImportStatus('');
     setVkGroupConnectOpen(true);
@@ -1607,6 +1630,7 @@ export default function App() {
     if (!isVkRuntime) return false;
 
     setVkGroupCreateError('');
+    setVkImportErrorCode('');
     setVkImportError('');
     if (vkGroupAddBlocked) {
       setVkGroupCreateError(vkSubscribeCapabilityReason);
@@ -1668,10 +1692,12 @@ export default function App() {
   const handleImportVkGroups = useCallback(async () => {
     if (!isVkRuntime) return false;
 
+    setVkImportErrorCode('');
     setVkImportError('');
     setVkImportStatus('');
 
     if (vkImportBlocked) {
+      setVkImportErrorCode('vk_group_add_unavailable');
       setVkImportError(vkSubscribeCapabilityReason);
       return false;
     }
@@ -1706,10 +1732,14 @@ export default function App() {
       return true;
     } catch (error: any) {
       if (handleBlockedApiError(error)) return false;
+      const errorCode = typeof error?.message === 'string' ? error.message : '';
       const fallback = 'Не удалось импортировать VK-сообщества.';
-      if (error?.message === 'vk_user_token_invalid') {
-        setVkImportError('Нет доступа к VK токену. Разрешите доступ к сообществам и повторите.');
+      const tokenErrorMessage = mapVkImportTokenErrorMessage(errorCode);
+      if (tokenErrorMessage) {
+        setVkImportErrorCode(errorCode);
+        setVkImportError(tokenErrorMessage);
       } else {
+        setVkImportErrorCode(errorCode);
         setVkImportError(error?.message ?? fallback);
       }
       return false;
@@ -2642,6 +2672,7 @@ export default function App() {
     setTaskType(type);
     setTaskPriceValue(DEFAULT_TASK_PRICE);
     setCreateError('');
+    setVkImportErrorCode('');
     setVkImportError('');
     setVkImportStatus('');
     setLinkPickerOpen(false);
@@ -2656,6 +2687,7 @@ export default function App() {
     setPromoWizardOpen(false);
     setLinkPickerOpen(false);
     setVkGroupConnectOpen(false);
+    setVkImportErrorCode('');
     setVkImportError('');
     setVkImportStatus('');
   };
@@ -5823,7 +5855,14 @@ export default function App() {
                         </div>
                       )}
                       {isVkRuntime && vkImportError && (
-                        <div className="promo-project-hint promo-project-hint-error">{vkImportError}</div>
+                        <div className="promo-project-hint promo-project-hint-error">
+                          {vkImportError}
+                        </div>
+                      )}
+                      {isVkRuntime && vkImportError && isVkTokenErrorCode(vkImportErrorCode) && (
+                        <div className="promo-project-hint promo-project-hint-note">
+                          Можно добавить сообщество вручную по ссылке через кнопку выше.
+                        </div>
                       )}
                       {isVkRuntime && vkImportStatus && (
                         <div className="promo-project-hint promo-project-hint-success">{vkImportStatus}</div>
