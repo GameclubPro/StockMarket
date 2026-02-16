@@ -48,6 +48,7 @@ import {
 } from './api';
 import {
   clearPlatformLinkCodeFromUrl,
+  fetchVkAdminGroupsViaBridge,
   getPlatformLinkCode,
   getRuntimePlatform,
   getInitDataRaw,
@@ -1805,6 +1806,58 @@ export default function App() {
     vkSubscribeCapabilityReason,
   ]);
 
+  const importVkGroupsViaBridgeFallback = useCallback(
+    async (vkUserToken: string) => {
+      const bridgeGroups = await fetchVkAdminGroupsViaBridge(vkUserToken);
+      const knownVkGroupIds = new Set(
+        myGroups.filter((group) => group.platform === 'VK').map((group) => group.id)
+      );
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const group of bridgeGroups) {
+        try {
+          const response = await createGroup({
+            inviteLink: group.canonicalInviteLink,
+            title: group.name,
+          });
+          if (!response.ok || !response.group) {
+            skipped += 1;
+            continue;
+          }
+          if (knownVkGroupIds.has(response.group.id)) {
+            updated += 1;
+          } else {
+            knownVkGroupIds.add(response.group.id);
+            imported += 1;
+          }
+        } catch (error) {
+          if (handleBlockedApiError(error)) throw error;
+          skipped += 1;
+        }
+      }
+
+      let groupsSnapshot = myGroups;
+      try {
+        const refreshed = await fetchMyGroups();
+        if (refreshed.ok && Array.isArray(refreshed.groups)) {
+          groupsSnapshot = refreshed.groups;
+        }
+      } catch {
+        // ignore refresh errors: groups were already synced via createGroup calls
+      }
+
+      return {
+        groups: groupsSnapshot,
+        imported,
+        updated,
+        skipped,
+      };
+    },
+    [handleBlockedApiError, myGroups]
+  );
+
   const handleImportVkGroups = useCallback(async () => {
     if (!isVkRuntime) return false;
 
@@ -1820,9 +1873,10 @@ export default function App() {
       return false;
     }
 
+    let vkUserToken = '';
     setVkImportLoading(true);
     try {
-      const vkUserToken = await requestVkUserToken('groups');
+      vkUserToken = await requestVkUserToken('groups');
       const data = await importVkAdminGroups(vkUserToken);
       if (!data.ok || !Array.isArray(data.groups)) {
         throw new Error('Не удалось импортировать VK-сообщества.');
@@ -1855,10 +1909,55 @@ export default function App() {
       const messageCode = typeof error?.message === 'string' ? error.message : '';
       const errorCode = detailsCode || messageCode;
       const fallback = 'Не удалось импортировать VK-сообщества.';
-      const tokenErrorMessage = mapVkImportTokenErrorMessage({
+      const vkErrorPayload = {
         code: errorCode,
         vkApiErrorCode: details.vkApiErrorCode,
         vkApiErrorMessage: details.vkApiErrorMessage,
+      };
+
+      if (vkUserToken && isVkTokenIpMismatchError(vkErrorPayload)) {
+        try {
+          const fallbackData = await importVkGroupsViaBridgeFallback(vkUserToken);
+          setMyGroups(fallbackData.groups);
+          setMyGroupsLoaded(true);
+          setMyGroupsError('');
+          setLinkPickerOpen(true);
+          setVkGroupConnectOpen(false);
+
+          if (!selectedGroupId && fallbackData.groups[0]) {
+            setSelectedGroupId(fallbackData.groups[0].id);
+            setSelectedGroupTitle(fallbackData.groups[0].title);
+          }
+
+          if (fallbackData.imported > 0 || fallbackData.updated > 0) {
+            setVkImportStatus(
+              `Импорт через VK Bridge: ${fallbackData.imported} новых, ${fallbackData.updated} обновлено, ${fallbackData.skipped} пропущено.`
+            );
+          } else {
+            setVkImportStatus('Новых VK-сообществ не найдено. Список уже актуален.');
+          }
+          return true;
+        } catch (bridgeError: any) {
+          if (handleBlockedApiError(bridgeError)) return false;
+          const bridgeCode =
+            typeof bridgeError?.message === 'string' && bridgeError.message.trim()
+              ? bridgeError.message.trim()
+              : errorCode;
+          const bridgeTokenMessage = mapVkImportTokenErrorMessage({
+            code: bridgeCode,
+            vkApiErrorCode: null,
+            vkApiErrorMessage: '',
+          });
+          setVkImportErrorCode(bridgeCode);
+          setVkImportApiErrorCode(details.vkApiErrorCode);
+          setVkImportApiErrorMessage(details.vkApiErrorMessage);
+          setVkImportError(bridgeTokenMessage || bridgeError?.message || fallback);
+          return false;
+        }
+      }
+
+      const tokenErrorMessage = mapVkImportTokenErrorMessage({
+        ...vkErrorPayload,
       });
       if (tokenErrorMessage) {
         setVkImportErrorCode(errorCode);
@@ -1877,6 +1976,7 @@ export default function App() {
     }
   }, [
     handleBlockedApiError,
+    importVkGroupsViaBridgeFallback,
     isVkRuntime,
     selectedGroupId,
     vkImportBlocked,
