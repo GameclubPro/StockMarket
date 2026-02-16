@@ -41,21 +41,6 @@ type VkBridgeAuthTokenResponse = {
   expires_in?: number;
 };
 
-type VkBridgeCallApiResponse<T = unknown> = {
-  response?: T;
-};
-
-type VkBridgeGroupItem = {
-  id?: number;
-  name?: string;
-  screen_name?: string;
-};
-
-type VkBridgeGroupsGetResponse = {
-  count?: number;
-  items?: VkBridgeGroupItem[];
-};
-
 type VkBridgeErrorPayload = {
   error_type?: string;
   error_data?: {
@@ -74,12 +59,6 @@ export type PlatformUserProfile = {
   photoUrl?: string;
 };
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
-export type VkBridgeImportedGroup = {
-  groupId: number;
-  name: string;
-  screenName?: string;
-  canonicalInviteLink: string;
-};
 
 const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
 const TG_LINK_PARAM_PREFIX = 'link_';
@@ -401,114 +380,6 @@ const parseVkBridgeErrorCode = (error: unknown) => {
   return 'vk_token_bridge_failed';
 };
 
-const parseVkBridgeApiError = (error: unknown) => {
-  const payload = (error as VkBridgeErrorPayload | null) ?? null;
-  const rawCode = payload?.error_data?.error_code;
-  const code =
-    typeof rawCode === 'number'
-      ? rawCode
-      : typeof rawCode === 'string' && rawCode.trim()
-        ? Number(rawCode)
-        : NaN;
-  const normalizedCode = Number.isFinite(code) ? Math.round(code) : null;
-  const messageParts = [
-    payload?.error_data?.error_reason,
-    payload?.error_data?.error_description,
-    payload?.message,
-    serializeVkBridgeError(error),
-  ]
-    .flatMap((value) => (Array.isArray(value) ? value : [value]))
-    .map((value) => (typeof value === 'string' ? value.trim() : ''))
-    .filter(Boolean);
-  const message = messageParts.join(' ').trim();
-
-  if (payload?.error_type !== 'api_error' && !normalizedCode) return null;
-  return {
-    code: normalizedCode,
-    message,
-  };
-};
-
-const classifyVkBridgeTokenError = (payload: { code: number | null; message: string }) => {
-  const normalized = payload.message.toLowerCase();
-  const hasGroupsMarker =
-    normalized.includes('group') ||
-    normalized.includes('groups') ||
-    normalized.includes('сообществ') ||
-    normalized.includes('групп');
-  const hasScopeDeniedMarker =
-    normalized.includes('permission') ||
-    normalized.includes('access denied') ||
-    normalized.includes('no access') ||
-    normalized.includes('scope') ||
-    normalized.includes('доступ') ||
-    normalized.includes('прав');
-
-  if (
-    normalized.includes('expired') ||
-    normalized.includes('session expired') ||
-    normalized.includes('token has expired') ||
-    normalized.includes('истек')
-  ) {
-    return 'vk_user_token_expired';
-  }
-
-  if (hasGroupsMarker && hasScopeDeniedMarker) {
-    return 'vk_user_token_scope_missing';
-  }
-
-  if (payload.code === 7 || payload.code === 15) return 'vk_user_token_scope_missing';
-  if (payload.code === 29) return 'vk_verify_unavailable';
-  if (payload.code === 5 || payload.code === 27 || payload.code === 1114 || payload.code === 1117) {
-    return 'vk_user_token_invalid';
-  }
-
-  return '';
-};
-
-const normalizeVkScreenName = (value: unknown) => {
-  if (typeof value !== 'string') return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (!/^[a-z0-9_.]{2,64}$/i.test(normalized)) return undefined;
-  return normalized;
-};
-
-const requestVkApiByBridge = async <T>(
-  method: string,
-  params: Record<string, string | number>,
-  vkUserToken: string
-) => {
-  const token = vkUserToken.trim();
-  if (!token) throw new Error('vk_user_token_invalid');
-
-  try {
-    const response = (await bridge.send('VKWebAppCallAPIMethod', {
-      method,
-      params: {
-        access_token: token,
-        v: '5.199',
-        ...params,
-      },
-    })) as VkBridgeCallApiResponse<T> | T;
-    if (response && typeof response === 'object' && 'response' in response) {
-      const nested = (response as VkBridgeCallApiResponse<T>).response;
-      if (typeof nested !== 'undefined') return nested;
-    }
-    return response as T;
-  } catch (error) {
-    const apiError = parseVkBridgeApiError(error);
-    if (apiError) {
-      const classified = classifyVkBridgeTokenError(apiError);
-      if (classified) throw new Error(classified);
-      if (apiError.code !== null && apiError.message) {
-        throw new Error(`vk_api_${apiError.code}:${apiError.message}`);
-      }
-    }
-    throw new Error(parseVkBridgeErrorCode(error));
-  }
-};
-
 const normalizePlatformLinkCode = (value: string) => {
   const normalized = value.trim().toUpperCase();
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
@@ -710,58 +581,6 @@ export const requestVkUserToken = async (scope = 'groups') => {
     }
     throw new Error(parseVkBridgeErrorCode(error));
   }
-};
-
-export const fetchVkAdminGroupsViaBridge = async (
-  vkUserToken: string
-): Promise<VkBridgeImportedGroup[]> => {
-  if (!isVk()) {
-    throw new Error('vk_token_runtime_not_vk');
-  }
-
-  const token = vkUserToken.trim();
-  if (!token) throw new Error('vk_user_token_invalid');
-
-  const count = 1000;
-  let offset = 0;
-  let total = Number.POSITIVE_INFINITY;
-  let page = 0;
-  const resultMap = new Map<number, VkBridgeImportedGroup>();
-
-  while (offset < total && page < 20) {
-    page += 1;
-    const response = await requestVkApiByBridge<VkBridgeGroupsGetResponse>(
-      'groups.get',
-      {
-        filter: 'admin,editor,moder',
-        extended: 1,
-        count,
-        offset,
-      },
-      token
-    );
-    const items = Array.isArray(response?.items) ? response.items : [];
-    total = Math.max(0, Number(response?.count ?? items.length));
-    if (items.length === 0) break;
-
-    for (const item of items) {
-      const groupIdRaw = Number(item?.id);
-      const groupId = Number.isFinite(groupIdRaw) && groupIdRaw > 0 ? Math.round(groupIdRaw) : 0;
-      const name = typeof item?.name === 'string' ? item.name.trim() : '';
-      if (!groupId || !name) continue;
-      const screenName = normalizeVkScreenName(item?.screen_name);
-      resultMap.set(groupId, {
-        groupId,
-        name,
-        screenName,
-        canonicalInviteLink: screenName ? `https://vk.com/${screenName}` : `https://vk.com/public${groupId}`,
-      });
-    }
-
-    offset += items.length;
-  }
-
-  return Array.from(resultMap.values());
 };
 
 const initVk = () => {
