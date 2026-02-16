@@ -1815,6 +1815,8 @@ export default function App() {
       let imported = 0;
       let updated = 0;
       let skipped = 0;
+      const failedByCode: Record<string, number> = {};
+      let firstErrorMessage = '';
 
       for (const group of bridgeGroups) {
         try {
@@ -1834,6 +1836,18 @@ export default function App() {
           }
         } catch (error) {
           if (handleBlockedApiError(error)) throw error;
+          const details = getApiErrorDetails(error);
+          const errorCode =
+            details.code ||
+            (typeof (error as { message?: unknown } | null)?.message === 'string'
+              ? String((error as { message: string }).message).trim()
+              : '');
+          if (errorCode) {
+            failedByCode[errorCode] = (failedByCode[errorCode] ?? 0) + 1;
+          }
+          if (!firstErrorMessage && typeof (error as { message?: unknown } | null)?.message === 'string') {
+            firstErrorMessage = String((error as { message: string }).message).trim();
+          }
           skipped += 1;
         }
       }
@@ -1849,10 +1863,13 @@ export default function App() {
       }
 
       return {
+        discovered: bridgeGroups.length,
         groups: groupsSnapshot,
         imported,
         updated,
         skipped,
+        failedByCode,
+        firstErrorMessage,
       };
     },
     [handleBlockedApiError, myGroups]
@@ -1916,6 +1933,11 @@ export default function App() {
       };
 
       if (vkUserToken && isVkTokenIpMismatchError(vkErrorPayload)) {
+        if (vkGroupAddBlocked) {
+          setVkImportErrorCode('vk_group_add_unavailable');
+          setVkImportError(vkSubscribeCapabilityReason);
+          return false;
+        }
         try {
           const fallbackData = await importVkGroupsViaBridgeFallback(vkUserToken);
           setMyGroups(fallbackData.groups);
@@ -1929,14 +1951,32 @@ export default function App() {
             setSelectedGroupTitle(fallbackData.groups[0].title);
           }
 
+          if (fallbackData.discovered === 0) {
+            setVkImportStatus('В VK не найдено сообществ, где у вас есть права admin/editor/moder.');
+            return true;
+          }
+
           if (fallbackData.imported > 0 || fallbackData.updated > 0) {
             setVkImportStatus(
               `Импорт через VK Bridge: ${fallbackData.imported} новых, ${fallbackData.updated} обновлено, ${fallbackData.skipped} пропущено.`
             );
-          } else {
-            setVkImportStatus('Новых VK-сообществ не найдено. Список уже актуален.');
+            return true;
           }
-          return true;
+
+          const failedByCodeEntries = Object.entries(fallbackData.failedByCode);
+          const topErrorCode = failedByCodeEntries.sort((left, right) => right[1] - left[1])[0]?.[0] ?? '';
+          if (topErrorCode === 'vk_group_add_unavailable') {
+            setVkImportErrorCode('vk_group_add_unavailable');
+            setVkImportError(vkSubscribeCapabilityReason);
+            return false;
+          }
+
+          setVkImportErrorCode(topErrorCode || 'vk_bridge_sync_failed');
+          setVkImportError(
+            fallbackData.firstErrorMessage ||
+              `Найдено ${fallbackData.discovered} VK-сообществ, но синхронизировать их не удалось.`
+          );
+          return false;
         } catch (bridgeError: any) {
           if (handleBlockedApiError(bridgeError)) return false;
           const bridgeCode =
@@ -1979,6 +2019,7 @@ export default function App() {
     importVkGroupsViaBridgeFallback,
     isVkRuntime,
     selectedGroupId,
+    vkGroupAddBlocked,
     vkImportBlocked,
     vkSubscribeCapabilityReason,
   ]);
