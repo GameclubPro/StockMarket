@@ -629,10 +629,16 @@ const getVkImportTokenErrorMeta = (error: unknown) => {
     typeof rawVkApiErrorCode === 'number' && Number.isFinite(rawVkApiErrorCode)
       ? rawVkApiErrorCode
       : undefined;
+  const rawVkApiErrorMessage = normalized.details?.vkApiErrorMessage;
+  const vkApiErrorMessage =
+    typeof rawVkApiErrorMessage === 'string' && rawVkApiErrorMessage.trim()
+      ? rawVkApiErrorMessage.trim()
+      : undefined;
 
   return {
     code,
     vkApiErrorCode,
+    vkApiErrorMessage,
   };
 };
 
@@ -4150,6 +4156,9 @@ export const registerRoutes = (app: FastifyInstance) => {
               ...(typeof meta.vkApiErrorCode === 'number'
                 ? { vkApiErrorCode: meta.vkApiErrorCode }
                 : {}),
+              ...(typeof meta.vkApiErrorMessage === 'string'
+                ? { vkApiErrorMessage: meta.vkApiErrorMessage }
+                : {}),
             },
           });
         }
@@ -4226,6 +4235,9 @@ export const registerRoutes = (app: FastifyInstance) => {
               code: meta.code,
               ...(typeof meta.vkApiErrorCode === 'number'
                 ? { vkApiErrorCode: meta.vkApiErrorCode }
+                : {}),
+              ...(typeof meta.vkApiErrorMessage === 'string'
+                ? { vkApiErrorMessage: meta.vkApiErrorMessage }
                 : {}),
             },
           });

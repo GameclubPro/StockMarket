@@ -327,12 +327,13 @@ const isVkImportRecoveryCode = (code: string) =>
   code === 'vk_token_access_denied';
 
 const getApiErrorDetails = (error: unknown) => {
-  if (!(error instanceof ApiRequestError)) return { code: '', vkApiErrorCode: null };
+  if (!(error instanceof ApiRequestError)) return { code: '', vkApiErrorCode: null, vkApiErrorMessage: '' };
   const payload = error.payload as
     | {
         details?: {
           code?: unknown;
           vkApiErrorCode?: unknown;
+          vkApiErrorMessage?: unknown;
         };
       }
     | null;
@@ -340,9 +341,15 @@ const getApiErrorDetails = (error: unknown) => {
   const vkApiCodeRaw = payload?.details?.vkApiErrorCode;
   const vkApiErrorCode =
     typeof vkApiCodeRaw === 'number' && Number.isFinite(vkApiCodeRaw) ? vkApiCodeRaw : null;
+  const vkApiErrorMessageRaw = payload?.details?.vkApiErrorMessage;
+  const vkApiErrorMessage =
+    typeof vkApiErrorMessageRaw === 'string' && vkApiErrorMessageRaw.trim()
+      ? vkApiErrorMessageRaw.trim()
+      : '';
   return {
     code: typeof code === 'string' ? code : '',
     vkApiErrorCode,
+    vkApiErrorMessage,
   };
 };
 
@@ -828,6 +835,7 @@ export default function App() {
   const [vkImportErrorCode, setVkImportErrorCode] = useState('');
   const [vkImportError, setVkImportError] = useState('');
   const [vkImportApiErrorCode, setVkImportApiErrorCode] = useState<number | null>(null);
+  const [vkImportApiErrorMessage, setVkImportApiErrorMessage] = useState('');
   const [vkImportStatus, setVkImportStatus] = useState('');
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
@@ -1740,6 +1748,7 @@ export default function App() {
     setVkImportErrorCode('');
     setVkImportError('');
     setVkImportApiErrorCode(null);
+    setVkImportApiErrorMessage('');
     setVkImportStatus('');
 
     if (vkImportBlocked) {
@@ -1787,10 +1796,12 @@ export default function App() {
       if (tokenErrorMessage) {
         setVkImportErrorCode(errorCode);
         setVkImportApiErrorCode(details.vkApiErrorCode);
+        setVkImportApiErrorMessage(details.vkApiErrorMessage);
         setVkImportError(tokenErrorMessage);
       } else {
         setVkImportErrorCode(errorCode);
         setVkImportApiErrorCode(details.vkApiErrorCode);
+        setVkImportApiErrorMessage(details.vkApiErrorMessage);
         setVkImportError(error?.message ?? fallback);
       }
       return false;
@@ -5925,6 +5936,11 @@ export default function App() {
                       {isVkRuntime && vkImportError && vkImportApiErrorCode !== null && (
                         <div className="promo-project-hint promo-project-hint-note">
                           Код VK API: {vkImportApiErrorCode}
+                        </div>
+                      )}
+                      {isVkRuntime && vkImportError && vkImportApiErrorMessage && (
+                        <div className="promo-project-hint promo-project-hint-note">
+                          VK API: {vkImportApiErrorMessage}
                         </div>
                       )}
                       {isVkRuntime && vkImportStatus && (

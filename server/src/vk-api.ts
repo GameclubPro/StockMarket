@@ -89,6 +89,7 @@ const parseVkApiErrorMeta = (message: string) => {
 const classifyVkUserTokenError = (message: string): {
   code: VkUserTokenErrorCode;
   vkApiErrorCode?: number;
+  vkApiErrorMessage?: string;
 } | null => {
   const parsed = parseVkApiErrorMeta(message);
   const normalized = message.toLowerCase();
@@ -102,6 +103,7 @@ const classifyVkUserTokenError = (message: string): {
     return {
       code: 'vk_user_token_expired',
       vkApiErrorCode: parsed?.code,
+      vkApiErrorMessage: parsed?.details,
     };
   }
 
@@ -124,6 +126,7 @@ const classifyVkUserTokenError = (message: string): {
     return {
       code: 'vk_user_token_scope_missing',
       vkApiErrorCode: parsed.code,
+      vkApiErrorMessage: parsed.details,
     };
   }
 
@@ -131,6 +134,7 @@ const classifyVkUserTokenError = (message: string): {
     return {
       code: 'vk_verify_unavailable',
       vkApiErrorCode: parsed.code,
+      vkApiErrorMessage: parsed.details,
     };
   }
 
@@ -138,6 +142,7 @@ const classifyVkUserTokenError = (message: string): {
     return {
       code: 'vk_user_token_scope_missing',
       vkApiErrorCode: parsed.code,
+      vkApiErrorMessage: parsed.details,
     };
   }
 
@@ -150,6 +155,7 @@ const classifyVkUserTokenError = (message: string): {
     return {
       code: 'vk_user_token_invalid',
       vkApiErrorCode: parsed.code,
+      vkApiErrorMessage: parsed.details,
     };
   }
 
@@ -159,6 +165,7 @@ const classifyVkUserTokenError = (message: string): {
 const buildVkTokenError = (payload: {
   code: VkUserTokenErrorCode;
   vkApiErrorCode?: number;
+  vkApiErrorMessage?: string;
 }) => {
   const error = new Error(payload.code) as Error & {
     details?: Record<string, unknown>;
@@ -167,6 +174,9 @@ const buildVkTokenError = (payload: {
     code: payload.code,
     ...(typeof payload.vkApiErrorCode === 'number'
       ? { vkApiErrorCode: payload.vkApiErrorCode }
+      : {}),
+    ...(typeof payload.vkApiErrorMessage === 'string' && payload.vkApiErrorMessage.trim()
+      ? { vkApiErrorMessage: payload.vkApiErrorMessage.trim() }
       : {}),
   };
   return error;
