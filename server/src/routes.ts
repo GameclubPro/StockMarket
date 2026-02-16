@@ -600,6 +600,42 @@ const logVkVerifyMetrics = (
   );
 };
 
+type VkImportTokenErrorCode =
+  | 'vk_user_token_invalid'
+  | 'vk_user_token_scope_missing'
+  | 'vk_user_token_expired';
+
+const VK_IMPORT_TOKEN_ERROR_CODES = new Set<VkImportTokenErrorCode>([
+  'vk_user_token_invalid',
+  'vk_user_token_scope_missing',
+  'vk_user_token_expired',
+]);
+
+const getVkImportTokenErrorMeta = (error: unknown) => {
+  const normalized = normalizeApiError(error, 400);
+  const detailsCodeRaw = normalized.details?.code;
+  const detailsCode =
+    typeof detailsCodeRaw === 'string' &&
+    VK_IMPORT_TOKEN_ERROR_CODES.has(detailsCodeRaw as VkImportTokenErrorCode)
+      ? (detailsCodeRaw as VkImportTokenErrorCode)
+      : null;
+  const messageCode = VK_IMPORT_TOKEN_ERROR_CODES.has(normalized.message as VkImportTokenErrorCode)
+    ? (normalized.message as VkImportTokenErrorCode)
+    : null;
+  const code = detailsCode ?? messageCode;
+
+  const rawVkApiErrorCode = normalized.details?.vkApiErrorCode;
+  const vkApiErrorCode =
+    typeof rawVkApiErrorCode === 'number' && Number.isFinite(rawVkApiErrorCode)
+      ? rawVkApiErrorCode
+      : undefined;
+
+  return {
+    code,
+    vkApiErrorCode,
+  };
+};
+
 const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
   const rawPayload = authPayload.trim();
   if (!rawPayload) throw new Error('empty auth payload');
@@ -4079,7 +4115,11 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       const vkUserToken = parsed.data.vkUserToken.trim();
       if (!vkUserToken) {
-        return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        return reply.code(400).send({
+          ok: false,
+          error: 'vk_user_token_invalid',
+          details: { code: 'vk_user_token_invalid' },
+        });
       }
 
       ensureVkGroupAddEnabled();
@@ -4093,17 +4133,75 @@ export const registerRoutes = (app: FastifyInstance) => {
       try {
         vkUserId = await resolveVkUserIdByToken(vkUserToken);
       } catch (error) {
-        const normalized = normalizeApiError(error, 400);
-        if (normalized.message === 'vk_user_token_invalid') {
-          return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        const meta = getVkImportTokenErrorMeta(error);
+        if (meta.code) {
+          request.log.warn(
+            {
+              vk_token_error_code: meta.code,
+              vk_api_error_code: meta.vkApiErrorCode ?? null,
+              vk_user_id: vkExternalId,
+              runtimePlatform,
+            },
+            'vk import token verification failed'
+          );
+          return reply.code(400).send({
+            ok: false,
+            error: 'vk_user_token_invalid',
+            details: {
+              code: meta.code,
+              ...(typeof meta.vkApiErrorCode === 'number'
+                ? { vkApiErrorCode: meta.vkApiErrorCode }
+                : {}),
+            },
+          });
         }
-        return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+        request.log.error(
+          {
+            err: error,
+            vk_token_error_code: 'vk_verify_unavailable',
+            vk_api_error_code: meta.vkApiErrorCode ?? null,
+            vk_user_id: vkExternalId,
+            runtimePlatform,
+          },
+          'vk import token verification unavailable'
+        );
+        return reply.code(503).send({
+          ok: false,
+          error: 'vk_verify_unavailable',
+          details: { code: 'vk_verify_unavailable' },
+        });
       }
       if (!vkUserId) {
-        return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        request.log.warn(
+          {
+            vk_token_error_code: 'vk_user_token_invalid',
+            vk_api_error_code: null,
+            vk_user_id: vkExternalId,
+            runtimePlatform,
+          },
+          'vk import token user id is empty'
+        );
+        return reply.code(400).send({
+          ok: false,
+          error: 'vk_user_token_invalid',
+          details: { code: 'vk_user_token_invalid' },
+        });
       }
       if (String(vkUserId) !== vkExternalId) {
-        return reply.code(403).send({ ok: false, error: 'vk_identity_mismatch' });
+        request.log.warn(
+          {
+            vk_token_error_code: 'vk_identity_mismatch',
+            vk_api_error_code: null,
+            vk_user_id: vkUserId,
+            runtimePlatform,
+          },
+          'vk import token identity mismatch'
+        );
+        return reply.code(403).send({
+          ok: false,
+          error: 'vk_identity_mismatch',
+          details: { code: 'vk_identity_mismatch' },
+        });
       }
 
       let importedGroups: Awaited<ReturnType<typeof fetchVkAdminGroups>> = [];
@@ -4112,11 +4210,43 @@ export const registerRoutes = (app: FastifyInstance) => {
           roles: ['admin', 'editor', 'moder'],
         });
       } catch (error) {
-        const normalized = normalizeApiError(error, 400);
-        if (normalized.message === 'vk_user_token_invalid') {
-          return reply.code(400).send({ ok: false, error: 'vk_user_token_invalid' });
+        const meta = getVkImportTokenErrorMeta(error);
+        if (meta.code) {
+          request.log.warn(
+            {
+              vk_token_error_code: meta.code,
+              vk_api_error_code: meta.vkApiErrorCode ?? null,
+              vk_user_id: vkUserId,
+              runtimePlatform,
+            },
+            'vk import admin groups failed with token diagnostic'
+          );
+          return reply.code(400).send({
+            ok: false,
+            error: 'vk_user_token_invalid',
+            details: {
+              code: meta.code,
+              ...(typeof meta.vkApiErrorCode === 'number'
+                ? { vkApiErrorCode: meta.vkApiErrorCode }
+                : {}),
+            },
+          });
         }
-        return reply.code(503).send({ ok: false, error: 'vk_verify_unavailable' });
+        request.log.error(
+          {
+            err: error,
+            vk_token_error_code: 'vk_verify_unavailable',
+            vk_api_error_code: meta.vkApiErrorCode ?? null,
+            vk_user_id: vkUserId,
+            runtimePlatform,
+          },
+          'vk import admin groups unavailable'
+        );
+        return reply.code(503).send({
+          ok: false,
+          error: 'vk_verify_unavailable',
+          details: { code: 'vk_verify_unavailable' },
+        });
       }
 
       let imported = 0;
@@ -4193,7 +4323,15 @@ export const registerRoutes = (app: FastifyInstance) => {
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
-      return sendRouteError(reply, error, 400);
+      const normalized = normalizeApiError(error, 400);
+      if (normalized.message === 'vk_group_add_unavailable') {
+        return reply.code(409).send({
+          ok: false,
+          error: 'vk_group_add_unavailable',
+          details: { code: 'vk_group_add_unavailable' },
+        });
+      }
+      return sendRouteError(reply, normalized, 400);
     }
   });
 

@@ -285,8 +285,17 @@ const mapVkImportTokenErrorMessage = (code: string) => {
   if (code === 'vk_user_token_invalid') {
     return 'Нет доступа к VK токену. Разрешите доступ к группам и повторите.';
   }
+  if (code === 'vk_user_token_scope_missing') {
+    return 'Приложению не выданы права к группам VK. Разрешите доступ и повторите.';
+  }
+  if (code === 'vk_user_token_expired') {
+    return 'Токен истек. Повторите импорт и подтвердите доступ.';
+  }
   if (code === 'vk_identity_mismatch') {
     return 'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.';
+  }
+  if (code === 'vk_verify_unavailable') {
+    return 'VK API временно недоступен. Повторите импорт через несколько секунд.';
   }
   if (code === 'vk_token_access_denied') {
     return 'Вы отклонили доступ к группам VK. Разрешите доступ и повторите.';
@@ -307,7 +316,23 @@ const mapVkImportTokenErrorMessage = (code: string) => {
 };
 
 const isVkTokenErrorCode = (code: string) =>
-  code.startsWith('vk_token_') || code === 'vk_user_token_invalid';
+  code.startsWith('vk_token_') ||
+  code === 'vk_user_token_invalid' ||
+  code === 'vk_user_token_scope_missing' ||
+  code === 'vk_user_token_expired';
+
+const getApiErrorDetailsCode = (error: unknown) => {
+  if (!(error instanceof ApiRequestError)) return '';
+  const payload = error.payload as
+    | {
+        details?: {
+          code?: unknown;
+        };
+      }
+    | null;
+  const code = payload?.details?.code;
+  return typeof code === 'string' ? code : '';
+};
 
 const getBlockedPayloadFromError = (error: unknown): BlockedPayload | null => {
   if (!(error instanceof ApiRequestError)) return null;
@@ -1739,7 +1764,9 @@ export default function App() {
       return true;
     } catch (error: any) {
       if (handleBlockedApiError(error)) return false;
-      const errorCode = typeof error?.message === 'string' ? error.message : '';
+      const detailsCode = getApiErrorDetailsCode(error);
+      const messageCode = typeof error?.message === 'string' ? error.message : '';
+      const errorCode = detailsCode || messageCode;
       const fallback = 'Не удалось импортировать VK-сообщества.';
       const tokenErrorMessage = mapVkImportTokenErrorMessage(errorCode);
       if (tokenErrorMessage) {

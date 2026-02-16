@@ -2,6 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fetchVkAdminGroups, resolveVkGroupId, resolveVkGroupRefFromLink, resolveVkUserIdByToken } from '../vk-api.js';
 
+const extractErrorMeta = (error: unknown) => {
+  const message = String((error as { message?: unknown } | null)?.message ?? '');
+  const details = (error as { details?: unknown } | null)?.details;
+  const code =
+    details && typeof details === 'object' && typeof (details as { code?: unknown }).code === 'string'
+      ? ((details as { code: string }).code as string)
+      : '';
+  return { message, code };
+};
+
 test('resolveVkGroupRefFromLink supports vk community links and wall links', () => {
   assert.equal(resolveVkGroupRefFromLink('https://vk.com/public12345'), '-12345');
   assert.equal(resolveVkGroupRefFromLink('https://vk.com/club987'), '-987');
@@ -98,7 +108,82 @@ test('resolveVkUserIdByToken maps invalid user token', { concurrency: false }, a
   }) as typeof fetch;
 
   try {
-    await assert.rejects(() => resolveVkUserIdByToken('bad-token'), /vk_user_token_invalid/);
+    await assert.rejects(async () => {
+      try {
+        await resolveVkUserIdByToken('bad-token');
+      } catch (error) {
+        const meta = extractErrorMeta(error);
+        assert.equal(meta.message, 'vk_user_token_invalid');
+        assert.equal(meta.code, 'vk_user_token_invalid');
+        throw error;
+      }
+    }, /vk_user_token_invalid/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveVkUserIdByToken maps missing scope error', { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(
+      JSON.stringify({
+        error: {
+          error_code: 7,
+          error_msg: 'Permission to perform this action is denied',
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(async () => {
+      try {
+        await resolveVkUserIdByToken('scope-token');
+      } catch (error) {
+        const meta = extractErrorMeta(error);
+        assert.equal(meta.message, 'vk_user_token_scope_missing');
+        assert.equal(meta.code, 'vk_user_token_scope_missing');
+        throw error;
+      }
+    }, /vk_user_token_scope_missing/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveVkUserIdByToken maps expired token', { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(
+      JSON.stringify({
+        error: {
+          error_code: 5,
+          error_msg: 'User authorization failed: access_token has expired',
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(async () => {
+      try {
+        await resolveVkUserIdByToken('expired-token');
+      } catch (error) {
+        const meta = extractErrorMeta(error);
+        assert.equal(meta.message, 'vk_user_token_expired');
+        assert.equal(meta.code, 'vk_user_token_expired');
+        throw error;
+      }
+    }, /vk_user_token_expired/);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -122,7 +207,16 @@ test('fetchVkAdminGroups maps invalid user token', { concurrency: false }, async
   }) as typeof fetch;
 
   try {
-    await assert.rejects(() => fetchVkAdminGroups('bad-token'), /vk_user_token_invalid/);
+    await assert.rejects(async () => {
+      try {
+        await fetchVkAdminGroups('bad-token');
+      } catch (error) {
+        const meta = extractErrorMeta(error);
+        assert.equal(meta.message, 'vk_user_token_invalid');
+        assert.equal(meta.code, 'vk_user_token_invalid');
+        throw error;
+      }
+    }, /vk_user_token_invalid/);
   } finally {
     globalThis.fetch = originalFetch;
   }

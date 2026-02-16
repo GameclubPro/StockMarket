@@ -66,7 +66,9 @@ const detectStatusByMessage = (message: string, fallbackStatus: number) => {
     message === 'vk_group_link_invalid' ||
     message === 'vk_group_title_missing' ||
     message === 'group_title_too_short' ||
-    message === 'vk_user_token_invalid'
+    message === 'vk_user_token_invalid' ||
+    message === 'vk_user_token_scope_missing' ||
+    message === 'vk_user_token_expired'
   ) {
     return 400;
   }
@@ -116,6 +118,12 @@ export const toPublicErrorMessage = (message: string) => {
   }
   if (message === 'vk_user_token_invalid') {
     return 'Нет доступа к VK токену. Разрешите доступ к сообществам и повторите импорт.';
+  }
+  if (message === 'vk_user_token_scope_missing') {
+    return 'Приложению не выданы права к группам VK. Разрешите доступ и повторите импорт.';
+  }
+  if (message === 'vk_user_token_expired') {
+    return 'Токен VK истек. Повторите импорт и заново подтвердите доступ.';
   }
   if (message === 'vk_identity_mismatch') {
     return 'Профиль VK не совпадает с текущим аккаунтом. Войдите в нужный VK-профиль.';

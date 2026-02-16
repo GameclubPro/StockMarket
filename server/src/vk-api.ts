@@ -50,6 +50,11 @@ export type VkImportedGroup = {
   screenName?: string;
   canonicalInviteLink: string;
 };
+export type VkUserTokenErrorCode =
+  | 'vk_user_token_invalid'
+  | 'vk_user_token_scope_missing'
+  | 'vk_user_token_expired'
+  | 'vk_verify_unavailable';
 
 const VK_API_BASE = 'https://api.vk.com/method';
 const VK_ALLOWED_HOSTS = new Set(['vk.com', 'www.vk.com', 'm.vk.com']);
@@ -69,13 +74,82 @@ const normalizeVkApiError = (error: unknown) => {
   return String(error ?? 'unknown');
 };
 
-const isVkTokenInvalidMessage = (message: string) => {
-  return (
-    message.startsWith('vk_api_5:') ||
-    message.startsWith('vk_api_27:') ||
-    message.startsWith('vk_api_1114:') ||
-    message.startsWith('vk_api_1117:')
-  );
+const parseVkApiErrorMeta = (message: string) => {
+  const match = message.match(/^vk_api_(\d+):(.*)$/i);
+  if (!match) return null;
+  const code = Number(match[1] ?? '');
+  const details = String(match[2] ?? '').trim();
+  if (!Number.isFinite(code)) return null;
+  return {
+    code,
+    details,
+  };
+};
+
+const classifyVkUserTokenError = (message: string): {
+  code: VkUserTokenErrorCode;
+  vkApiErrorCode?: number;
+} | null => {
+  const parsed = parseVkApiErrorMeta(message);
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('expired') ||
+    normalized.includes('истек') ||
+    normalized.includes('session expired') ||
+    normalized.includes('token has expired')
+  ) {
+    return {
+      code: 'vk_user_token_expired',
+      vkApiErrorCode: parsed?.code,
+    };
+  }
+
+  if (!parsed) return null;
+
+  if (parsed.code === 29) {
+    return {
+      code: 'vk_verify_unavailable',
+      vkApiErrorCode: parsed.code,
+    };
+  }
+
+  if (parsed.code === 7 || parsed.code === 15) {
+    return {
+      code: 'vk_user_token_scope_missing',
+      vkApiErrorCode: parsed.code,
+    };
+  }
+
+  if (
+    parsed.code === 5 ||
+    parsed.code === 27 ||
+    parsed.code === 1114 ||
+    parsed.code === 1117
+  ) {
+    return {
+      code: 'vk_user_token_invalid',
+      vkApiErrorCode: parsed.code,
+    };
+  }
+
+  return null;
+};
+
+const buildVkTokenError = (payload: {
+  code: VkUserTokenErrorCode;
+  vkApiErrorCode?: number;
+}) => {
+  const error = new Error(payload.code) as Error & {
+    details?: Record<string, unknown>;
+  };
+  error.details = {
+    code: payload.code,
+    ...(typeof payload.vkApiErrorCode === 'number'
+      ? { vkApiErrorCode: payload.vkApiErrorCode }
+      : {}),
+  };
+  return error;
 };
 
 const normalizeVkRefToken = (value: string) =>
@@ -322,7 +396,9 @@ export const resolveVkUserIdByToken = async (
   }
 ) => {
   const token = vkUserToken.trim();
-  if (!token) return null;
+  if (!token) {
+    throw buildVkTokenError({ code: 'vk_user_token_invalid' });
+  }
 
   try {
     const response = await requestVkMethod<VkUserResponseItem[] | VkUserResponseItem>(
@@ -338,8 +414,9 @@ export const resolveVkUserIdByToken = async (
     return toPositiveInt(first?.id);
   } catch (error) {
     const message = normalizeVkApiError(error);
-    if (isVkTokenInvalidMessage(message)) {
-      throw new Error('vk_user_token_invalid');
+    const classified = classifyVkUserTokenError(message);
+    if (classified) {
+      throw buildVkTokenError(classified);
     }
     throw error;
   }
@@ -355,7 +432,7 @@ export const fetchVkAdminGroups = async (
 ): Promise<VkImportedGroup[]> => {
   const token = vkUserToken.trim();
   if (!token) {
-    throw new Error('vk_user_token_invalid');
+    throw buildVkTokenError({ code: 'vk_user_token_invalid' });
   }
 
   const roles = options?.roles?.length ? options.roles : ['admin', 'editor', 'moder'];
@@ -382,8 +459,9 @@ export const fetchVkAdminGroups = async (
       });
     } catch (error) {
       const message = normalizeVkApiError(error);
-      if (isVkTokenInvalidMessage(message)) {
-        throw new Error('vk_user_token_invalid');
+      const classified = classifyVkUserTokenError(message);
+      if (classified) {
+        throw buildVkTokenError(classified);
       }
       throw error;
     }

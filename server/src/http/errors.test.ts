@@ -12,6 +12,8 @@ test('normalizeApiError maps common auth and business errors', () => {
   assert.equal(normalizeApiError(new Error('vk_group_add_unavailable')).status, 409);
   assert.equal(normalizeApiError(new Error('vk_group_link_invalid')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_user_token_invalid')).status, 400);
+  assert.equal(normalizeApiError(new Error('vk_user_token_scope_missing')).status, 400);
+  assert.equal(normalizeApiError(new Error('vk_user_token_expired')).status, 400);
   assert.equal(normalizeApiError(new Error('vk_identity_mismatch')).status, 403);
   assert.equal(normalizeApiError(new Error('vk_verify_retry_cooldown')).status, 429);
   assert.equal(normalizeApiError(new Error('vk_verify_unavailable')).status, 503);
@@ -45,6 +47,14 @@ test('toPublicErrorMessage applies user-friendly replacements', () => {
   assert.equal(
     toPublicErrorMessage('vk_user_token_invalid'),
     'Нет доступа к VK токену. Разрешите доступ к сообществам и повторите импорт.'
+  );
+  assert.equal(
+    toPublicErrorMessage('vk_user_token_scope_missing'),
+    'Приложению не выданы права к группам VK. Разрешите доступ и повторите импорт.'
+  );
+  assert.equal(
+    toPublicErrorMessage('vk_user_token_expired'),
+    'Токен VK истек. Повторите импорт и заново подтвердите доступ.'
   );
   assert.equal(
     toPublicErrorMessage('vk_identity_mismatch'),
