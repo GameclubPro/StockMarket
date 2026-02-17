@@ -723,50 +723,6 @@ const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode 
   return 'open_failed';
 };
 
-const waitForExternalOpenTransition = (timeoutMs = 2000) =>
-  new Promise<boolean>((resolve) => {
-    if (typeof document === 'undefined' || typeof window === 'undefined') {
-      resolve(false);
-      return;
-    }
-    if (document.visibilityState === 'hidden') {
-      resolve(true);
-      return;
-    }
-
-    let settled = false;
-    let timeoutId: number | null = null;
-    let blurFallbackId: number | null = null;
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-      if (blurFallbackId !== null) window.clearTimeout(blurFallbackId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange, true);
-      window.removeEventListener('pagehide', handlePageHide, true);
-      window.removeEventListener('blur', handleBlur, true);
-      resolve(value);
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        finish(true);
-      }
-    };
-    const handlePageHide = () => finish(true);
-    const handleBlur = () => {
-      blurFallbackId = window.setTimeout(() => {
-        if (document.visibilityState === 'hidden') {
-          finish(true);
-        }
-      }, 40);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange, true);
-    window.addEventListener('pagehide', handlePageHide, true);
-    window.addEventListener('blur', handleBlur, true);
-    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
-  });
-
 export const tryPrepareExternalWindow = () => {
   try {
     const popup = window.open('', '_blank');
@@ -811,6 +767,7 @@ export const openPlatformSwitchLink = async (
     if (isV2TelegramTarget) {
       try {
         preparedWindow.location.replace(telegramDeepLink);
+        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'deep_link' };
       } catch (error) {
         return {
           ok: false,
@@ -819,29 +776,6 @@ export const openPlatformSwitchLink = async (
           errorCode: classifyOpenLinkErrorCode(error),
         };
       }
-      if (await waitForExternalOpenTransition(2000)) {
-        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'deep_link' };
-      }
-
-      try {
-        preparedWindow.location.replace(target);
-      } catch (error) {
-        return {
-          ok: false,
-          method: 'WINDOW_PREOPEN',
-          phase: 'https_fallback',
-          errorCode: classifyOpenLinkErrorCode(error),
-        };
-      }
-      if (await waitForExternalOpenTransition(2000)) {
-        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'https_fallback' };
-      }
-      return {
-        ok: false,
-        method: 'WINDOW_PREOPEN',
-        phase: 'https_fallback',
-        errorCode: 'open_failed',
-      };
     }
 
     try {
@@ -875,24 +809,20 @@ export const openPlatformSwitchLink = async (
   if (isV2TelegramTarget) {
     try {
       const deepPopup = window.open(telegramDeepLink, '_blank', 'noopener,noreferrer');
-      if (deepPopup && (await waitForExternalOpenTransition(2000))) {
+      if (deepPopup) {
         return { ok: true, method: 'WINDOW_OPEN', phase: 'deep_link' };
-      }
-      const webPopup = window.open(target, '_blank', 'noopener,noreferrer');
-      if (webPopup && (await waitForExternalOpenTransition(2000))) {
-        return { ok: true, method: 'WINDOW_OPEN', phase: 'https_fallback' };
       }
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'https_fallback',
+        phase: 'deep_link',
         errorCode: 'popup_blocked',
       };
     } catch (error) {
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'https_fallback',
+        phase: 'deep_link',
         errorCode: vkBridgeErrorCode || classifyOpenLinkErrorCode(error),
       };
     }
