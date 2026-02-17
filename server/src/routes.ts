@@ -844,18 +844,39 @@ const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity =>
   return {
     platform: 'TELEGRAM',
     externalId: String(tgUser.id),
-    username: tgUser.username,
-    firstName: tgUser.first_name,
-    lastName: tgUser.last_name,
-    photoUrl: tgUser.photo_url,
+    username: normalizeOptionalDbVarchar(tgUser.username),
+    firstName: normalizeOptionalDbVarchar(tgUser.first_name),
+    lastName: normalizeOptionalDbVarchar(tgUser.last_name),
+    photoUrl: normalizeOptionalDbVarchar(tgUser.photo_url),
     startParam: tgAuth.start_param,
   };
 };
 
-const normalizeOptionalIdentityValue = (value?: string) => {
+const DB_VARCHAR_MAX_LENGTH = 191;
+
+const truncateDbVarchar = (value: string, max = DB_VARCHAR_MAX_LENGTH) => {
+  if (value.length <= max) return value;
+  return value.slice(0, max);
+};
+
+const normalizeOptionalIdentityValue = (value?: string | null) => {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
 };
+
+const normalizeOptionalDbVarchar = (value?: string | null, max = DB_VARCHAR_MAX_LENGTH) => {
+  const normalized = normalizeOptionalIdentityValue(value);
+  if (!normalized) return undefined;
+  return truncateDbVarchar(normalized, max);
+};
+
+const normalizeIdentityForStorage = (identity: MiniAppAuthIdentity): MiniAppAuthIdentity => ({
+  ...identity,
+  username: normalizeOptionalDbVarchar(identity.username),
+  firstName: normalizeOptionalDbVarchar(identity.firstName),
+  lastName: normalizeOptionalDbVarchar(identity.lastName),
+  photoUrl: normalizeOptionalDbVarchar(identity.photoUrl),
+});
 
 const normalizeVkProfileExternalId = (value?: string) => {
   const normalized = normalizeOptionalIdentityValue(value);
@@ -868,20 +889,20 @@ const applyVkProfileToIdentity = (
   identity: MiniAppAuthIdentity,
   vkProfile?: VkAuthProfile
 ): MiniAppAuthIdentity => {
-  if (identity.platform !== 'VK' || !vkProfile) return identity;
+  if (identity.platform !== 'VK' || !vkProfile) return normalizeIdentityForStorage(identity);
 
   const profileId = normalizeVkProfileExternalId(vkProfile.id);
   if (profileId && profileId !== identity.externalId) {
     throw new ApiError('vk_profile_id_mismatch', 400);
   }
 
-  return {
+  return normalizeIdentityForStorage({
     ...identity,
-    username: normalizeOptionalIdentityValue(vkProfile.username) ?? identity.username,
-    firstName: normalizeOptionalIdentityValue(vkProfile.firstName) ?? identity.firstName,
-    lastName: normalizeOptionalIdentityValue(vkProfile.lastName) ?? identity.lastName,
-    photoUrl: normalizeOptionalIdentityValue(vkProfile.photoUrl) ?? identity.photoUrl,
-  };
+    username: normalizeOptionalDbVarchar(vkProfile.username) ?? identity.username,
+    firstName: normalizeOptionalDbVarchar(vkProfile.firstName) ?? identity.firstName,
+    lastName: normalizeOptionalDbVarchar(vkProfile.lastName) ?? identity.lastName,
+    photoUrl: normalizeOptionalDbVarchar(vkProfile.photoUrl) ?? identity.photoUrl,
+  });
 };
 
 const getLegacyTelegramIdByIdentity = (identity: MiniAppAuthIdentity) =>
@@ -923,6 +944,7 @@ const resolveRequestPlatform = (request: FastifyRequest, user?: Pick<User, 'tele
 };
 
 const updateUserFromIdentity = async (db: DbClient, user: User, identity: MiniAppAuthIdentity) => {
+  const storedIdentity = normalizeIdentityForStorage(identity);
   const shouldFillOnly = identity.platform === 'VK';
   const data: Prisma.UserUpdateInput = {};
   const applyField = (value: string | undefined, current: string | null, assign: () => void) => {
@@ -930,17 +952,17 @@ const updateUserFromIdentity = async (db: DbClient, user: User, identity: MiniAp
     if (shouldFillOnly && typeof current === 'string' && current.trim()) return;
     assign();
   };
-  applyField(identity.username, user.username, () => {
-    data.username = identity.username;
+  applyField(storedIdentity.username, user.username, () => {
+    data.username = storedIdentity.username;
   });
-  applyField(identity.firstName, user.firstName, () => {
-    data.firstName = identity.firstName;
+  applyField(storedIdentity.firstName, user.firstName, () => {
+    data.firstName = storedIdentity.firstName;
   });
-  applyField(identity.lastName, user.lastName, () => {
-    data.lastName = identity.lastName;
+  applyField(storedIdentity.lastName, user.lastName, () => {
+    data.lastName = storedIdentity.lastName;
   });
-  applyField(identity.photoUrl, user.photoUrl, () => {
-    data.photoUrl = identity.photoUrl;
+  applyField(storedIdentity.photoUrl, user.photoUrl, () => {
+    data.photoUrl = storedIdentity.photoUrl;
   });
 
   if (Object.keys(data).length === 0) return user;
@@ -955,28 +977,29 @@ const upsertUserIdentity = async (
   payload: { userId: string; identity: MiniAppAuthIdentity }
 ) => {
   const { userId, identity } = payload;
+  const storedIdentity = normalizeIdentityForStorage(identity);
   await db.userIdentity.upsert({
     where: {
       userId_platform: {
         userId,
-        platform: identity.platform,
+        platform: storedIdentity.platform,
       },
     },
     update: {
-      externalId: identity.externalId,
-      username: identity.username,
-      firstName: identity.firstName,
-      lastName: identity.lastName,
-      photoUrl: identity.photoUrl,
+      externalId: storedIdentity.externalId,
+      username: storedIdentity.username,
+      firstName: storedIdentity.firstName,
+      lastName: storedIdentity.lastName,
+      photoUrl: storedIdentity.photoUrl,
     },
     create: {
       userId,
-      platform: identity.platform,
-      externalId: identity.externalId,
-      username: identity.username,
-      firstName: identity.firstName,
-      lastName: identity.lastName,
-      photoUrl: identity.photoUrl,
+      platform: storedIdentity.platform,
+      externalId: storedIdentity.externalId,
+      username: storedIdentity.username,
+      firstName: storedIdentity.firstName,
+      lastName: storedIdentity.lastName,
+      photoUrl: storedIdentity.photoUrl,
     },
   });
 };
@@ -1002,18 +1025,19 @@ const ensureIdentityUser = async (
   identity: MiniAppAuthIdentity,
   now = new Date()
 ): Promise<{ user: User; isFirstAuth: boolean }> => {
-  let user = await loadUserByIdentity(db, identity);
+  const storedIdentity = normalizeIdentityForStorage(identity);
+  let user = await loadUserByIdentity(db, storedIdentity);
   let isFirstAuth = false;
 
   if (!user) {
     const referralCode = await createUniqueReferralCode(db);
     user = await db.user.create({
       data: {
-        telegramId: getLegacyTelegramIdByIdentity(identity),
-        username: identity.username,
-        firstName: identity.firstName,
-        lastName: identity.lastName,
-        photoUrl: identity.photoUrl,
+        telegramId: getLegacyTelegramIdByIdentity(storedIdentity),
+        username: storedIdentity.username,
+        firstName: storedIdentity.firstName,
+        lastName: storedIdentity.lastName,
+        photoUrl: storedIdentity.photoUrl,
         balance: 30,
         totalEarned: 0,
         rating: 0,
@@ -1024,7 +1048,7 @@ const ensureIdentityUser = async (
     isFirstAuth = true;
   } else {
     isFirstAuth = !user.firstAuthAt;
-    user = await updateUserFromIdentity(db, user, identity);
+    user = await updateUserFromIdentity(db, user, storedIdentity);
     if (!user.firstAuthAt) {
       user = await db.user.update({
         where: { id: user.id },
@@ -1034,7 +1058,7 @@ const ensureIdentityUser = async (
     }
   }
 
-  await upsertUserIdentity(db, { userId: user.id, identity });
+  await upsertUserIdentity(db, { userId: user.id, identity: storedIdentity });
   return { user, isFirstAuth };
 };
 
@@ -3019,19 +3043,19 @@ const ensureLegacyStats = async (user: User) => {
     },
     update: {
       externalId: legacyExternalId,
-      username: ensuredUser.username,
-      firstName: ensuredUser.firstName,
-      lastName: ensuredUser.lastName,
-      photoUrl: ensuredUser.photoUrl,
+      username: normalizeOptionalDbVarchar(ensuredUser.username),
+      firstName: normalizeOptionalDbVarchar(ensuredUser.firstName),
+      lastName: normalizeOptionalDbVarchar(ensuredUser.lastName),
+      photoUrl: normalizeOptionalDbVarchar(ensuredUser.photoUrl),
     },
     create: {
       userId: ensuredUser.id,
       platform: legacyPlatform,
       externalId: legacyExternalId,
-      username: ensuredUser.username,
-      firstName: ensuredUser.firstName,
-      lastName: ensuredUser.lastName,
-      photoUrl: ensuredUser.photoUrl,
+      username: normalizeOptionalDbVarchar(ensuredUser.username),
+      firstName: normalizeOptionalDbVarchar(ensuredUser.firstName),
+      lastName: normalizeOptionalDbVarchar(ensuredUser.lastName),
+      photoUrl: normalizeOptionalDbVarchar(ensuredUser.photoUrl),
     },
   });
 
@@ -3233,17 +3257,17 @@ export const registerRoutes = (app: FastifyInstance) => {
         const created = await prisma.user.upsert({
           where: { telegramId: String(user.id) },
           update: {
-            username: user.username,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            photoUrl: user.photo_url,
+            username: normalizeOptionalDbVarchar(user.username),
+            firstName: normalizeOptionalDbVarchar(user.first_name),
+            lastName: normalizeOptionalDbVarchar(user.last_name),
+            photoUrl: normalizeOptionalDbVarchar(user.photo_url),
           },
           create: {
             telegramId: String(user.id),
-            username: user.username,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            photoUrl: user.photo_url,
+            username: normalizeOptionalDbVarchar(user.username),
+            firstName: normalizeOptionalDbVarchar(user.first_name),
+            lastName: normalizeOptionalDbVarchar(user.last_name),
+            photoUrl: normalizeOptionalDbVarchar(user.photo_url),
             balance: 30,
             totalEarned: 0,
             rating: 0,
