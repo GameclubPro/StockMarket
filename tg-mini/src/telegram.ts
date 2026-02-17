@@ -792,17 +792,21 @@ export const openPlatformSwitchLink = async (
   }
 
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
-  if (isVkRuntime && !options?.skipVkBridge && options?.targetPlatform !== 'TELEGRAM') {
+  if (isVkRuntime && !options?.skipVkBridge) {
     try {
       await (bridge as any).send('VKWebAppOpenLink', {
         url: target,
         force_external: true,
       } as any);
-      return { ok: true, method: 'VK_BRIDGE', phase: 'bridge' };
+      return {
+        ok: true,
+        method: 'VK_BRIDGE',
+        phase: options?.targetPlatform === 'TELEGRAM' ? 'https_fallback' : 'bridge',
+      };
     } catch (error) {
       const classified = classifyOpenLinkErrorCode(error);
       vkBridgeErrorCode = classified === 'unknown_url_scheme' ? 'unknown_url_scheme' : 'bridge_failed';
-      // Fallback to browser popup below.
+      // Fallback to deep-link/window.open below.
     }
   }
 
