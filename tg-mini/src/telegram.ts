@@ -87,7 +87,7 @@ export type VkAuthProfilePayload = {
   photoUrl?: string;
 };
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
-export type PlatformSwitchOpenMethod = 'VK_BRIDGE' | 'WINDOW_OPEN';
+export type PlatformSwitchOpenMethod = 'VK_BRIDGE' | 'WINDOW_OPEN' | 'WINDOW_PREOPEN';
 export type PlatformSwitchOpenErrorCode =
   | 'invalid_url'
   | 'bridge_failed'
@@ -99,6 +99,8 @@ export type PlatformSwitchOpenResult =
   | { ok: false; method?: PlatformSwitchOpenMethod; errorCode: PlatformSwitchOpenErrorCode };
 export type PlatformSwitchOpenOptions = {
   runtime?: RuntimePlatform;
+  preparedWindow?: Window | null;
+  skipVkBridge?: boolean;
 };
 type VkBridgeImportGroup = {
   id: number;
@@ -708,6 +710,21 @@ const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode 
   return 'open_failed';
 };
 
+export const tryPrepareExternalWindow = () => {
+  try {
+    const popup = window.open('', '_blank');
+    if (!popup) return null;
+    try {
+      popup.opener = null;
+    } catch {
+      // noop
+    }
+    return popup;
+  } catch {
+    return null;
+  }
+};
+
 export const openPlatformSwitchLink = async (
   url: string,
   options?: PlatformSwitchOpenOptions
@@ -727,19 +744,28 @@ export const openPlatformSwitchLink = async (
     return { ok: false, errorCode: 'invalid_url' };
   }
 
+  const preparedWindow = options?.preparedWindow;
+  if (preparedWindow && !preparedWindow.closed) {
+    try {
+      preparedWindow.location.replace(target);
+      return { ok: true, method: 'WINDOW_PREOPEN' };
+    } catch {
+      // fallback to bridge/window.open below
+    }
+  }
+
   const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
-  if (isVkRuntime) {
+  let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
+  if (isVkRuntime && !options?.skipVkBridge) {
     try {
       await (bridge as any).send('VKWebAppOpenLink', {
         url: target,
-        force_external: 1,
+        force_external: true,
       } as any);
       return { ok: true, method: 'VK_BRIDGE' };
     } catch (error) {
-      const fallbackCode = classifyOpenLinkErrorCode(error);
-      if (fallbackCode === 'unknown_url_scheme') {
-        return { ok: false, method: 'VK_BRIDGE', errorCode: fallbackCode };
-      }
+      const classified = classifyOpenLinkErrorCode(error);
+      vkBridgeErrorCode = classified === 'unknown_url_scheme' ? 'unknown_url_scheme' : 'bridge_failed';
       // Fallback to browser popup below.
     }
   }
@@ -749,12 +775,16 @@ export const openPlatformSwitchLink = async (
     if (popup) {
       return { ok: true, method: 'WINDOW_OPEN' };
     }
-    return { ok: false, method: 'WINDOW_OPEN', errorCode: 'popup_blocked' };
+    return {
+      ok: false,
+      method: 'WINDOW_OPEN',
+      errorCode: vkBridgeErrorCode || 'popup_blocked',
+    };
   } catch (error) {
     return {
       ok: false,
       method: 'WINDOW_OPEN',
-      errorCode: classifyOpenLinkErrorCode(error),
+      errorCode: vkBridgeErrorCode || classifyOpenLinkErrorCode(error),
     };
   }
 };

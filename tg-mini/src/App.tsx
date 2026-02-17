@@ -59,6 +59,7 @@ import {
   getUserPhotoUrl,
   initTelegram,
   openPlatformSwitchLink,
+  tryPrepareExternalWindow,
   loadPlatformProfile,
   loadVkAuthProfile,
   fetchVkAdminGroupsViaBridge,
@@ -3706,14 +3707,21 @@ export default function App() {
       setPlatformSwitchError('');
       setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
       setPlatformSwitchLoading(targetPlatform);
+      const preparedWindow =
+        runtimePlatform === 'VK' && targetPlatform === 'TELEGRAM' ? tryPrepareExternalWindow() : null;
+      let linkOpened = false;
       try {
         const data = await createPlatformSwitchLink(targetPlatform);
         if (!data.ok || !data.url) {
           throw new Error('Не удалось подготовить переход между платформами.');
         }
 
-        const openResult = await openPlatformSwitchLink(data.url, { runtime: runtimePlatform });
+        const openResult = await openPlatformSwitchLink(data.url, {
+          runtime: runtimePlatform,
+          preparedWindow,
+        });
         if (openResult.ok) {
+          linkOpened = true;
           console.info('platform_switch_open', {
             runtime: runtimePlatform,
             targetPlatform,
@@ -3744,6 +3752,13 @@ export default function App() {
         if (handleBlockedApiError(error)) return;
         setPlatformSwitchError(error?.message ?? 'Не удалось открыть другую платформу.');
       } finally {
+        if (preparedWindow && !linkOpened) {
+          try {
+            preparedWindow.close();
+          } catch {
+            // noop
+          }
+        }
         setPlatformSwitchLoading('');
       }
     },
@@ -3756,6 +3771,7 @@ export default function App() {
     try {
       const result = await openPlatformSwitchLink(platformSwitchOpenState.url, {
         runtime: runtimePlatform,
+        skipVkBridge: true,
       });
       if (result.ok) {
         console.info('platform_switch_open_retry', {
