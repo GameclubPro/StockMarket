@@ -122,6 +122,7 @@ type VkBridgeImportGroup = {
 };
 
 const TG_LINK_PARAM_PREFIX = 'link_';
+const VK_OPEN_LINK_TIMEOUT_MS = 1600;
 
 let initialized = false;
 let vkInitialized = false;
@@ -793,11 +794,17 @@ export const openPlatformSwitchLink = async (
 
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
   if (isVkRuntime && !options?.skipVkBridge) {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
-      await (bridge as any).send('VKWebAppOpenLink', {
-        url: target,
-        force_external: true,
-      } as any);
+      await Promise.race([
+        (bridge as any).send('VKWebAppOpenLink', {
+          url: target,
+          force_external: true,
+        } as any),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('vk_bridge_timeout')), VK_OPEN_LINK_TIMEOUT_MS);
+        }),
+      ]);
       return {
         ok: true,
         method: 'VK_BRIDGE',
@@ -807,6 +814,10 @@ export const openPlatformSwitchLink = async (
       const classified = classifyOpenLinkErrorCode(error);
       vkBridgeErrorCode = classified === 'unknown_url_scheme' ? 'unknown_url_scheme' : 'bridge_failed';
       // Fallback to deep-link/window.open below.
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }
 
