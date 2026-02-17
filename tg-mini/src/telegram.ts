@@ -777,23 +777,35 @@ export const openPlatformSwitchLink = async (
   }
 
   if (isV2TelegramTarget) {
+    let deepLinkErrorCode: PlatformSwitchOpenErrorCode = 'open_failed';
     try {
       const deepPopup = window.open(telegramDeepLink, '_blank', 'noopener,noreferrer');
       if (deepPopup) {
         return { ok: true, method: 'WINDOW_OPEN', phase: 'deep_link' };
       }
+      deepLinkErrorCode = 'popup_blocked';
+    } catch (error) {
+      deepLinkErrorCode = vkBridgeErrorCode || classifyOpenLinkErrorCode(error);
+    }
+
+    // VK WebView can block tg:// popups after async work; fallback to https t.me link.
+    try {
+      const popup = window.open(target, '_blank', 'noopener,noreferrer');
+      if (popup) {
+        return { ok: true, method: 'WINDOW_OPEN', phase: 'https_fallback' };
+      }
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'deep_link',
-        errorCode: 'popup_blocked',
+        phase: 'https_fallback',
+        errorCode: vkBridgeErrorCode || deepLinkErrorCode || 'popup_blocked',
       };
     } catch (error) {
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'deep_link',
-        errorCode: vkBridgeErrorCode || classifyOpenLinkErrorCode(error),
+        phase: 'https_fallback',
+        errorCode: vkBridgeErrorCode || deepLinkErrorCode || classifyOpenLinkErrorCode(error),
       };
     }
   }
