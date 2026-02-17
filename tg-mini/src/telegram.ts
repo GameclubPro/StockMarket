@@ -111,7 +111,6 @@ export type PlatformSwitchOpenResult =
     };
 export type PlatformSwitchOpenOptions = {
   runtime?: RuntimePlatform;
-  preparedWindow?: Window | null;
   skipVkBridge?: boolean;
   targetPlatform?: RuntimePlatform;
 };
@@ -724,21 +723,6 @@ const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode 
   return 'open_failed';
 };
 
-export const tryPrepareExternalWindow = () => {
-  try {
-    const popup = window.open('', '_blank');
-    if (!popup) return null;
-    try {
-      popup.opener = null;
-    } catch {
-      // noop
-    }
-    return popup;
-  } catch {
-    return null;
-  }
-};
-
 export const openPlatformSwitchLink = async (
   url: string,
   options?: PlatformSwitchOpenOptions
@@ -763,37 +747,8 @@ export const openPlatformSwitchLink = async (
   const telegramDeepLink = useTelegramDeepLink ? buildTelegramDeepLinkFromHttpUrl(parsed) : '';
   const isV2TelegramTarget = useTelegramDeepLink && telegramDeepLink.length > 0;
 
-  const preparedWindow = options?.preparedWindow;
-  if (preparedWindow && !preparedWindow.closed && useTelegramDeepLink) {
-    if (isV2TelegramTarget) {
-      try {
-        preparedWindow.location.replace(telegramDeepLink);
-        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'deep_link' };
-      } catch (error) {
-        return {
-          ok: false,
-          method: 'WINDOW_PREOPEN',
-          phase: 'deep_link',
-          errorCode: classifyOpenLinkErrorCode(error),
-        };
-      }
-    }
-
-    try {
-      preparedWindow.location.replace(target);
-      return { ok: true, method: 'WINDOW_PREOPEN', phase: 'preopen' };
-    } catch (error) {
-      return {
-        ok: false,
-        method: 'WINDOW_PREOPEN',
-        phase: 'preopen',
-        errorCode: classifyOpenLinkErrorCode(error),
-      };
-    }
-  }
-
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
-  if (isVkRuntime && !options?.skipVkBridge) {
+  if (isVkRuntime && !options?.skipVkBridge && options?.targetPlatform !== 'TELEGRAM') {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       await Promise.race([
@@ -808,7 +763,7 @@ export const openPlatformSwitchLink = async (
       return {
         ok: true,
         method: 'VK_BRIDGE',
-        phase: options?.targetPlatform === 'TELEGRAM' ? 'https_fallback' : 'bridge',
+        phase: 'bridge',
       };
     } catch (error) {
       const classified = classifyOpenLinkErrorCode(error);

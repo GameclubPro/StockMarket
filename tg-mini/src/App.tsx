@@ -61,7 +61,6 @@ import {
   getUserPhotoUrl,
   initTelegram,
   openPlatformSwitchLink,
-  tryPrepareExternalWindow,
   loadPlatformProfile,
   loadVkAuthProfile,
   fetchVkAdminGroupsViaBridge,
@@ -3939,8 +3938,6 @@ export default function App() {
       setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
       setPlatformSwitchLoading(targetPlatform);
       const isVkToTelegram = runtimePlatform === 'VK' && targetPlatform === 'TELEGRAM';
-      const preparedWindow = isVkToTelegram ? tryPrepareExternalWindow() : null;
-      let shouldClosePreparedWindow = Boolean(preparedWindow);
       try {
         let switchLinkData: SwitchLinkResponse | null = null;
         if (PLATFORM_SWITCH_V2_ENABLED && isVkToTelegram) {
@@ -3970,10 +3967,8 @@ export default function App() {
         const openResult = await openPlatformSwitchLink(switchLinkData.url, {
           runtime: runtimePlatform,
           targetPlatform,
-          preparedWindow,
         });
         if (openResult.ok) {
-          shouldClosePreparedWindow = false;
           logPlatformSwitchAttempt({
             runtime: runtimePlatform,
             targetPlatform,
@@ -4026,13 +4021,6 @@ export default function App() {
         }
         setPlatformSwitchError(error?.message ?? 'Не удалось открыть другую платформу.');
       } finally {
-        if (preparedWindow && shouldClosePreparedWindow && !preparedWindow.closed) {
-          try {
-            preparedWindow.close();
-          } catch {
-            // noop
-          }
-        }
         setPlatformSwitchLoading('');
       }
     },
@@ -4049,17 +4037,13 @@ export default function App() {
   const handleRetryPlatformSwitchOpen = useCallback(async () => {
     if (!platformSwitchOpenState.url) return;
     setPlatformSwitchError('');
-    const preparedWindow = runtimePlatform === 'VK' ? tryPrepareExternalWindow() : null;
-    let shouldClosePreparedWindow = Boolean(preparedWindow);
     try {
       const result = await openPlatformSwitchLink(platformSwitchOpenState.url, {
         runtime: runtimePlatform,
         skipVkBridge: true,
         targetPlatform: 'TELEGRAM',
-        preparedWindow,
       });
       if (result.ok) {
-        shouldClosePreparedWindow = false;
         logPlatformSwitchAttempt({
           runtime: runtimePlatform,
           targetPlatform: 'TELEGRAM',
@@ -4104,14 +4088,6 @@ export default function App() {
         void prefetchTelegramSwitchLink('retry');
       }
       setPlatformSwitchError(error?.message ?? 'Не удалось повторно открыть ссылку.');
-    } finally {
-      if (preparedWindow && shouldClosePreparedWindow && !preparedWindow.closed) {
-        try {
-          preparedWindow.close();
-        } catch {
-          // noop
-        }
-      }
     }
   }, [
     handleBlockedApiError,
