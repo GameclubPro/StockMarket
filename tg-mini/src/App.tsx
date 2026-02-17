@@ -3719,6 +3719,7 @@ export default function App() {
         const openResult = await openPlatformSwitchLink(data.url, {
           runtime: runtimePlatform,
           preparedWindow,
+          targetPlatform,
         });
         if (openResult.ok) {
           linkOpened = true;
@@ -3768,12 +3769,17 @@ export default function App() {
   const handleRetryPlatformSwitchOpen = useCallback(async () => {
     if (!platformSwitchOpenState.url) return;
     setPlatformSwitchError('');
+    const preparedWindow = runtimePlatform === 'VK' ? tryPrepareExternalWindow() : null;
+    let linkOpened = false;
     try {
       const result = await openPlatformSwitchLink(platformSwitchOpenState.url, {
         runtime: runtimePlatform,
+        preparedWindow,
         skipVkBridge: true,
+        targetPlatform: 'TELEGRAM',
       });
       if (result.ok) {
+        linkOpened = true;
         console.info('platform_switch_open_retry', {
           runtime: runtimePlatform,
           targetPlatform: 'TELEGRAM',
@@ -3798,6 +3804,14 @@ export default function App() {
       setPlatformSwitchError('Автопереход снова не сработал.');
     } catch (error: any) {
       setPlatformSwitchError(error?.message ?? 'Не удалось повторно открыть ссылку.');
+    } finally {
+      if (preparedWindow && !linkOpened) {
+        try {
+          preparedWindow.close();
+        } catch {
+          // noop
+        }
+      }
     }
   }, [platformSwitchOpenState.url, runtimePlatform]);
 

@@ -101,6 +101,7 @@ export type PlatformSwitchOpenOptions = {
   runtime?: RuntimePlatform;
   preparedWindow?: Window | null;
   skipVkBridge?: boolean;
+  targetPlatform?: RuntimePlatform;
 };
 type VkBridgeImportGroup = {
   id: number;
@@ -710,6 +711,20 @@ const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode 
   return 'open_failed';
 };
 
+const buildTelegramDeepLinkFromHttpUrl = (parsed: URL) => {
+  const host = parsed.hostname.toLowerCase();
+  if (host !== 't.me' && host !== 'telegram.me') return '';
+  const path = parsed.pathname.replace(/^\/+/, '');
+  const domain = path.split('/').find(Boolean);
+  if (!domain) return '';
+  const params = new URLSearchParams();
+  params.set('domain', domain);
+  for (const [key, value] of parsed.searchParams.entries()) {
+    params.set(key, value);
+  }
+  return `tg://resolve?${params.toString()}`;
+};
+
 export const tryPrepareExternalWindow = () => {
   try {
     const popup = window.open('', '_blank');
@@ -744,19 +759,27 @@ export const openPlatformSwitchLink = async (
     return { ok: false, errorCode: 'invalid_url' };
   }
 
+  const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
+  const useTelegramDeepLink = isVkRuntime && options?.targetPlatform === 'TELEGRAM';
+  const telegramDeepLink = useTelegramDeepLink ? buildTelegramDeepLinkFromHttpUrl(parsed) : '';
+  const primaryTarget = telegramDeepLink || target;
+
   const preparedWindow = options?.preparedWindow;
   if (preparedWindow && !preparedWindow.closed) {
     try {
-      preparedWindow.location.replace(target);
+      preparedWindow.location.replace(primaryTarget);
       return { ok: true, method: 'WINDOW_PREOPEN' };
-    } catch {
-      // fallback to bridge/window.open below
+    } catch (error) {
+      return {
+        ok: false,
+        method: 'WINDOW_PREOPEN',
+        errorCode: classifyOpenLinkErrorCode(error),
+      };
     }
   }
 
-  const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
-  if (isVkRuntime && !options?.skipVkBridge) {
+  if (isVkRuntime && !options?.skipVkBridge && options?.targetPlatform !== 'TELEGRAM') {
     try {
       await (bridge as any).send('VKWebAppOpenLink', {
         url: target,
@@ -771,7 +794,7 @@ export const openPlatformSwitchLink = async (
   }
 
   try {
-    const popup = window.open(target, '_blank', 'noopener,noreferrer');
+    const popup = window.open(primaryTarget, '_blank', 'noopener,noreferrer');
     if (popup) {
       return { ok: true, method: 'WINDOW_OPEN' };
     }
