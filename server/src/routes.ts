@@ -3754,6 +3754,21 @@ export const registerRoutes = (app: FastifyInstance) => {
         parsed.data.targetPlatform === 'TELEGRAM'
           ? buildTelegramSwitchUrl(code, config.tgMiniAppUrl)
           : buildVkSwitchUrl(code, config.vkMiniAppUrl);
+      let urlHost = '';
+      try {
+        urlHost = new URL(url).host;
+      } catch {
+        urlHost = '';
+      }
+      request.log.info(
+        {
+          platformResolvedByInitData: Boolean(identityPlatform),
+          targetPlatform: parsed.data.targetPlatform,
+          urlHost,
+          expiresAt: expiresAt.toISOString(),
+        },
+        'platform switch link issued'
+      );
 
       return {
         ok: true,

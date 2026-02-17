@@ -46,12 +46,14 @@ import {
   type ReferralStats,
   type RuntimeCapabilities,
   type RuntimePlatform,
+  type SwitchLinkResponse,
   type VerificationDto,
   verifyInitData,
 } from './api';
 import {
   clearPlatformLinkCodeFromUrl,
   type PlatformSwitchOpenErrorCode,
+  type PlatformSwitchOpenPhase,
   getPlatformLinkCode,
   getRuntimePlatform,
   getInitDataRaw,
@@ -112,6 +114,10 @@ const DAILY_WHEEL_TOTAL_WEIGHT = DAILY_WHEEL_SEGMENTS.reduce(
 const DAILY_WHEEL_AVERAGE_REWARD =
   DAILY_WHEEL_SEGMENTS.reduce((sum, segment) => sum + segment.value * segment.weight, 0) /
   DAILY_WHEEL_TOTAL_WEIGHT;
+const PLATFORM_SWITCH_V2_ENABLED =
+  String(import.meta.env.VITE_PLATFORM_SWITCH_V2 ?? 'true').toLowerCase() !== 'false';
+const PLATFORM_SWITCH_PREFETCH_MIN_VALID_MS = 20_000;
+const PLATFORM_SWITCH_PREFETCH_REFRESH_THRESHOLD_MS = 60_000;
 const DAILY_WHEEL_VALUE_CHANCES = Array.from(
   DAILY_WHEEL_SEGMENTS.reduce((map, segment) => {
     map.set(segment.value, (map.get(segment.value) ?? 0) + segment.weight);
@@ -261,10 +267,30 @@ type ParsedVkPostLink = {
   postId: number;
 };
 type AuthBootstrapState = 'idle' | 'loading' | 'ready' | 'failed';
+type PreparedSwitchLinkState = {
+  status: 'idle' | 'loading' | 'ready' | 'failed';
+  url: string;
+  expiresAt: string;
+  error: string;
+};
 type PlatformSwitchOpenState = {
   visible: boolean;
   url: string;
   errorCode: PlatformSwitchOpenErrorCode | '';
+};
+type PlatformSwitchAttemptContext = {
+  runtime: RuntimePlatform;
+  targetPlatform: RuntimePlatform;
+  method: string;
+  phase: PlatformSwitchOpenPhase | 'manual_retry';
+  result: 'success' | 'failed';
+  errorCode?: PlatformSwitchOpenErrorCode | '';
+};
+const DEFAULT_PREPARED_SWITCH_LINK_STATE: PreparedSwitchLinkState = {
+  status: 'idle',
+  url: '',
+  expiresAt: '',
+  error: '',
 };
 const DEFAULT_PLATFORM_SWITCH_OPEN_STATE: PlatformSwitchOpenState = {
   visible: false,
@@ -279,6 +305,36 @@ const getPlatformSwitchOpenErrorLabel = (code: PlatformSwitchOpenErrorCode | '')
   if (code === 'open_failed') return 'Не удалось открыть внешнюю ссылку.';
   return 'Неизвестная ошибка открытия ссылки.';
 };
+const parseIsoDateToMs = (value: string) => {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getPreparedSwitchLinkRemainingMs = (payload: { expiresAt: string }) => {
+  const expiresAtMs = parseIsoDateToMs(payload.expiresAt);
+  if (!expiresAtMs) return -1;
+  return expiresAtMs - Date.now();
+};
+
+const isPreparedSwitchLinkReady = (
+  state: PreparedSwitchLinkState,
+  minRemainingMs = PLATFORM_SWITCH_PREFETCH_MIN_VALID_MS
+) => {
+  if (state.status !== 'ready') return false;
+  if (!state.url || !state.expiresAt) return false;
+  return getPreparedSwitchLinkRemainingMs({ expiresAt: state.expiresAt }) >= minRemainingMs;
+};
+
+const buildPreparedSwitchLinkResponse = (state: PreparedSwitchLinkState): SwitchLinkResponse => ({
+  ok: true,
+  url: state.url,
+  code: '',
+  expiresAt: state.expiresAt,
+});
+
+const createPlatformSwitchAttemptLog = (
+  payload: PlatformSwitchAttemptContext
+): PlatformSwitchAttemptContext => payload;
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
   if (direction === 'down') return 'Падение';
@@ -869,6 +925,9 @@ export default function App() {
   const [authBootstrapError, setAuthBootstrapError] = useState('');
   const [authBootstrapHasLinkCode, setAuthBootstrapHasLinkCode] = useState(false);
   const [postLinkSyncPending, setPostLinkSyncPending] = useState(false);
+  const [preparedTelegramSwitchLink, setPreparedTelegramSwitchLink] = useState<PreparedSwitchLinkState>(
+    DEFAULT_PREPARED_SWITCH_LINK_STATE
+  );
   const [platformSwitchLoading, setPlatformSwitchLoading] = useState<RuntimePlatform | ''>('');
   const [platformSwitchError, setPlatformSwitchError] = useState('');
   const [platformSwitchOpenState, setPlatformSwitchOpenState] = useState<PlatformSwitchOpenState>(
@@ -960,6 +1019,9 @@ export default function App() {
   const wheelRewardRevealTimeoutRef = useRef<number | null>(null);
   const inviteCopyTimeoutRef = useRef<number | null>(null);
   const welcomeTimeoutRef = useRef<number | null>(null);
+  const prefetchTelegramSwitchLinkRequestRef = useRef<Promise<SwitchLinkResponse | null> | null>(
+    null
+  );
   const taskPriceValueRef = useRef(DEFAULT_TASK_PRICE);
   const priceStepperHoldTimeoutRef = useRef<number | null>(null);
   const priceStepperRepeatIntervalRef = useRef<number | null>(null);
@@ -1083,6 +1145,33 @@ export default function App() {
     : referralLinkAvailable
       ? 'Откроем Telegram и отправим приглашение.'
       : 'Ссылка станет доступна после входа в Telegram Mini App.';
+  const preparedTelegramSwitchLinkRemainingMs = useMemo(() => {
+    if (preparedTelegramSwitchLink.status !== 'ready') return -1;
+    return getPreparedSwitchLinkRemainingMs(preparedTelegramSwitchLink);
+  }, [
+    preparedTelegramSwitchLink.expiresAt,
+    preparedTelegramSwitchLink.status,
+    preparedTelegramSwitchLink.url,
+  ]);
+  const preparedTelegramSwitchLinkHint = useMemo(() => {
+    if (preparedTelegramSwitchLink.status === 'loading') {
+      return 'Подготавливаем безопасный переход в Telegram…';
+    }
+    if (preparedTelegramSwitchLink.status === 'failed') {
+      return preparedTelegramSwitchLink.error || 'Предзагрузка ссылки не удалась, попробуем по клику.';
+    }
+    if (preparedTelegramSwitchLink.status === 'ready') {
+      if (preparedTelegramSwitchLinkRemainingMs <= 0) {
+        return 'Ссылка устарела, обновляем…';
+      }
+      return `Ссылка в Telegram готова · ${formatCountdown(preparedTelegramSwitchLinkRemainingMs)}`;
+    }
+    return 'Подготовка ссылки начнётся автоматически.';
+  }, [
+    preparedTelegramSwitchLink.error,
+    preparedTelegramSwitchLink.status,
+    preparedTelegramSwitchLinkRemainingMs,
+  ]);
   const adminOverview = adminPanelStats?.overview ?? null;
   const adminPeriodMeta = adminPanelStats?.period ?? null;
   const adminBonusProgress = useMemo(() => {
@@ -1790,6 +1879,148 @@ export default function App() {
     setBlockedState(blocked);
     return true;
   }, []);
+
+  const logPlatformSwitchAttempt = useCallback((payload: PlatformSwitchAttemptContext) => {
+    const event = createPlatformSwitchAttemptLog(payload);
+    if (event.result === 'success') {
+      console.info('platform_switch_open', event);
+      return;
+    }
+    console.warn('platform_switch_open', event);
+  }, []);
+
+  const prefetchTelegramSwitchLink = useCallback(
+    async (reason: 'initial' | 'refresh' | 'retry' = 'initial'): Promise<SwitchLinkResponse | null> => {
+      if (!PLATFORM_SWITCH_V2_ENABLED) return null;
+      if (runtimePlatform !== 'VK') return null;
+      if (authBootstrapState !== 'ready') return null;
+
+      const inFlight = prefetchTelegramSwitchLinkRequestRef.current;
+      if (inFlight) return inFlight;
+
+      setPreparedTelegramSwitchLink((current) => ({
+        status: 'loading',
+        url: current.url,
+        expiresAt: current.expiresAt,
+        error: '',
+      }));
+
+      console.info('platform_switch_prefetch', {
+        event: 'prefetch_started',
+        runtime: runtimePlatform,
+        targetPlatform: 'TELEGRAM',
+        reason,
+      });
+
+      const requestPromise = (async () => {
+        try {
+          const data = await createPlatformSwitchLink('TELEGRAM');
+          if (!data.ok || !data.url) {
+            throw new Error('Не удалось подготовить переход в Telegram.');
+          }
+
+          setPreparedTelegramSwitchLink({
+            status: 'ready',
+            url: data.url,
+            expiresAt: data.expiresAt,
+            error: '',
+          });
+
+          console.info('platform_switch_prefetch', {
+            event: reason === 'refresh' ? 'prefetch_refreshed' : 'prefetch_ready',
+            runtime: runtimePlatform,
+            targetPlatform: 'TELEGRAM',
+            expiresAt: data.expiresAt,
+          });
+
+          return data;
+        } catch (error: any) {
+          if (handleBlockedApiError(error)) {
+            return null;
+          }
+          const message = error?.message ?? 'Не удалось подготовить переход в Telegram.';
+          setPreparedTelegramSwitchLink((current) => ({
+            status: 'failed',
+            url: current.url,
+            expiresAt: current.expiresAt,
+            error: message,
+          }));
+          console.warn('platform_switch_prefetch', {
+            event: 'prefetch_failed',
+            runtime: runtimePlatform,
+            targetPlatform: 'TELEGRAM',
+            reason,
+            message,
+          });
+          return null;
+        } finally {
+          prefetchTelegramSwitchLinkRequestRef.current = null;
+        }
+      })();
+
+      prefetchTelegramSwitchLinkRequestRef.current = requestPromise;
+      return requestPromise;
+    },
+    [authBootstrapState, handleBlockedApiError, runtimePlatform]
+  );
+
+  useEffect(() => {
+    const shouldKeepPreparedState =
+      PLATFORM_SWITCH_V2_ENABLED && runtimePlatform === 'VK' && authBootstrapState === 'ready';
+    if (!shouldKeepPreparedState) {
+      prefetchTelegramSwitchLinkRequestRef.current = null;
+      setPreparedTelegramSwitchLink((current) =>
+        current.status === 'idle' && !current.url && !current.expiresAt && !current.error
+          ? current
+          : DEFAULT_PREPARED_SWITCH_LINK_STATE
+      );
+      return;
+    }
+
+    if (preparedTelegramSwitchLink.status === 'idle') {
+      void prefetchTelegramSwitchLink('initial');
+    }
+  }, [
+    authBootstrapState,
+    preparedTelegramSwitchLink.error,
+    preparedTelegramSwitchLink.expiresAt,
+    preparedTelegramSwitchLink.status,
+    preparedTelegramSwitchLink.url,
+    prefetchTelegramSwitchLink,
+    runtimePlatform,
+  ]);
+
+  useEffect(() => {
+    if (!PLATFORM_SWITCH_V2_ENABLED) return;
+    if (runtimePlatform !== 'VK') return;
+    if (authBootstrapState !== 'ready') return;
+    if (preparedTelegramSwitchLink.status !== 'ready') return;
+
+    const remainingMs = getPreparedSwitchLinkRemainingMs(preparedTelegramSwitchLink);
+    if (remainingMs < PLATFORM_SWITCH_PREFETCH_REFRESH_THRESHOLD_MS) {
+      void prefetchTelegramSwitchLink('refresh');
+      return;
+    }
+
+    const timeoutMs = Math.max(
+      1000,
+      remainingMs - PLATFORM_SWITCH_PREFETCH_REFRESH_THRESHOLD_MS
+    );
+    const timeoutId = window.setTimeout(() => {
+      void prefetchTelegramSwitchLink('refresh');
+    }, timeoutMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    authBootstrapState,
+    preparedTelegramSwitchLink.expiresAt,
+    preparedTelegramSwitchLink.status,
+    preparedTelegramSwitchLink.url,
+    prefetchTelegramSwitchLink,
+    runtimePlatform,
+  ]);
 
   const loadMyGroups = useCallback(async () => {
     setMyGroupsError('');
@@ -3707,50 +3938,92 @@ export default function App() {
       setPlatformSwitchError('');
       setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
       setPlatformSwitchLoading(targetPlatform);
-      const preparedWindow =
-        runtimePlatform === 'VK' && targetPlatform === 'TELEGRAM' ? tryPrepareExternalWindow() : null;
+      const isVkToTelegram = runtimePlatform === 'VK' && targetPlatform === 'TELEGRAM';
+      const preparedWindow = isVkToTelegram ? tryPrepareExternalWindow() : null;
       let linkOpened = false;
       try {
-        const data = await createPlatformSwitchLink(targetPlatform);
-        if (!data.ok || !data.url) {
+        let switchLinkData: SwitchLinkResponse | null = null;
+        if (PLATFORM_SWITCH_V2_ENABLED && isVkToTelegram) {
+          if (isPreparedSwitchLinkReady(preparedTelegramSwitchLink)) {
+            switchLinkData = buildPreparedSwitchLinkResponse(preparedTelegramSwitchLink);
+          } else {
+            switchLinkData = await prefetchTelegramSwitchLink('refresh');
+          }
+        }
+
+        if (!switchLinkData) {
+          switchLinkData = await createPlatformSwitchLink(targetPlatform);
+        }
+        if (!switchLinkData.ok || !switchLinkData.url) {
           throw new Error('Не удалось подготовить переход между платформами.');
         }
 
-        const openResult = await openPlatformSwitchLink(data.url, {
+        if (isVkToTelegram) {
+          setPreparedTelegramSwitchLink({
+            status: 'ready',
+            url: switchLinkData.url,
+            expiresAt: switchLinkData.expiresAt,
+            error: '',
+          });
+        }
+
+        const openResult = await openPlatformSwitchLink(switchLinkData.url, {
           runtime: runtimePlatform,
           preparedWindow,
           targetPlatform,
         });
         if (openResult.ok) {
           linkOpened = true;
-          console.info('platform_switch_open', {
+          logPlatformSwitchAttempt({
             runtime: runtimePlatform,
             targetPlatform,
-            openMethod: openResult.method,
+            method: openResult.method,
+            phase: openResult.phase,
             result: 'success',
           });
           return;
         }
 
-        console.warn('platform_switch_open', {
+        logPlatformSwitchAttempt({
           runtime: runtimePlatform,
           targetPlatform,
-          openMethod: openResult.method ?? 'none',
+          method: openResult.method ?? 'none',
+          phase: openResult.phase ?? 'window_open',
           result: 'failed',
           errorCode: openResult.errorCode,
         });
         if (targetPlatform === 'TELEGRAM') {
           setPlatformSwitchOpenState({
             visible: true,
-            url: data.url,
+            url: switchLinkData.url,
             errorCode: openResult.errorCode,
           });
           setPlatformSwitchError('Не удалось открыть Telegram автоматически.');
+          if (PLATFORM_SWITCH_V2_ENABLED && isVkToTelegram) {
+            void prefetchTelegramSwitchLink('retry');
+          }
         } else {
           setPlatformSwitchError('Не удалось открыть VK автоматически.');
         }
       } catch (error: any) {
         if (handleBlockedApiError(error)) return;
+        logPlatformSwitchAttempt({
+          runtime: runtimePlatform,
+          targetPlatform,
+          method: 'request',
+          phase: isVkToTelegram ? 'preopen' : 'window_open',
+          result: 'failed',
+          errorCode: 'open_failed',
+        });
+        if (PLATFORM_SWITCH_V2_ENABLED && isVkToTelegram) {
+          const message = error?.message ?? 'Не удалось подготовить переход в Telegram.';
+          setPreparedTelegramSwitchLink((current) => ({
+            status: 'failed',
+            url: current.url,
+            expiresAt: current.expiresAt,
+            error: message,
+          }));
+        }
         setPlatformSwitchError(error?.message ?? 'Не удалось открыть другую платформу.');
       } finally {
         if (preparedWindow && !linkOpened) {
@@ -3763,7 +4036,14 @@ export default function App() {
         setPlatformSwitchLoading('');
       }
     },
-    [handleBlockedApiError, platformSwitchLoading, runtimePlatform]
+    [
+      handleBlockedApiError,
+      logPlatformSwitchAttempt,
+      platformSwitchLoading,
+      preparedTelegramSwitchLink,
+      prefetchTelegramSwitchLink,
+      runtimePlatform,
+    ]
   );
 
   const handleRetryPlatformSwitchOpen = useCallback(async () => {
@@ -3780,19 +4060,24 @@ export default function App() {
       });
       if (result.ok) {
         linkOpened = true;
-        console.info('platform_switch_open_retry', {
+        logPlatformSwitchAttempt({
           runtime: runtimePlatform,
           targetPlatform: 'TELEGRAM',
-          openMethod: result.method,
+          method: result.method,
+          phase: 'manual_retry',
           result: 'success',
         });
         setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
+        if (PLATFORM_SWITCH_V2_ENABLED && runtimePlatform === 'VK') {
+          void prefetchTelegramSwitchLink('refresh');
+        }
         return;
       }
-      console.warn('platform_switch_open_retry', {
+      logPlatformSwitchAttempt({
         runtime: runtimePlatform,
         targetPlatform: 'TELEGRAM',
-        openMethod: result.method ?? 'none',
+        method: result.method ?? 'none',
+        phase: 'manual_retry',
         result: 'failed',
         errorCode: result.errorCode,
       });
@@ -3802,7 +4087,22 @@ export default function App() {
         visible: true,
       }));
       setPlatformSwitchError('Автопереход снова не сработал.');
+      if (PLATFORM_SWITCH_V2_ENABLED && runtimePlatform === 'VK') {
+        void prefetchTelegramSwitchLink('retry');
+      }
     } catch (error: any) {
+      if (handleBlockedApiError(error)) return;
+      logPlatformSwitchAttempt({
+        runtime: runtimePlatform,
+        targetPlatform: 'TELEGRAM',
+        method: 'request',
+        phase: 'manual_retry',
+        result: 'failed',
+        errorCode: 'open_failed',
+      });
+      if (PLATFORM_SWITCH_V2_ENABLED && runtimePlatform === 'VK') {
+        void prefetchTelegramSwitchLink('retry');
+      }
       setPlatformSwitchError(error?.message ?? 'Не удалось повторно открыть ссылку.');
     } finally {
       if (preparedWindow && !linkOpened) {
@@ -3813,7 +4113,13 @@ export default function App() {
         }
       }
     }
-  }, [platformSwitchOpenState.url, runtimePlatform]);
+  }, [
+    handleBlockedApiError,
+    logPlatformSwitchAttempt,
+    platformSwitchOpenState.url,
+    prefetchTelegramSwitchLink,
+    runtimePlatform,
+  ]);
 
   const handleCopyPlatformSwitchLink = useCallback(async () => {
     if (!platformSwitchOpenState.url) return;
@@ -4280,6 +4586,14 @@ export default function App() {
               <div className="platform-switch-note">
                 Активно: {formatPlatformLabel(runtimePlatform)}. Следующая платформа: {formatPlatformLabel(oppositePlatform)}.
               </div>
+              {PLATFORM_SWITCH_V2_ENABLED && isVkRuntime && authBootstrapState === 'ready' && (
+                <div
+                  className={`platform-switch-prefetch platform-switch-prefetch-${preparedTelegramSwitchLink.status}`}
+                  role={preparedTelegramSwitchLink.status === 'failed' ? 'alert' : 'status'}
+                >
+                  {preparedTelegramSwitchLinkHint}
+                </div>
+              )}
               {authBootstrapState === 'loading' && authBootstrapHasLinkCode && (
                 <div className="platform-switch-bootstrap platform-switch-bootstrap-loading" role="status">
                   <span className="platform-switch-bootstrap-dot" aria-hidden="true" />

@@ -12,6 +12,7 @@ import {
   themeParams,
 } from '@telegram-apps/sdk';
 import bridge from '@vkontakte/vk-bridge';
+import { buildTelegramDeepLinkFromHttpUrl } from './domain/platform-switch-link';
 
 type User = {
   username?: string;
@@ -88,6 +89,12 @@ export type VkAuthProfilePayload = {
 };
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
 export type PlatformSwitchOpenMethod = 'VK_BRIDGE' | 'WINDOW_OPEN' | 'WINDOW_PREOPEN';
+export type PlatformSwitchOpenPhase =
+  | 'bridge'
+  | 'preopen'
+  | 'deep_link'
+  | 'https_fallback'
+  | 'window_open';
 export type PlatformSwitchOpenErrorCode =
   | 'invalid_url'
   | 'bridge_failed'
@@ -95,8 +102,13 @@ export type PlatformSwitchOpenErrorCode =
   | 'unknown_url_scheme'
   | 'open_failed';
 export type PlatformSwitchOpenResult =
-  | { ok: true; method: PlatformSwitchOpenMethod }
-  | { ok: false; method?: PlatformSwitchOpenMethod; errorCode: PlatformSwitchOpenErrorCode };
+  | { ok: true; method: PlatformSwitchOpenMethod; phase: PlatformSwitchOpenPhase }
+  | {
+      ok: false;
+      method?: PlatformSwitchOpenMethod;
+      phase?: PlatformSwitchOpenPhase;
+      errorCode: PlatformSwitchOpenErrorCode;
+    };
 export type PlatformSwitchOpenOptions = {
   runtime?: RuntimePlatform;
   preparedWindow?: Window | null;
@@ -711,19 +723,49 @@ const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode 
   return 'open_failed';
 };
 
-const buildTelegramDeepLinkFromHttpUrl = (parsed: URL) => {
-  const host = parsed.hostname.toLowerCase();
-  if (host !== 't.me' && host !== 'telegram.me') return '';
-  const path = parsed.pathname.replace(/^\/+/, '');
-  const domain = path.split('/').find(Boolean);
-  if (!domain) return '';
-  const params = new URLSearchParams();
-  params.set('domain', domain);
-  for (const [key, value] of parsed.searchParams.entries()) {
-    params.set(key, value);
-  }
-  return `tg://resolve?${params.toString()}`;
-};
+const waitForExternalOpenTransition = (timeoutMs = 2000) =>
+  new Promise<boolean>((resolve) => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+    if (document.visibilityState === 'hidden') {
+      resolve(true);
+      return;
+    }
+
+    let settled = false;
+    let timeoutId: number | null = null;
+    let blurFallbackId: number | null = null;
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (blurFallbackId !== null) window.clearTimeout(blurFallbackId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange, true);
+      window.removeEventListener('pagehide', handlePageHide, true);
+      window.removeEventListener('blur', handleBlur, true);
+      resolve(value);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        finish(true);
+      }
+    };
+    const handlePageHide = () => finish(true);
+    const handleBlur = () => {
+      blurFallbackId = window.setTimeout(() => {
+        if (document.visibilityState === 'hidden') {
+          finish(true);
+        }
+      }, 40);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange, true);
+    window.addEventListener('pagehide', handlePageHide, true);
+    window.addEventListener('blur', handleBlur, true);
+    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+  });
 
 export const tryPrepareExternalWindow = () => {
   try {
@@ -762,17 +804,54 @@ export const openPlatformSwitchLink = async (
   const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
   const useTelegramDeepLink = isVkRuntime && options?.targetPlatform === 'TELEGRAM';
   const telegramDeepLink = useTelegramDeepLink ? buildTelegramDeepLinkFromHttpUrl(parsed) : '';
-  const primaryTarget = telegramDeepLink || target;
+  const isV2TelegramTarget = useTelegramDeepLink && telegramDeepLink.length > 0;
 
   const preparedWindow = options?.preparedWindow;
-  if (preparedWindow && !preparedWindow.closed) {
+  if (preparedWindow && !preparedWindow.closed && useTelegramDeepLink) {
+    if (isV2TelegramTarget) {
+      try {
+        preparedWindow.location.replace(telegramDeepLink);
+      } catch (error) {
+        return {
+          ok: false,
+          method: 'WINDOW_PREOPEN',
+          phase: 'deep_link',
+          errorCode: classifyOpenLinkErrorCode(error),
+        };
+      }
+      if (await waitForExternalOpenTransition(2000)) {
+        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'deep_link' };
+      }
+
+      try {
+        preparedWindow.location.replace(target);
+      } catch (error) {
+        return {
+          ok: false,
+          method: 'WINDOW_PREOPEN',
+          phase: 'https_fallback',
+          errorCode: classifyOpenLinkErrorCode(error),
+        };
+      }
+      if (await waitForExternalOpenTransition(2000)) {
+        return { ok: true, method: 'WINDOW_PREOPEN', phase: 'https_fallback' };
+      }
+      return {
+        ok: false,
+        method: 'WINDOW_PREOPEN',
+        phase: 'https_fallback',
+        errorCode: 'open_failed',
+      };
+    }
+
     try {
-      preparedWindow.location.replace(primaryTarget);
-      return { ok: true, method: 'WINDOW_PREOPEN' };
+      preparedWindow.location.replace(target);
+      return { ok: true, method: 'WINDOW_PREOPEN', phase: 'preopen' };
     } catch (error) {
       return {
         ok: false,
         method: 'WINDOW_PREOPEN',
+        phase: 'preopen',
         errorCode: classifyOpenLinkErrorCode(error),
       };
     }
@@ -785,7 +864,7 @@ export const openPlatformSwitchLink = async (
         url: target,
         force_external: true,
       } as any);
-      return { ok: true, method: 'VK_BRIDGE' };
+      return { ok: true, method: 'VK_BRIDGE', phase: 'bridge' };
     } catch (error) {
       const classified = classifyOpenLinkErrorCode(error);
       vkBridgeErrorCode = classified === 'unknown_url_scheme' ? 'unknown_url_scheme' : 'bridge_failed';
@@ -793,20 +872,48 @@ export const openPlatformSwitchLink = async (
     }
   }
 
+  if (isV2TelegramTarget) {
+    try {
+      const deepPopup = window.open(telegramDeepLink, '_blank', 'noopener,noreferrer');
+      if (deepPopup && (await waitForExternalOpenTransition(2000))) {
+        return { ok: true, method: 'WINDOW_OPEN', phase: 'deep_link' };
+      }
+      const webPopup = window.open(target, '_blank', 'noopener,noreferrer');
+      if (webPopup && (await waitForExternalOpenTransition(2000))) {
+        return { ok: true, method: 'WINDOW_OPEN', phase: 'https_fallback' };
+      }
+      return {
+        ok: false,
+        method: 'WINDOW_OPEN',
+        phase: 'https_fallback',
+        errorCode: 'popup_blocked',
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        method: 'WINDOW_OPEN',
+        phase: 'https_fallback',
+        errorCode: vkBridgeErrorCode || classifyOpenLinkErrorCode(error),
+      };
+    }
+  }
+
   try {
-    const popup = window.open(primaryTarget, '_blank', 'noopener,noreferrer');
+    const popup = window.open(target, '_blank', 'noopener,noreferrer');
     if (popup) {
-      return { ok: true, method: 'WINDOW_OPEN' };
+      return { ok: true, method: 'WINDOW_OPEN', phase: 'window_open' };
     }
     return {
       ok: false,
       method: 'WINDOW_OPEN',
+      phase: 'window_open',
       errorCode: vkBridgeErrorCode || 'popup_blocked',
     };
   } catch (error) {
     return {
       ok: false,
       method: 'WINDOW_OPEN',
+      phase: 'window_open',
       errorCode: vkBridgeErrorCode || classifyOpenLinkErrorCode(error),
     };
   }
