@@ -123,6 +123,7 @@ type VkBridgeImportGroup = {
 const TG_LINK_PARAM_PREFIX = 'link_';
 const VK_OPEN_LINK_TIMEOUT_MS = 1600;
 const TELEGRAM_WEB_HOSTS = new Set(['t.me', 'telegram.me']);
+const TELEGRAM_SWITCH_BOT_FALLBACK = 'JoinRush_bot';
 
 let initialized = false;
 let vkInitialized = false;
@@ -728,7 +729,7 @@ export const openPlatformSwitchLink = async (
   url: string,
   options?: PlatformSwitchOpenOptions
 ): Promise<PlatformSwitchOpenResult> => {
-  const target = url.trim();
+  let target = url.trim();
   if (!target) {
     return { ok: false, errorCode: 'invalid_url' };
   }
@@ -745,11 +746,23 @@ export const openPlatformSwitchLink = async (
 
   const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
   const useTelegramDeepLink = isVkRuntime && options?.targetPlatform === 'TELEGRAM';
+  if (useTelegramDeepLink && !TELEGRAM_WEB_HOSTS.has(parsed.hostname.toLowerCase())) {
+    const fallback = new URL(`https://t.me/${TELEGRAM_SWITCH_BOT_FALLBACK}`);
+    const linkCode =
+      parsed.searchParams.get('jr_link_code')?.trim() ||
+      parsed.searchParams.get('link_code')?.trim() ||
+      '';
+    const startApp = parsed.searchParams.get('startapp')?.trim() || (linkCode ? `link_${linkCode}` : 'home');
+    fallback.searchParams.set('startapp', startApp);
+    if (linkCode) {
+      fallback.searchParams.set('link_code', linkCode);
+      fallback.searchParams.set('jr_link_code', linkCode);
+    }
+    parsed = fallback;
+    target = fallback.toString();
+  }
   const telegramDeepLink = useTelegramDeepLink ? buildTelegramDeepLinkFromHttpUrl(parsed) : '';
   const isV2TelegramTarget = useTelegramDeepLink && telegramDeepLink.length > 0;
-  if (useTelegramDeepLink && !TELEGRAM_WEB_HOSTS.has(parsed.hostname.toLowerCase())) {
-    return { ok: false, errorCode: 'invalid_url' };
-  }
 
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
   if (isVkRuntime && !options?.skipVkBridge && options?.targetPlatform !== 'TELEGRAM') {

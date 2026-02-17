@@ -304,6 +304,13 @@ const getPlatformSwitchOpenErrorLabel = (code: PlatformSwitchOpenErrorCode | '')
   if (code === 'open_failed') return 'Не удалось открыть внешнюю ссылку.';
   return 'Неизвестная ошибка открытия ссылки.';
 };
+const getUrlHost = (value: string) => {
+  try {
+    return new URL(value).host;
+  } catch {
+    return 'invalid-url';
+  }
+};
 const parseIsoDateToMs = (value: string) => {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -4640,6 +4647,9 @@ export default function App() {
                   <div className="platform-switch-fallback-code">
                     Код: {platformSwitchOpenState.errorCode || 'open_failed'} ·{' '}
                     {getPlatformSwitchOpenErrorLabel(platformSwitchOpenState.errorCode)}
+                  </div>
+                  <div className="platform-switch-fallback-code">
+                    Хост ссылки: {getUrlHost(platformSwitchOpenState.url)}
                   </div>
                 </div>
               )}
