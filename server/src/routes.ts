@@ -19,6 +19,12 @@ import {
   type RuntimePlatform,
 } from './domain/account-linking.js';
 import {
+  buildTelegramSwitchUrl,
+  buildVkSwitchUrl,
+  normalizePlatformLinkCode,
+  resolvePlatformLinkCode,
+} from './domain/platform-switch-link.js';
+import {
   DAILY_BONUS_COOLDOWN_MS,
   DAILY_BONUS_REASON,
   pickDailyBonus,
@@ -491,7 +497,6 @@ type RuntimeCapabilities = {
 const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
 const PLATFORM_LINK_CODE_BYTES = 6;
 const PLATFORM_LINK_CODE_ATTEMPTS = 6;
-const TG_LINK_CODE_PREFIX = 'link_';
 const TG_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения Telegram-аккаунта.';
 const VK_IDENTITY_REQUIRED_MESSAGE = 'Эта операция доступна только после подключения VK-аккаунта.';
 const VK_SUBSCRIBE_AUTO_UNAVAILABLE_REASON =
@@ -883,11 +888,6 @@ const getLegacyTelegramIdByIdentity = (identity: MiniAppAuthIdentity) =>
 
 const resolveUserLegacyPlatform = (telegramId: string): RuntimePlatform =>
   telegramId.startsWith('vk:') ? 'VK' : 'TELEGRAM';
-
-const normalizePlatformLinkCode = (value: string) => value.trim().toUpperCase();
-
-const isPlatformLinkCode = (value: string) =>
-  new RegExp(`^${PLATFORM_LINK_CODE_PREFIX}[A-Z0-9]{8,32}$`).test(value);
 
 const buildPlatformLinkCode = () =>
   `${PLATFORM_LINK_CODE_PREFIX}${crypto.randomBytes(PLATFORM_LINK_CODE_BYTES).toString('hex').toUpperCase()}`;
@@ -2831,41 +2831,6 @@ const parseVkGroupOwnerKey = (value: string) => {
   }
 };
 
-const buildTelegramSwitchUrl = (code: string) => {
-  const fallback = `https://t.me/JoinRush_bot?startapp=${TG_LINK_CODE_PREFIX}${encodeURIComponent(code)}`;
-  try {
-    const parsed = new URL(config.tgMiniAppUrl || fallback);
-    parsed.searchParams.set('startapp', `${TG_LINK_CODE_PREFIX}${code}`);
-    return parsed.toString();
-  } catch {
-    return fallback;
-  }
-};
-
-const buildVkSwitchUrl = (code: string) => {
-  const fallback = `https://vk.com/app54453849?jr_link_code=${encodeURIComponent(code)}`;
-  try {
-    const parsed = new URL(config.vkMiniAppUrl || fallback);
-    parsed.searchParams.set('jr_link_code', code);
-    const hashRaw = parsed.hash.replace(/^#/, '');
-    if (!hashRaw) {
-      parsed.hash = `jr_link_code=${encodeURIComponent(code)}`;
-    } else {
-      const [hashPath, hashQuery = ''] = hashRaw.split('?');
-      const hashParams = new URLSearchParams(hashQuery || hashPath);
-      hashParams.set('jr_link_code', code);
-      if (hashQuery) {
-        parsed.hash = `#${hashPath}?${hashParams.toString()}`;
-      } else {
-        parsed.hash = `#${hashParams.toString()}`;
-      }
-    }
-    return parsed.toString();
-  } catch {
-    return fallback;
-  }
-};
-
 const resolveChatIdentity = (chat?: { username?: string; id?: number }) => {
   const username = chat?.username?.trim() ?? '';
   const chatId = typeof chat?.id === 'number' ? String(chat.id) : '';
@@ -3725,8 +3690,8 @@ export const registerRoutes = (app: FastifyInstance) => {
 
       const url =
         parsed.data.targetPlatform === 'TELEGRAM'
-          ? buildTelegramSwitchUrl(code)
-          : buildVkSwitchUrl(code);
+          ? buildTelegramSwitchUrl(code, config.tgMiniAppUrl)
+          : buildVkSwitchUrl(code, config.vkMiniAppUrl);
 
       return {
         ok: true,
@@ -3748,19 +3713,22 @@ export const registerRoutes = (app: FastifyInstance) => {
       const identity = applyVkProfileToIdentity(authIdentity, parsed.data.vkProfile);
       const rawStartParam =
         typeof identity.startParam === 'string' ? identity.startParam.trim() : '';
-      const startLinkCode = rawStartParam.startsWith(TG_LINK_CODE_PREFIX)
-        ? normalizePlatformLinkCode(rawStartParam.slice(TG_LINK_CODE_PREFIX.length))
-        : '';
-      const bodyLinkCode = parsed.data.linkCode ? normalizePlatformLinkCode(parsed.data.linkCode) : '';
-      const linkCode = bodyLinkCode || (isPlatformLinkCode(startLinkCode) ? startLinkCode : '');
-      if (bodyLinkCode && !isPlatformLinkCode(bodyLinkCode)) {
+      const linkCodeResolution = resolvePlatformLinkCode({
+        bodyLinkCode: parsed.data.linkCode,
+        startParam: rawStartParam,
+      });
+      if (linkCodeResolution.bodyCodeInvalid) {
         return reply.code(400).send({ ok: false, error: 'invalid link code' });
       }
+      const linkCode = linkCodeResolution.linkCode;
       const referralCandidate =
-        rawStartParam && !startLinkCode ? normalizeReferralCode(rawStartParam) : '';
+        rawStartParam && !linkCodeResolution.hasStartParamLinkCode
+          ? normalizeReferralCode(rawStartParam)
+          : '';
       const startParam =
         referralCandidate && isValidReferralCode(referralCandidate) ? referralCandidate : '';
       const now = new Date();
+      let linkConsumed = false;
 
       const result = await prisma.$transaction(async (tx) => {
         let current: User;
@@ -3774,6 +3742,7 @@ export const registerRoutes = (app: FastifyInstance) => {
             targetPlatform: identity.platform,
             now,
           });
+          linkConsumed = true;
           accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, false);
 
           const sourceUser = await tx.user.findUnique({
@@ -3835,6 +3804,16 @@ export const registerRoutes = (app: FastifyInstance) => {
 
         return { user: current, referralBonus, accountLink };
       });
+      request.log.info(
+        {
+          platform: identity.platform,
+          hasBodyLinkCode: linkCodeResolution.hasBodyLinkCode,
+          hasStartParamLinkCode: linkCodeResolution.hasStartParamLinkCode,
+          linkCodeResolved: Boolean(linkCode),
+          linkConsumed,
+        },
+        'platform link auth verify'
+      );
 
       const ensuredUser = await ensureLegacyStats(result.user);
 

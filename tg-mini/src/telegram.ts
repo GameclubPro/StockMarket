@@ -93,7 +93,6 @@ type VkBridgeImportGroup = {
   screen_name?: string;
 };
 
-const PLATFORM_LINK_CODE_PREFIX = 'LINK_';
 const TG_LINK_PARAM_PREFIX = 'link_';
 
 let initialized = false;
@@ -503,6 +502,53 @@ const normalizePlatformLinkCode = (value: string) => {
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
 };
 
+const PLATFORM_LINK_URL_KEYS = ['jr_link_code', 'link_code', 'startapp', 'vk_ref'] as const;
+
+const extractLinkCodeFromStartLikeValue = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return '';
+
+  const normalizedCode = normalizePlatformLinkCode(normalized);
+  if (normalizedCode) return normalizedCode;
+
+  if (normalized.toLowerCase().startsWith(TG_LINK_PARAM_PREFIX)) {
+    return normalizePlatformLinkCode(normalized.slice(TG_LINK_PARAM_PREFIX.length));
+  }
+
+  return '';
+};
+
+const parseHashState = (hashValue: string) => {
+  const normalized = hashValue.replace(/^#/, '').trim();
+  if (!normalized) return { path: '', params: new URLSearchParams() };
+
+  const queryIndex = normalized.indexOf('?');
+  if (queryIndex >= 0) {
+    const path = normalized.slice(0, queryIndex);
+    const query = normalized.slice(queryIndex + 1);
+    return { path, params: new URLSearchParams(query) };
+  }
+
+  if (normalized.includes('=') || normalized.includes('&')) {
+    return { path: '', params: new URLSearchParams(normalized) };
+  }
+
+  return { path: normalized, params: new URLSearchParams() };
+};
+
+const applyHashState = (url: URL, state: { path: string; params: URLSearchParams }) => {
+  const query = state.params.toString();
+  if (state.path && query) {
+    url.hash = `#${state.path}?${query}`;
+    return;
+  }
+  if (state.path) {
+    url.hash = `#${state.path}`;
+    return;
+  }
+  url.hash = query ? `#${query}` : '';
+};
+
 const readUrlParam = (key: string) => {
   if (typeof window === 'undefined') return '';
   const readFromParams = (params: URLSearchParams) => {
@@ -599,19 +645,19 @@ const getTelegramStartParam = () => {
 
 export const getPlatformLinkCode = () => {
   if (isVk()) {
+    const vkRefCode = extractLinkCodeFromStartLikeValue(readUrlParam('vk_ref'));
+    if (vkRefCode) return vkRefCode;
+
     const vkCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
     return normalizePlatformLinkCode(vkCode);
   }
 
   const startParam = getTelegramStartParam();
-  if (startParam) {
-    if (startParam.startsWith(TG_LINK_PARAM_PREFIX)) {
-      return normalizePlatformLinkCode(startParam.slice(TG_LINK_PARAM_PREFIX.length));
-    }
-    if (startParam.startsWith(PLATFORM_LINK_CODE_PREFIX)) {
-      return normalizePlatformLinkCode(startParam);
-    }
-  }
+  const startParamCode = extractLinkCodeFromStartLikeValue(startParam);
+  if (startParamCode) return startParamCode;
+
+  const startAppCode = extractLinkCodeFromStartLikeValue(readUrlParam('startapp'));
+  if (startAppCode) return startAppCode;
 
   const fallbackCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
   return normalizePlatformLinkCode(fallbackCode);
@@ -621,31 +667,17 @@ export const clearPlatformLinkCodeFromUrl = () => {
   if (typeof window === 'undefined') return;
   try {
     const url = new URL(window.location.href);
-    url.searchParams.delete('jr_link_code');
-    url.searchParams.delete('link_code');
+    for (const key of PLATFORM_LINK_URL_KEYS) {
+      url.searchParams.delete(key);
+    }
 
-    const hashRaw = url.hash.replace(/^#/, '');
-    if (hashRaw) {
-      let hashPath = '';
-      let hashQuery = hashRaw;
-      const queryIndex = hashRaw.indexOf('?');
-      if (queryIndex >= 0) {
-        hashPath = hashRaw.slice(0, queryIndex);
-        hashQuery = hashRaw.slice(queryIndex + 1);
+    const hashState = parseHashState(url.hash);
+    const hasHashLinkCode = PLATFORM_LINK_URL_KEYS.some((key) => hashState.params.has(key));
+    if (hasHashLinkCode) {
+      for (const key of PLATFORM_LINK_URL_KEYS) {
+        hashState.params.delete(key);
       }
-
-      const hashParams = new URLSearchParams(hashQuery);
-      const hadCode = hashParams.has('jr_link_code') || hashParams.has('link_code');
-      if (hadCode) {
-        hashParams.delete('jr_link_code');
-        hashParams.delete('link_code');
-        const nextHashQuery = hashParams.toString();
-        if (hashPath) {
-          url.hash = nextHashQuery ? `#${hashPath}?${nextHashQuery}` : `#${hashPath}`;
-        } else {
-          url.hash = nextHashQuery ? `#${nextHashQuery}` : '';
-        }
-      }
+      applyHashState(url, hashState);
     }
 
     const next = `${url.pathname}${url.search}${url.hash}`;
