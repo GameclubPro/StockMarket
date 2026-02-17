@@ -927,6 +927,11 @@ export default function App() {
   const [preparedTelegramSwitchLink, setPreparedTelegramSwitchLink] = useState<PreparedSwitchLinkState>(
     DEFAULT_PREPARED_SWITCH_LINK_STATE
   );
+  const tgSwitchPreparing =
+    isVkRuntime &&
+    PLATFORM_SWITCH_V2_ENABLED &&
+    authBootstrapState === 'ready' &&
+    preparedTelegramSwitchLink.status === 'loading';
   const [platformSwitchLoading, setPlatformSwitchLoading] = useState<RuntimePlatform | ''>('');
   const [platformSwitchError, setPlatformSwitchError] = useState('');
   const [platformSwitchOpenState, setPlatformSwitchOpenState] = useState<PlatformSwitchOpenState>(
@@ -3934,6 +3939,10 @@ export default function App() {
     async (targetPlatform: RuntimePlatform) => {
       if (targetPlatform === runtimePlatform) return;
       if (platformSwitchLoading) return;
+      if (targetPlatform === 'TELEGRAM' && tgSwitchPreparing) {
+        setPlatformSwitchError('Готовим ссылку перехода в Telegram. Нажмите ещё раз через секунду.');
+        return;
+      }
       setPlatformSwitchError('');
       setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
       setPlatformSwitchLoading(targetPlatform);
@@ -4028,6 +4037,7 @@ export default function App() {
       handleBlockedApiError,
       logPlatformSwitchAttempt,
       platformSwitchLoading,
+      tgSwitchPreparing,
       preparedTelegramSwitchLink,
       prefetchTelegramSwitchLink,
       runtimePlatform,
@@ -4547,11 +4557,13 @@ export default function App() {
                   role="tab"
                   aria-selected={!isVkRuntime}
                   onClick={() => void handlePlatformSwitch('TELEGRAM')}
-                  disabled={!isVkRuntime || platformSwitchLoading !== ''}
+                  disabled={!isVkRuntime || platformSwitchLoading !== '' || tgSwitchPreparing}
                 >
                   <span className="platform-switch-button-label">TG</span>
                   <span className="platform-switch-button-meta">
-                    {platformSwitchLoading === 'TELEGRAM'
+                    {tgSwitchPreparing
+                      ? 'Готовим…'
+                      : platformSwitchLoading === 'TELEGRAM'
                       ? 'Открываем…'
                       : !isVkRuntime
                         ? 'Сейчас'
