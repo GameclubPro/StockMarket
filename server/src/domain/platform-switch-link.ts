@@ -8,6 +8,11 @@ export type PlatformLinkCodeResolution = {
   bodyCodeInvalid: boolean;
 };
 
+export type PlatformSwitchSourceResolution = {
+  sourceUserId: string;
+  mismatch: boolean;
+};
+
 const normalizeHashInput = (hashValue: string) => hashValue.replace(/^#/, '').trim();
 
 const parseHashState = (hashValue: string) => {
@@ -84,9 +89,43 @@ export const resolvePlatformLinkCode = (payload: {
   };
 };
 
+export const resolvePlatformSwitchSourceUser = (payload: {
+  tokenUserId: string;
+  identityUserId?: string | null;
+}): PlatformSwitchSourceResolution => {
+  const tokenUserId = payload.tokenUserId.trim();
+  const identityUserId = payload.identityUserId?.trim() ?? '';
+  if (!identityUserId || identityUserId === tokenUserId) {
+    return {
+      sourceUserId: tokenUserId,
+      mismatch: false,
+    };
+  }
+
+  return {
+    sourceUserId: identityUserId,
+    mismatch: true,
+  };
+};
+
+const isHttpUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 export const buildTelegramSwitchUrl = (code: string, tgMiniAppUrl?: string) => {
   const startParam = `${TG_LINK_CODE_PREFIX}${code}`;
   const fallback = `https://t.me/JoinRush_bot?startapp=${startParam}&link_code=${code}&jr_link_code=${code}`;
+  if (tgMiniAppUrl?.trim() && !isHttpUrl(tgMiniAppUrl)) {
+    console.warn(
+      `[platform-switch-link] unsupported TG_MINIAPP_URL protocol, fallback to default: ${tgMiniAppUrl}`
+    );
+    return fallback;
+  }
   try {
     const parsed = new URL(tgMiniAppUrl || fallback);
     parsed.searchParams.set('startapp', startParam);
@@ -118,4 +157,3 @@ export const buildVkSwitchUrl = (code: string, vkMiniAppUrl?: string) => {
     return fallback;
   }
 };
-

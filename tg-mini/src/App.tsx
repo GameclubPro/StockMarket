@@ -51,12 +51,14 @@ import {
 } from './api';
 import {
   clearPlatformLinkCodeFromUrl,
+  type PlatformSwitchOpenErrorCode,
   getPlatformLinkCode,
   getRuntimePlatform,
   getInitDataRaw,
   getUserLabel,
   getUserPhotoUrl,
   initTelegram,
+  openPlatformSwitchLink,
   loadPlatformProfile,
   loadVkAuthProfile,
   fetchVkAdminGroupsViaBridge,
@@ -256,6 +258,25 @@ type ParsedVkPostLink = {
   wall: string;
   ownerKey: string;
   postId: number;
+};
+type AuthBootstrapState = 'idle' | 'loading' | 'ready' | 'failed';
+type PlatformSwitchOpenState = {
+  visible: boolean;
+  url: string;
+  errorCode: PlatformSwitchOpenErrorCode | '';
+};
+const DEFAULT_PLATFORM_SWITCH_OPEN_STATE: PlatformSwitchOpenState = {
+  visible: false,
+  url: '',
+  errorCode: '',
+};
+const getPlatformSwitchOpenErrorLabel = (code: PlatformSwitchOpenErrorCode | '') => {
+  if (code === 'popup_blocked') return 'Переход заблокирован webview/браузером.';
+  if (code === 'unknown_url_scheme') return 'Клиент не поддержал схему перехода.';
+  if (code === 'bridge_failed') return 'VK bridge не смог открыть ссылку.';
+  if (code === 'invalid_url') return 'Ссылка перехода некорректна.';
+  if (code === 'open_failed') return 'Не удалось открыть внешнюю ссылку.';
+  return 'Неизвестная ошибка открытия ссылки.';
 };
 const getTrendDirectionLabel = (direction: 'up' | 'down' | 'flat') => {
   if (direction === 'up') return 'Рост';
@@ -843,8 +864,15 @@ export default function App() {
   const [linkedPlatforms, setLinkedPlatforms] = useState<LinkedPlatforms>(() =>
     buildDefaultLinkedPlatforms(runtimePlatform)
   );
+  const [authBootstrapState, setAuthBootstrapState] = useState<AuthBootstrapState>('idle');
+  const [authBootstrapError, setAuthBootstrapError] = useState('');
+  const [authBootstrapHasLinkCode, setAuthBootstrapHasLinkCode] = useState(false);
+  const [postLinkSyncPending, setPostLinkSyncPending] = useState(false);
   const [platformSwitchLoading, setPlatformSwitchLoading] = useState<RuntimePlatform | ''>('');
   const [platformSwitchError, setPlatformSwitchError] = useState('');
+  const [platformSwitchOpenState, setPlatformSwitchOpenState] = useState<PlatformSwitchOpenState>(
+    DEFAULT_PLATFORM_SWITCH_OPEN_STATE
+  );
   const [pendingVkBootstrapAfterLink, setPendingVkBootstrapAfterLink] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [welcomeBonus, setWelcomeBonus] = useState<ReferralBonus | null>(null);
@@ -1521,65 +1549,90 @@ export default function App() {
     };
   }, [isVkRuntime]);
 
-  useEffect(() => {
+  const resetUserScopedStateForMerge = useCallback(() => {
+    setCampaigns([]);
+    setCampaignsError('');
+    setMyCampaigns([]);
+    setMyCampaignsError('');
+    setApplications([]);
+    setApplicationsError('');
+    setApplicationsFetched(false);
+    setHiddenCampaignIds([]);
+    setReferralStats(null);
+    setReferralError('');
+    setReferralList([]);
+    setReferralListError('');
+  }, []);
+
+  const runAuthBootstrap = useCallback(async () => {
     setUserLabel(getUserLabel());
     setUserPhoto(getUserPhotoUrl());
     setLinkedPlatforms(buildDefaultLinkedPlatforms(runtimePlatform));
+    setAuthBootstrapError('');
     const initData = getInitDataRaw();
     const linkCode = getPlatformLinkCode();
+    setAuthBootstrapHasLinkCode(Boolean(linkCode));
+    setAuthBootstrapState('loading');
     const username =
       extractUsernameFromInitData(initData) || extractUsernameFromTelegramUnsafe();
     setTgUsername(username);
 
-    const loadProfile = async () => {
-      if (!initData) return;
+    if (!initData) {
+      setAuthBootstrapState('ready');
+      return;
+    }
 
-      try {
-        const vkProfile = isVkRuntime ? await loadVkAuthProfile() : null;
-        const verifyOptions =
-          linkCode || vkProfile
-            ? {
-                ...(linkCode ? { linkCode } : {}),
-                ...(vkProfile ? { vkProfile } : {}),
-              }
-            : undefined;
-        const data = await verifyInitData(initData, verifyOptions);
-        if (typeof data.balance === 'number') setPoints(data.balance);
-        if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
-        if (typeof data.user?.id === 'string') setUserId(data.user.id);
-        const accountLabel = getAccountLabel(data.user);
-        if (accountLabel) setUserLabel(accountLabel);
-        if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
-        if (data.accountLink?.performed) {
-          setLinkedPlatforms({
-            telegram: { connected: true },
-            vk: { connected: true },
-          });
-          if (isVkRuntime) {
-            setPendingVkBootstrapAfterLink(true);
-          }
+    try {
+      const vkProfile = isVkRuntime ? await loadVkAuthProfile() : null;
+      const verifyOptions =
+        linkCode || vkProfile
+          ? {
+              ...(linkCode ? { linkCode } : {}),
+              ...(vkProfile ? { vkProfile } : {}),
+            }
+          : undefined;
+      const data = await verifyInitData(initData, verifyOptions);
+      if (typeof data.balance === 'number') setPoints(data.balance);
+      if (typeof data.user?.totalEarned === 'number') setTotalEarned(data.user.totalEarned);
+      if (typeof data.user?.id === 'string') setUserId(data.user.id);
+      const accountLabel = getAccountLabel(data.user);
+      if (accountLabel) setUserLabel(accountLabel);
+      if (data.user?.photoUrl) setUserPhoto(data.user.photoUrl);
+      if (data.accountLink?.performed) {
+        setLinkedPlatforms({
+          telegram: { connected: true },
+          vk: { connected: true },
+        });
+        if (isVkRuntime) {
+          setPendingVkBootstrapAfterLink(true);
         }
-        if (linkCode) {
-          clearPlatformLinkCodeFromUrl();
-        }
-        if (data.referralBonus?.amount && data.referralBonus.amount > 0 && data.user?.id) {
-          const key = `jr:referralWelcomeSeen:${data.user.id}`;
-          const seen = localStorage.getItem(key);
-          if (!seen) {
-            setWelcomeBonus({
-              amount: data.referralBonus.amount,
-              reason: data.referralBonus.reason,
-            });
-            localStorage.setItem(key, '1');
-          }
-        }
-      } catch {
-        // Keep default zeros on auth failure.
+        resetUserScopedStateForMerge();
+        setPostLinkSyncPending(true);
       }
-    };
+      if (linkCode) {
+        clearPlatformLinkCodeFromUrl();
+      }
+      if (data.referralBonus?.amount && data.referralBonus.amount > 0 && data.user?.id) {
+        const key = `jr:referralWelcomeSeen:${data.user.id}`;
+        const seen = localStorage.getItem(key);
+        if (!seen) {
+          setWelcomeBonus({
+            amount: data.referralBonus.amount,
+            reason: data.referralBonus.reason,
+          });
+          localStorage.setItem(key, '1');
+        }
+      }
+      setAuthBootstrapState('ready');
+    } catch (error: any) {
+      setAuthBootstrapError(error?.message ?? 'Не удалось синхронизировать аккаунт.');
+      setAuthBootstrapState('failed');
+    }
+  }, [isVkRuntime, resetUserScopedStateForMerge, runtimePlatform]);
 
-    void loadProfile();
-  }, [isVkRuntime, runtimePlatform]);
+  useEffect(() => {
+    void runAuthBootstrap();
+  }, [runAuthBootstrap]);
 
   useEffect(() => {
     if (adminPanelAllowed) return;
@@ -1960,6 +2013,7 @@ export default function App() {
   }, [handleImportVkGroups, isVkRuntime, pendingVkBootstrapAfterLink]);
 
   const loadCampaigns = useCallback(async (options?: { silent?: boolean }) => {
+    if (authBootstrapState !== 'ready') return;
     const silent = options?.silent ?? false;
     if (!silent) {
       setCampaignsError('');
@@ -1986,9 +2040,10 @@ export default function App() {
         setCampaignsLoading(false);
       }
     }
-  }, []);
+  }, [authBootstrapState]);
 
   const loadMyCampaigns = useCallback(async () => {
+    if (authBootstrapState !== 'ready') return;
     setMyCampaignsError('');
     setMyCampaignsLoading(true);
 
@@ -2007,9 +2062,10 @@ export default function App() {
     } finally {
       setMyCampaignsLoading(false);
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
 
   const loadMyApplications = useCallback(async (options?: { silent?: boolean }) => {
+    if (authBootstrapState !== 'ready') return;
     const silent = options?.silent ?? false;
     if (!silent) {
       setApplicationsError('');
@@ -2038,9 +2094,10 @@ export default function App() {
         setApplicationsLoading(false);
       }
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
 
   const loadMe = useCallback(async () => {
+    if (authBootstrapState !== 'ready') return;
     try {
       const data = await fetchMe();
       if (data.ok) {
@@ -2071,9 +2128,10 @@ export default function App() {
     } catch (error) {
       if (handleBlockedApiError(error)) return;
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
 
   const loadAdminPanel = useCallback(async (options?: { silent?: boolean; period?: AdminPeriodPreset }) => {
+    if (authBootstrapState !== 'ready') return;
     const silent = options?.silent ?? false;
     const period = options?.period ?? adminPeriod;
     setAdminPanelLoading(true);
@@ -2095,9 +2153,10 @@ export default function App() {
     } finally {
       setAdminPanelLoading(false);
     }
-  }, [adminPeriod, handleBlockedApiError, tgUsername]);
+  }, [adminPeriod, authBootstrapState, handleBlockedApiError, tgUsername]);
 
   const loadAdminModeration = useCallback(async (options?: { silent?: boolean }) => {
+    if (authBootstrapState !== 'ready') return;
     const silent = options?.silent ?? false;
     if (!silent) {
       setAdminModerationError('');
@@ -2131,9 +2190,10 @@ export default function App() {
     } finally {
       setAdminModerationLoading(false);
     }
-  }, [handleBlockedApiError, tgUsername]);
+  }, [authBootstrapState, handleBlockedApiError, tgUsername]);
 
   const loadDailyBonusStatus = useCallback(async () => {
+    if (authBootstrapState !== 'ready') return;
     setDailyBonusError('');
     setDailyBonusLoading(true);
     try {
@@ -2151,9 +2211,10 @@ export default function App() {
     } finally {
       setDailyBonusLoading(false);
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
 
   const loadReferralStats = useCallback(async () => {
+    if (authBootstrapState !== 'ready') return;
     setReferralError('');
     setReferralLoading(true);
     try {
@@ -2172,9 +2233,10 @@ export default function App() {
     } finally {
       setReferralLoading(false);
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
 
   const loadReferralList = useCallback(async () => {
+    if (authBootstrapState !== 'ready') return;
     setReferralListError('');
     setReferralListLoading(true);
     try {
@@ -2192,7 +2254,30 @@ export default function App() {
     } finally {
       setReferralListLoading(false);
     }
-  }, [handleBlockedApiError]);
+  }, [authBootstrapState, handleBlockedApiError]);
+
+  useEffect(() => {
+    if (!postLinkSyncPending) return;
+    if (authBootstrapState !== 'ready') return;
+    let cancelled = false;
+
+    const runPostLinkSync = async () => {
+      await Promise.allSettled([
+        loadMe(),
+        loadCampaigns({ silent: true }),
+        loadMyApplications({ silent: true }),
+        loadReferralStats(),
+      ]);
+      if (!cancelled) {
+        setPostLinkSyncPending(false);
+      }
+    };
+
+    void runPostLinkSync();
+    return () => {
+      cancelled = true;
+    };
+  }, [authBootstrapState, loadCampaigns, loadMe, loadMyApplications, loadReferralStats, postLinkSyncPending]);
 
   const hideCampaignLocally = useCallback((campaignId: string) => {
     setHiddenCampaignIds((prev) => (prev.includes(campaignId) ? prev : [...prev, campaignId]));
@@ -2600,9 +2685,10 @@ export default function App() {
 
   useEffect(() => {
     if (applicationsRequestedRef.current) return;
+    if (authBootstrapState !== 'ready') return;
     applicationsRequestedRef.current = true;
     void loadMyApplications({ silent: true });
-  }, [loadMyApplications]);
+  }, [authBootstrapState, loadMyApplications]);
 
   useEffect(() => {
     if (activeTab !== 'tasks') return;
@@ -3618,6 +3704,7 @@ export default function App() {
       if (targetPlatform === runtimePlatform) return;
       if (platformSwitchLoading) return;
       setPlatformSwitchError('');
+      setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
       setPlatformSwitchLoading(targetPlatform);
       try {
         const data = await createPlatformSwitchLink(targetPlatform);
@@ -3625,9 +3712,33 @@ export default function App() {
           throw new Error('Не удалось подготовить переход между платформами.');
         }
 
-        const opened = window.open(data.url, '_blank', 'noopener,noreferrer');
-        if (!opened) {
-          window.location.href = data.url;
+        const openResult = await openPlatformSwitchLink(data.url, { runtime: runtimePlatform });
+        if (openResult.ok) {
+          console.info('platform_switch_open', {
+            runtime: runtimePlatform,
+            targetPlatform,
+            openMethod: openResult.method,
+            result: 'success',
+          });
+          return;
+        }
+
+        console.warn('platform_switch_open', {
+          runtime: runtimePlatform,
+          targetPlatform,
+          openMethod: openResult.method ?? 'none',
+          result: 'failed',
+          errorCode: openResult.errorCode,
+        });
+        if (targetPlatform === 'TELEGRAM') {
+          setPlatformSwitchOpenState({
+            visible: true,
+            url: data.url,
+            errorCode: openResult.errorCode,
+          });
+          setPlatformSwitchError('Не удалось открыть Telegram автоматически.');
+        } else {
+          setPlatformSwitchError('Не удалось открыть VK автоматически.');
         }
       } catch (error: any) {
         if (handleBlockedApiError(error)) return;
@@ -3638,6 +3749,51 @@ export default function App() {
     },
     [handleBlockedApiError, platformSwitchLoading, runtimePlatform]
   );
+
+  const handleRetryPlatformSwitchOpen = useCallback(async () => {
+    if (!platformSwitchOpenState.url) return;
+    setPlatformSwitchError('');
+    try {
+      const result = await openPlatformSwitchLink(platformSwitchOpenState.url, {
+        runtime: runtimePlatform,
+      });
+      if (result.ok) {
+        console.info('platform_switch_open_retry', {
+          runtime: runtimePlatform,
+          targetPlatform: 'TELEGRAM',
+          openMethod: result.method,
+          result: 'success',
+        });
+        setPlatformSwitchOpenState(DEFAULT_PLATFORM_SWITCH_OPEN_STATE);
+        return;
+      }
+      console.warn('platform_switch_open_retry', {
+        runtime: runtimePlatform,
+        targetPlatform: 'TELEGRAM',
+        openMethod: result.method ?? 'none',
+        result: 'failed',
+        errorCode: result.errorCode,
+      });
+      setPlatformSwitchOpenState((current) => ({
+        ...current,
+        errorCode: result.errorCode,
+        visible: true,
+      }));
+      setPlatformSwitchError('Автопереход снова не сработал.');
+    } catch (error: any) {
+      setPlatformSwitchError(error?.message ?? 'Не удалось повторно открыть ссылку.');
+    }
+  }, [platformSwitchOpenState.url, runtimePlatform]);
+
+  const handleCopyPlatformSwitchLink = useCallback(async () => {
+    if (!platformSwitchOpenState.url) return;
+    try {
+      await copyTextToClipboard(platformSwitchOpenState.url);
+      setPlatformSwitchError('Ссылка перехода скопирована.');
+    } catch (error: any) {
+      setPlatformSwitchError(error?.message ?? 'Не удалось скопировать ссылку перехода.');
+    }
+  }, [platformSwitchOpenState.url]);
 
   const markInviteCopied = () => {
     setInviteCopied(true);
@@ -4094,6 +4250,27 @@ export default function App() {
               <div className="platform-switch-note">
                 Активно: {formatPlatformLabel(runtimePlatform)}. Следующая платформа: {formatPlatformLabel(oppositePlatform)}.
               </div>
+              {authBootstrapState === 'loading' && authBootstrapHasLinkCode && (
+                <div className="platform-switch-bootstrap platform-switch-bootstrap-loading" role="status">
+                  <span className="platform-switch-bootstrap-dot" aria-hidden="true" />
+                  <span>Синхронизируем аккаунт…</span>
+                </div>
+              )}
+              {authBootstrapState === 'failed' && (
+                <div className="platform-switch-bootstrap platform-switch-bootstrap-failed" role="alert">
+                  <div className="platform-switch-bootstrap-title">Синхронизация аккаунта не завершена.</div>
+                  <div className="platform-switch-bootstrap-sub">
+                    {authBootstrapError || 'Проверьте соединение и повторите попытку.'}
+                  </div>
+                  <button
+                    className="platform-switch-bootstrap-retry"
+                    type="button"
+                    onClick={() => void runAuthBootstrap()}
+                  >
+                    Повторить синхронизацию
+                  </button>
+                </div>
+              )}
               <div className="platform-link-status" aria-label="Статус подключенных платформ">
                 <div
                   className={`platform-link-chip ${linkedPlatforms.telegram.connected ? 'connected' : 'missing'}`}
@@ -4104,6 +4281,36 @@ export default function App() {
                   VK {linkedPlatforms.vk.connected ? 'подключен' : 'требуется подключение'}
                 </div>
               </div>
+              {platformSwitchOpenState.visible && platformSwitchOpenState.url && (
+                <div className="platform-switch-fallback" role="alert">
+                  <div className="platform-switch-fallback-title">
+                    Не удалось открыть Telegram автоматически.
+                  </div>
+                  <div className="platform-switch-fallback-sub">
+                    Если переход не сработал, откройте Telegram вручную или скопируйте ссылку.
+                  </div>
+                  <div className="platform-switch-fallback-actions">
+                    <button
+                      className="platform-switch-fallback-btn platform-switch-fallback-btn-primary"
+                      type="button"
+                      onClick={() => void handleRetryPlatformSwitchOpen()}
+                    >
+                      Открыть Telegram
+                    </button>
+                    <button
+                      className="platform-switch-fallback-btn platform-switch-fallback-btn-ghost"
+                      type="button"
+                      onClick={() => void handleCopyPlatformSwitchLink()}
+                    >
+                      Скопировать ссылку
+                    </button>
+                  </div>
+                  <div className="platform-switch-fallback-code">
+                    Код: {platformSwitchOpenState.errorCode || 'open_failed'} ·{' '}
+                    {getPlatformSwitchOpenErrorLabel(platformSwitchOpenState.errorCode)}
+                  </div>
+                </div>
+              )}
               {platformSwitchError && (
                 <div className="platform-switch-error" role="alert">
                   {platformSwitchError}

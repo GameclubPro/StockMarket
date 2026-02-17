@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildTelegramSwitchUrl,
   buildVkSwitchUrl,
+  resolvePlatformSwitchSourceUser,
   resolvePlatformLinkCode,
 } from './platform-switch-link.js';
 
@@ -36,6 +37,18 @@ test('buildTelegramSwitchUrl adds startapp and fallback link params', () => {
   assert.equal(parsed.searchParams.get('link_code'), code);
   assert.equal(parsed.searchParams.get('jr_link_code'), code);
   assert.equal(parsed.searchParams.get('foo'), '1');
+});
+
+test('buildTelegramSwitchUrl falls back for non-http(s) mini app url', () => {
+  const code = 'LINK_QA1WS2ED';
+  const result = buildTelegramSwitchUrl(code, 'tg://resolve?domain=JoinRush_bot');
+  const parsed = new URL(result);
+
+  assert.equal(parsed.protocol, 'https:');
+  assert.equal(parsed.hostname, 't.me');
+  assert.equal(parsed.searchParams.get('startapp'), `link_${code}`);
+  assert.equal(parsed.searchParams.get('link_code'), code);
+  assert.equal(parsed.searchParams.get('jr_link_code'), code);
 });
 
 test('buildVkSwitchUrl adds vk_ref and fallback link params', () => {
@@ -106,3 +119,39 @@ test('resolvePlatformLinkCode flags invalid body code and rejects invalid start 
   assert.equal(resolved.bodyCodeInvalid, true);
 });
 
+test('resolvePlatformSwitchSourceUser keeps token user when identity is empty or equal', () => {
+  assert.deepEqual(
+    resolvePlatformSwitchSourceUser({
+      tokenUserId: 'user_token',
+      identityUserId: '',
+    }),
+    {
+      sourceUserId: 'user_token',
+      mismatch: false,
+    }
+  );
+
+  assert.deepEqual(
+    resolvePlatformSwitchSourceUser({
+      tokenUserId: 'user_token',
+      identityUserId: 'user_token',
+    }),
+    {
+      sourceUserId: 'user_token',
+      mismatch: false,
+    }
+  );
+});
+
+test('resolvePlatformSwitchSourceUser uses identity user on mismatch', () => {
+  assert.deepEqual(
+    resolvePlatformSwitchSourceUser({
+      tokenUserId: 'user_from_token',
+      identityUserId: 'user_from_identity',
+    }),
+    {
+      sourceUserId: 'user_from_identity',
+      mismatch: true,
+    }
+  );
+});

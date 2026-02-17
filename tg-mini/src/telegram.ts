@@ -87,6 +87,19 @@ export type VkAuthProfilePayload = {
   photoUrl?: string;
 };
 export type RuntimePlatform = 'TELEGRAM' | 'VK';
+export type PlatformSwitchOpenMethod = 'VK_BRIDGE' | 'WINDOW_OPEN';
+export type PlatformSwitchOpenErrorCode =
+  | 'invalid_url'
+  | 'bridge_failed'
+  | 'popup_blocked'
+  | 'unknown_url_scheme'
+  | 'open_failed';
+export type PlatformSwitchOpenResult =
+  | { ok: true; method: PlatformSwitchOpenMethod }
+  | { ok: false; method?: PlatformSwitchOpenMethod; errorCode: PlatformSwitchOpenErrorCode };
+export type PlatformSwitchOpenOptions = {
+  runtime?: RuntimePlatform;
+};
 type VkBridgeImportGroup = {
   id: number;
   name: string;
@@ -684,6 +697,65 @@ export const clearPlatformLinkCodeFromUrl = () => {
     window.history.replaceState(window.history.state, '', next);
   } catch {
     // noop
+  }
+};
+
+const classifyOpenLinkErrorCode = (error: unknown): PlatformSwitchOpenErrorCode => {
+  const raw = serializeVkBridgeError(error).toLowerCase();
+  if (raw.includes('unknown_url_scheme') || raw.includes('unknown url scheme')) {
+    return 'unknown_url_scheme';
+  }
+  return 'open_failed';
+};
+
+export const openPlatformSwitchLink = async (
+  url: string,
+  options?: PlatformSwitchOpenOptions
+): Promise<PlatformSwitchOpenResult> => {
+  const target = url.trim();
+  if (!target) {
+    return { ok: false, errorCode: 'invalid_url' };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(target);
+  } catch {
+    return { ok: false, errorCode: 'invalid_url' };
+  }
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    return { ok: false, errorCode: 'invalid_url' };
+  }
+
+  const isVkRuntime = options?.runtime ? options.runtime === 'VK' : isVk();
+  if (isVkRuntime) {
+    try {
+      await (bridge as any).send('VKWebAppOpenLink', {
+        url: target,
+        force_external: 1,
+      } as any);
+      return { ok: true, method: 'VK_BRIDGE' };
+    } catch (error) {
+      const fallbackCode = classifyOpenLinkErrorCode(error);
+      if (fallbackCode === 'unknown_url_scheme') {
+        return { ok: false, method: 'VK_BRIDGE', errorCode: fallbackCode };
+      }
+      // Fallback to browser popup below.
+    }
+  }
+
+  try {
+    const popup = window.open(target, '_blank', 'noopener,noreferrer');
+    if (popup) {
+      return { ok: true, method: 'WINDOW_OPEN' };
+    }
+    return { ok: false, method: 'WINDOW_OPEN', errorCode: 'popup_blocked' };
+  } catch (error) {
+    return {
+      ok: false,
+      method: 'WINDOW_OPEN',
+      errorCode: classifyOpenLinkErrorCode(error),
+    };
   }
 };
 

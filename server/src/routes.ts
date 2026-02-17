@@ -23,6 +23,7 @@ import {
   buildVkSwitchUrl,
   normalizePlatformLinkCode,
   resolvePlatformLinkCode,
+  resolvePlatformSwitchSourceUser,
 } from './domain/platform-switch-link.js';
 import {
   DAILY_BONUS_COOLDOWN_MS,
@@ -3666,6 +3667,41 @@ export const registerRoutes = (app: FastifyInstance) => {
 
     try {
       const user = await requireUser(request);
+      let identityUserId = '';
+      let identityPlatform: RuntimePlatform | null = null;
+      const initDataRaw =
+        typeof request.headers['x-init-data'] === 'string' ? request.headers['x-init-data'].trim() : '';
+      if (initDataRaw) {
+        try {
+          const identity = resolveMiniAppAuthIdentity(initDataRaw);
+          identityPlatform = identity.platform;
+          const identityUser = await loadUserByIdentity(prisma, identity);
+          identityUserId = identityUser?.id ?? '';
+        } catch (error) {
+          request.log.warn(
+            {
+              err: error,
+            },
+            'platform switch identity lookup failed'
+          );
+        }
+      }
+
+      const sourceResolution = resolvePlatformSwitchSourceUser({
+        tokenUserId: user.id,
+        identityUserId,
+      });
+      if (sourceResolution.mismatch) {
+        request.log.warn(
+          {
+            tokenUserId: user.id,
+            identityUserId: sourceResolution.sourceUserId,
+            platform: identityPlatform ?? resolveRequestPlatform(request, user),
+          },
+          'platform switch source user mismatch'
+        );
+      }
+
       const currentPlatform = resolveRequestPlatform(request, user);
       if (parsed.data.targetPlatform === currentPlatform) {
         return reply.code(400).send({ ok: false, error: 'already on target platform' });
@@ -3680,7 +3716,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         await tx.platformLinkCode.create({
           data: {
             code: generated,
-            sourceUserId: user.id,
+            sourceUserId: sourceResolution.sourceUserId,
             targetPlatform: parsed.data.targetPlatform,
             expiresAt,
           },
