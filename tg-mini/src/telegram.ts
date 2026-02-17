@@ -122,6 +122,7 @@ type VkBridgeImportGroup = {
 
 const TG_LINK_PARAM_PREFIX = 'link_';
 const VK_OPEN_LINK_TIMEOUT_MS = 1600;
+const TELEGRAM_WEB_HOSTS = new Set(['t.me', 'telegram.me']);
 
 let initialized = false;
 let vkInitialized = false;
@@ -746,6 +747,9 @@ export const openPlatformSwitchLink = async (
   const useTelegramDeepLink = isVkRuntime && options?.targetPlatform === 'TELEGRAM';
   const telegramDeepLink = useTelegramDeepLink ? buildTelegramDeepLinkFromHttpUrl(parsed) : '';
   const isV2TelegramTarget = useTelegramDeepLink && telegramDeepLink.length > 0;
+  if (useTelegramDeepLink && !TELEGRAM_WEB_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return { ok: false, errorCode: 'invalid_url' };
+  }
 
   let vkBridgeErrorCode: PlatformSwitchOpenErrorCode | '' = '';
   if (isVkRuntime && !options?.skipVkBridge && options?.targetPlatform !== 'TELEGRAM') {
@@ -777,35 +781,35 @@ export const openPlatformSwitchLink = async (
   }
 
   if (isV2TelegramTarget) {
-    let deepLinkErrorCode: PlatformSwitchOpenErrorCode = 'open_failed';
-    try {
-      const deepPopup = window.open(telegramDeepLink, '_blank', 'noopener,noreferrer');
-      if (deepPopup) {
-        return { ok: true, method: 'WINDOW_OPEN', phase: 'deep_link' };
-      }
-      deepLinkErrorCode = 'popup_blocked';
-    } catch (error) {
-      deepLinkErrorCode = vkBridgeErrorCode || classifyOpenLinkErrorCode(error);
-    }
-
-    // VK WebView can block tg:// popups after async work; fallback to https t.me link.
+    let httpsErrorCode: PlatformSwitchOpenErrorCode = 'open_failed';
     try {
       const popup = window.open(target, '_blank', 'noopener,noreferrer');
       if (popup) {
         return { ok: true, method: 'WINDOW_OPEN', phase: 'https_fallback' };
       }
+      httpsErrorCode = 'popup_blocked';
+    } catch (error) {
+      httpsErrorCode = vkBridgeErrorCode || classifyOpenLinkErrorCode(error);
+    }
+
+    // Fallback to tg:// in case HTTPS was blocked by popup policy.
+    try {
+      const deepPopup = window.open(telegramDeepLink, '_blank', 'noopener,noreferrer');
+      if (deepPopup) {
+        return { ok: true, method: 'WINDOW_OPEN', phase: 'deep_link' };
+      }
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'https_fallback',
-        errorCode: vkBridgeErrorCode || deepLinkErrorCode || 'popup_blocked',
+        phase: 'deep_link',
+        errorCode: vkBridgeErrorCode || httpsErrorCode || 'popup_blocked',
       };
     } catch (error) {
       return {
         ok: false,
         method: 'WINDOW_OPEN',
-        phase: 'https_fallback',
-        errorCode: vkBridgeErrorCode || deepLinkErrorCode || classifyOpenLinkErrorCode(error),
+        phase: 'deep_link',
+        errorCode: vkBridgeErrorCode || httpsErrorCode || classifyOpenLinkErrorCode(error),
       };
     }
   }
