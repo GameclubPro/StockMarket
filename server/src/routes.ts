@@ -3715,19 +3715,21 @@ export const registerRoutes = (app: FastifyInstance) => {
         tokenUserId: user.id,
         identityUserId,
       });
+      const requestPlatform = identityPlatform ?? resolveRequestPlatformFromInitData(request);
       if (sourceResolution.mismatch) {
         request.log.warn(
           {
             tokenUserId: user.id,
             identityUserId: sourceResolution.sourceUserId,
-            platform: identityPlatform ?? resolveRequestPlatform(request, user),
+            platform: requestPlatform ?? resolveUserLegacyPlatform(user.telegramId),
           },
           'platform switch source user mismatch'
         );
       }
 
-      const currentPlatform = resolveRequestPlatform(request, user);
-      if (parsed.data.targetPlatform === currentPlatform) {
+      // For switch-link we trust runtime launch params only.
+      // Legacy user.telegramId can point to TELEGRAM after merge and produce false "already on target".
+      if (requestPlatform && parsed.data.targetPlatform === requestPlatform) {
         return reply.code(400).send({ ok: false, error: 'already on target platform' });
       }
 
