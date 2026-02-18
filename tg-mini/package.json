@@ -10,12 +10,15 @@
     "playwright:install": "playwright install chromium",
     "screenshot:design-redesign": "node scripts/miniapp-visual.mjs screenshot",
     "screenshot:tg-2026-fullscreen": "node scripts/miniapp-visual.mjs screenshot --tgMode fullscreen --tgWebAppVersion 9.3 --tgProfile android-2026 --tgPlatform android",
+    "screenshot:vk-2026": "node scripts/miniapp-visual.mjs screenshot --hostRuntime vk --vkProfile android-2026",
     "scan:mobile-ui": "node scripts/miniapp-visual.mjs scan",
     "scan:tg-2026-fullscreen": "node scripts/miniapp-visual.mjs scan --tgMode fullscreen --tgWebAppVersion 9.3 --tgProfile android-2026 --tgPlatform android",
+    "scan:vk-2026": "node scripts/miniapp-visual.mjs scan --hostRuntime vk --vkProfile android-2026",
     "compare:design-redesign": "node scripts/miniapp-visual.mjs compare",
     "emulator:miniapp": "node scripts/miniapp-visual.mjs emulator",
     "emulator:tg-2026-fullscreen": "node scripts/miniapp-visual.mjs emulator --tgMode fullscreen --tgProfile android-2026 --tgPlatform android",
-    "emulator:tg-2026-fullscreen:promo": "node scripts/miniapp-visual.mjs emulator --tgMode fullscreen --tgProfile android-2026 --tgPlatform android --openScreen promo"
+    "emulator:tg-2026-fullscreen:promo": "node scripts/miniapp-visual.mjs emulator --tgMode fullscreen --tgProfile android-2026 --tgPlatform android --openScreen promo",
+    "emulator:vk-2026": "node scripts/miniapp-visual.mjs emulator --hostRuntime vk --vkProfile android-2026"
   },
   "dependencies": {
     "@telegram-apps/sdk": "^3.11.5",

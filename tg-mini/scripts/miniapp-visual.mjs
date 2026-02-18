@@ -17,6 +17,7 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_SAFE_BOTTOM_PX = 16;
 const DEFAULT_SAFE_TOP_PX = 0;
 const DEFAULT_MISMATCH_THRESHOLD_PCT = 0.25;
+const DEFAULT_HOST_RUNTIME = 'telegram';
 const DEFAULT_TG_TOP_BAR_PX = 48;
 const DEFAULT_TG_STATUS_BAR_PX = 24;
 const DEFAULT_TG_FULLSCREEN_CONTROLS_PX = 38;
@@ -26,9 +27,19 @@ const DEFAULT_TG_MODE = 'fullscreen';
 const DEFAULT_TG_WEBAPP_VERSION = '9.3';
 const DEFAULT_TG_PLATFORM = 'android';
 const DEFAULT_TG_PROFILE = 'android-2026';
+const DEFAULT_VK_PROFILE = 'android-2026';
+const DEFAULT_VK_PLATFORM = 'mobile_android';
+const DEFAULT_VK_APP_ID = 53900000;
+const DEFAULT_VK_USER_ID = 100001;
+const DEFAULT_VK_STATUS_BAR_PX = 24;
+const DEFAULT_VK_HEADER_PX = 52;
+const DEFAULT_VK_BOTTOM_SYSTEM_PX = 8;
 const DEFAULT_DEVICE_SCALE_FACTOR = 3;
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 Telegram-Android/11.8';
+const DEFAULT_VK_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 VKAndroidApp/9.84';
+const SUPPORTED_HOST_RUNTIMES = new Set(['telegram', 'vk']);
 const SUPPORTED_TG_MODES = new Set(['fullscreen', 'compact']);
 const SUPPORTED_TG_PLATFORMS = new Set(['android', 'ios', 'weba', 'webk', 'tdesktop']);
 const SUPPORTED_MODES = new Set(['screenshot', 'scan', 'compare', 'emulator']);
@@ -58,6 +69,28 @@ const TELEGRAM_DEVICE_PROFILES = {
   },
 };
 
+const VK_DEVICE_PROFILES = {
+  'android-2026': {
+    vkPlatform: 'mobile_android',
+    vkStatusBarPx: 24,
+    vkHeaderPx: 52,
+    vkBottomSystemPx: 8,
+    safeBottomFloorPx: 8,
+    deviceScaleFactor: 3,
+    userAgent: DEFAULT_VK_USER_AGENT,
+  },
+  'ios-2026': {
+    vkPlatform: 'mobile_iphone',
+    vkStatusBarPx: 24,
+    vkHeaderPx: 54,
+    vkBottomSystemPx: 12,
+    safeBottomFloorPx: 12,
+    deviceScaleFactor: 3,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1 VKiOS/9.84',
+  },
+};
+
 const TELEGRAM_MOCK_THEME_PARAMS = JSON.stringify({
   bg_color: '#0c0c14',
   text_color: '#e8e9f2',
@@ -76,7 +109,12 @@ const buildTelegramMockInitData = (mockAdminAccess) =>
 const SCREEN_STEPS = [
   {
     id: 'home',
-    open: async (page, waitMs) => {
+    open: async (page, waitMs, hostRuntime = DEFAULT_HOST_RUNTIME) => {
+      if (hostRuntime === 'vk') {
+        await resetContentScroll(page);
+        await sleep(waitMs);
+        return;
+      }
       await ensureHome(page, waitMs);
       await page.waitForSelector('.profile-card', { timeout: 10_000 });
     },
@@ -187,6 +225,7 @@ const usage = `
   --waitMs <number>  Пауза после переходов (default: ${DEFAULT_WAIT_MS})
   --safeTopPx <n>    Верхняя safe-area зона риска в px (scan mode, default: динамически)
   --safeBottomPx <n> Нижняя safe-area зона риска в px (scan mode, default: ${DEFAULT_SAFE_BOTTOM_PX})
+  --hostRuntime <id> Хост mini app: telegram|vk (default: ${DEFAULT_HOST_RUNTIME})
   --tgProfile <id>   Профиль Telegram Mini App: ${Object.keys(TELEGRAM_DEVICE_PROFILES).join('|')} (default: ${DEFAULT_TG_PROFILE})
   --tgPlatform <id>  Telegram platform launch param (android|ios|webk|weba|tdesktop)
   --tgMode <mode>    Режим Telegram viewport: fullscreen|compact (default: ${DEFAULT_TG_MODE})
@@ -194,11 +233,19 @@ const usage = `
   --tgStatusBarPx <n> Высота системного status-bar в fullscreen в px (default: ${DEFAULT_TG_STATUS_BAR_PX})
   --tgFullscreenControlsPx <n> Высота верхних fullscreen-контролов в px (default: ${DEFAULT_TG_FULLSCREEN_CONTROLS_PX})
   --tgTopBarPx <n>   Высота Telegram верхнего chrome в px (default: ${DEFAULT_TG_TOP_BAR_PX})
+  --vkProfile <id>   Профиль VK Mini App: ${Object.keys(VK_DEVICE_PROFILES).join('|')} (default: ${DEFAULT_VK_PROFILE})
+  --vkPlatform <id>  VK platform launch param (default: ${DEFAULT_VK_PLATFORM})
+  --vkAppId <id>     VK app id в launch params (default: ${DEFAULT_VK_APP_ID})
+  --vkUserId <id>    VK user id в launch params (default: ${DEFAULT_VK_USER_ID})
+  --vkStatusBarPx <n> Высота системного status-bar VK в px (default: ${DEFAULT_VK_STATUS_BAR_PX})
+  --vkHeaderPx <n>   Высота верхней панели VK в px (default: ${DEFAULT_VK_HEADER_PX})
+  --vkBottomSystemPx <n> Высота системной нижней зоны VK в px (default: ${DEFAULT_VK_BOTTOM_SYSTEM_PX})
   --deviceScaleFactor <n> DPR устройства для рендера (default: ${DEFAULT_DEVICE_SCALE_FACTOR})
   --userAgent <ua>   User-Agent для mobile контекста
   --tgMainButtonPx <n> Высота Telegram Main Button в px (default: ${DEFAULT_TG_MAIN_BUTTON_PX})
   --tgMainButtonGapPx <n> Отступ Main Button снизу в px (default: ${DEFAULT_TG_MAIN_BUTTON_GAP_PX})
-  --noTelegramChrome Отключить визуальную эмуляцию Telegram chrome
+  --noTelegramChrome Отключить визуальную эмуляцию host chrome (legacy alias)
+  --noHostChrome     Отключить визуальную эмуляцию host chrome
   --baselineDir <p>  Папка baseline PNG (compare mode)
   --afterDir <path>  Папка after PNG (compare mode)
   --diffDir <path>   Папка diff PNG (compare mode)
@@ -265,6 +312,12 @@ function toBooleanFlag(value) {
   return value === true || value === 'true';
 }
 
+function toHostRuntime(value, fallback = DEFAULT_HOST_RUNTIME) {
+  const normalized = toStringValue(value, fallback).toLowerCase();
+  if (SUPPORTED_HOST_RUNTIMES.has(normalized)) return normalized;
+  return fallback;
+}
+
 function toTelegramMode(value, fallback = DEFAULT_TG_MODE) {
   const normalized = toStringValue(value, fallback).toLowerCase();
   if (SUPPORTED_TG_MODES.has(normalized)) return normalized;
@@ -301,10 +354,24 @@ function toTelegramProfile(value, fallback = DEFAULT_TG_PROFILE) {
   return fallback;
 }
 
+function toVkProfile(value, fallback = DEFAULT_VK_PROFILE) {
+  const normalized = toStringValue(value, fallback).toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(VK_DEVICE_PROFILES, normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
 function toTelegramPlatform(value, fallback = DEFAULT_TG_PLATFORM) {
   const normalized = toStringValue(value, fallback).toLowerCase();
   if (SUPPORTED_TG_PLATFORMS.has(normalized)) return normalized;
   return fallback;
+}
+
+function toVkPlatform(value, fallback = DEFAULT_VK_PLATFORM) {
+  const normalized = toStringValue(value, fallback);
+  if (!normalized) return fallback;
+  return normalized;
 }
 
 function resolvePath(value, fallback) {
@@ -316,20 +383,28 @@ function parseConfig(mode, rawArgs) {
   const height = toInt(rawArgs.height, DEFAULT_HEIGHT);
   const waitMs = toInt(rawArgs.waitMs, DEFAULT_WAIT_MS);
   const port = toInt(rawArgs.port, DEFAULT_PORT);
+  const hostRuntime = toHostRuntime(rawArgs.hostRuntime ?? rawArgs.runtime, DEFAULT_HOST_RUNTIME);
   const allowNonFullscreen = toBooleanFlag(rawArgs.allowNonFullscreen);
   const tgProfile = toTelegramProfile(rawArgs.tgProfile, DEFAULT_TG_PROFILE);
+  const vkProfile = toVkProfile(rawArgs.vkProfile, DEFAULT_VK_PROFILE);
   const tgProfileConfig = TELEGRAM_DEVICE_PROFILES[tgProfile];
+  const vkProfileConfig = VK_DEVICE_PROFILES[vkProfile];
   const requestedTgMode = toTelegramMode(rawArgs.tgMode, DEFAULT_TG_MODE);
   const tgMode =
-    mode === 'emulator' && !allowNonFullscreen
+    hostRuntime === 'telegram' && mode === 'emulator' && !allowNonFullscreen
       ? 'fullscreen'
       : requestedTgMode;
   const tgPlatform = toTelegramPlatform(
     rawArgs.tgPlatform,
     tgProfileConfig?.tgPlatform ?? DEFAULT_TG_PLATFORM
   );
+  const vkPlatform = toVkPlatform(rawArgs.vkPlatform, vkProfileConfig?.vkPlatform ?? DEFAULT_VK_PLATFORM);
+  const vkAppId = toInt(rawArgs.vkAppId, DEFAULT_VK_APP_ID);
+  const vkUserId = toInt(rawArgs.vkUserId, DEFAULT_VK_USER_ID);
   const tgWebAppVersion = toStringValue(rawArgs.tgWebAppVersion, DEFAULT_TG_WEBAPP_VERSION);
-  const telegramChrome = !toBooleanFlag(rawArgs.noTelegramChrome);
+  const hostChrome = !(toBooleanFlag(rawArgs.noHostChrome) || toBooleanFlag(rawArgs.noTelegramChrome));
+  const telegramChrome = hostRuntime === 'telegram' && hostChrome;
+  const vkChrome = hostRuntime === 'vk' && hostChrome;
   const tgTopBarPx = toNonNegativeInt(
     rawArgs.tgTopBarPx,
     tgProfileConfig?.tgTopBarPx ?? DEFAULT_TG_TOP_BAR_PX
@@ -342,29 +417,49 @@ function parseConfig(mode, rawArgs) {
     rawArgs.tgFullscreenControlsPx,
     tgProfileConfig?.tgFullscreenControlsPx ?? DEFAULT_TG_FULLSCREEN_CONTROLS_PX
   );
+  const vkStatusBarPx = toNonNegativeInt(
+    rawArgs.vkStatusBarPx,
+    vkProfileConfig?.vkStatusBarPx ?? DEFAULT_VK_STATUS_BAR_PX
+  );
+  const vkHeaderPx = toNonNegativeInt(rawArgs.vkHeaderPx, vkProfileConfig?.vkHeaderPx ?? DEFAULT_VK_HEADER_PX);
+  const vkBottomSystemPx = toNonNegativeInt(
+    rawArgs.vkBottomSystemPx,
+    vkProfileConfig?.vkBottomSystemPx ?? DEFAULT_VK_BOTTOM_SYSTEM_PX
+  );
+  const activeProfileConfig = hostRuntime === 'vk' ? vkProfileConfig : tgProfileConfig;
   const deviceScaleFactor = Math.max(
     1,
-    toFloat(rawArgs.deviceScaleFactor, tgProfileConfig?.deviceScaleFactor ?? DEFAULT_DEVICE_SCALE_FACTOR)
+    toFloat(rawArgs.deviceScaleFactor, activeProfileConfig?.deviceScaleFactor ?? DEFAULT_DEVICE_SCALE_FACTOR)
   );
-  const userAgent = toStringValue(rawArgs.userAgent, tgProfileConfig?.userAgent ?? DEFAULT_USER_AGENT);
+  const fallbackUserAgent =
+    hostRuntime === 'vk'
+      ? vkProfileConfig?.userAgent ?? DEFAULT_VK_USER_AGENT
+      : tgProfileConfig?.userAgent ?? DEFAULT_USER_AGENT;
+  const userAgent = toStringValue(rawArgs.userAgent, fallbackUserAgent);
   const tgMainButtonPx = toNonNegativeInt(rawArgs.tgMainButtonPx, DEFAULT_TG_MAIN_BUTTON_PX);
   const tgMainButtonGapPx = toNonNegativeInt(rawArgs.tgMainButtonGapPx, DEFAULT_TG_MAIN_BUTTON_GAP_PX);
-  const topRiskInsetByMode =
-    tgMode === 'fullscreen' ? tgStatusBarPx + tgFullscreenControlsPx : tgTopBarPx;
-  const safeTopDefault = telegramChrome
-    ? Math.max(DEFAULT_SAFE_TOP_PX, topRiskInsetByMode)
-    : DEFAULT_SAFE_TOP_PX;
-  const safeBottomDefault = Math.max(
-    tgProfileConfig?.safeBottomFloorPx ?? DEFAULT_SAFE_BOTTOM_PX,
-    DEFAULT_SAFE_BOTTOM_PX,
-    telegramChrome && tgMainButtonPx > 0 ? tgMainButtonPx + tgMainButtonGapPx : 0
-  );
+  const topRiskInsetByRuntime =
+    hostRuntime === 'vk'
+      ? vkStatusBarPx + vkHeaderPx
+      : tgMode === 'fullscreen'
+        ? tgStatusBarPx + tgFullscreenControlsPx
+        : tgTopBarPx;
+  const safeTopDefault = hostChrome ? Math.max(DEFAULT_SAFE_TOP_PX, topRiskInsetByRuntime) : DEFAULT_SAFE_TOP_PX;
+  const safeBottomDefault =
+    hostRuntime === 'vk'
+      ? Math.max(
+          vkProfileConfig?.safeBottomFloorPx ?? DEFAULT_SAFE_BOTTOM_PX,
+          DEFAULT_SAFE_BOTTOM_PX,
+          hostChrome ? vkBottomSystemPx : 0
+        )
+      : Math.max(
+          tgProfileConfig?.safeBottomFloorPx ?? DEFAULT_SAFE_BOTTOM_PX,
+          DEFAULT_SAFE_BOTTOM_PX,
+          telegramChrome && tgMainButtonPx > 0 ? tgMainButtonPx + tgMainButtonGapPx : 0
+        );
   const safeTopPx = toNonNegativeInt(rawArgs.safeTopPx, safeTopDefault);
   const safeBottomPx = toNonNegativeInt(rawArgs.safeBottomPx, safeBottomDefault);
-  const mismatchThresholdPct = toFloat(
-    rawArgs.mismatchThresholdPct,
-    DEFAULT_MISMATCH_THRESHOLD_PCT
-  );
+  const mismatchThresholdPct = toFloat(rawArgs.mismatchThresholdPct, DEFAULT_MISMATCH_THRESHOLD_PCT);
   const cleanOutput = toBooleanFlag(rawArgs.clean);
   const headful = mode === 'emulator' ? !toBooleanFlag(rawArgs.headless) : toBooleanFlag(rawArgs.headful);
   const mockApi = !toBooleanFlag(rawArgs.noMockApi);
@@ -383,6 +478,7 @@ function parseConfig(mode, rawArgs) {
 
   return {
     mode,
+    hostRuntime,
     width,
     height,
     waitMs,
@@ -390,17 +486,26 @@ function parseConfig(mode, rawArgs) {
     safeTopPx,
     safeBottomPx,
     tgProfile,
+    vkProfile,
     tgPlatform,
+    vkPlatform,
+    vkAppId,
+    vkUserId,
     tgMode,
     tgWebAppVersion,
     tgTopBarPx,
     tgStatusBarPx,
     tgFullscreenControlsPx,
+    vkStatusBarPx,
+    vkHeaderPx,
+    vkBottomSystemPx,
     deviceScaleFactor,
     userAgent,
     tgMainButtonPx,
     tgMainButtonGapPx,
+    hostChrome,
     telegramChrome,
+    vkChrome,
     cleanOutput,
     mismatchThresholdPct,
     headful,
@@ -425,6 +530,25 @@ function buildTelegramMockQuery(config) {
     tgWebAppVersion: config.tgWebAppVersion,
     tgWebAppThemeParams: TELEGRAM_MOCK_THEME_PARAMS,
     tgWebAppData: buildTelegramMockInitData(config.mockAdminAccess),
+  });
+  if (config.mockAdminAccess) {
+    params.set('jrVisualAdmin', '1');
+  }
+  return params.toString();
+}
+
+function buildVkMockQuery(config) {
+  const params = new URLSearchParams({
+    vk_access_token_settings: 'groups',
+    vk_app_id: String(config.vkAppId),
+    vk_are_notifications_enabled: '0',
+    vk_is_app_user: '1',
+    vk_is_favorite: '0',
+    vk_language: 'ru',
+    vk_platform: String(config.vkPlatform),
+    vk_ref: 'visual_emulator_2026',
+    vk_user_id: String(config.vkUserId),
+    sign: 'dev_vk_sign',
   });
   if (config.mockAdminAccess) {
     params.set('jrVisualAdmin', '1');
@@ -1852,6 +1976,169 @@ async function installTelegramMocks(page, config) {
   });
 }
 
+async function installVkBridgeMocks(page, config) {
+  await page.addInitScript((params) => {
+    const vkUserId = Math.max(1, Number(params?.vkUserId) || 100001);
+    const vkAppId = Math.max(1, Number(params?.vkAppId) || 1);
+    const vkPlatform =
+      typeof params?.vkPlatform === 'string' && params.vkPlatform.trim()
+        ? params.vkPlatform.trim()
+        : 'mobile_android';
+    const profile = {
+      id: vkUserId,
+      first_name: params?.mockAdminAccess ? 'Александр' : 'Тест',
+      last_name: params?.mockAdminAccess ? 'Stormbird' : 'Пользователь',
+      photo_200: '',
+      photo_100: '',
+      photo_50: '',
+    };
+
+    const postResult = (type, data) => {
+      window.postMessage(
+        {
+          type,
+          data: data && typeof data === 'object' ? data : {},
+        },
+        '*'
+      );
+    };
+
+    const success = (method, requestId, payload = {}) => {
+      postResult(`${method}Result`, {
+        request_id: requestId,
+        ...(payload && typeof payload === 'object' ? payload : {}),
+      });
+    };
+
+    const fail = (method, requestId, payload = {}) => {
+      postResult(`${method}Failed`, {
+        request_id: requestId,
+        error_type: 'client_error',
+        error_data: {
+          error_code: 1,
+          error_reason: 'UNSUPPORTED',
+          ...(payload && typeof payload === 'object' ? payload : {}),
+        },
+      });
+    };
+
+    const emitConfig = () => {
+      postResult('VKWebAppUpdateConfig', {
+        app: 'vkclient',
+        app_id: String(vkAppId),
+        appearance: 'dark',
+        scheme: 'space_gray',
+      });
+      postResult('VKWebAppUpdateInsets', {
+        insets: {
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        },
+      });
+    };
+
+    const resolveApiMethod = (methodName) => {
+      if (methodName === 'groups.get') {
+        return {
+          response: {
+            count: 2,
+            items: [
+              { id: 1007001, name: 'Crypto Alpha', screen_name: 'crypto_alpha' },
+              { id: 1007002, name: 'Wallstreet Notes', screen_name: 'wallstreet_notes' },
+            ],
+          },
+        };
+      }
+      return { response: {} };
+    };
+
+    window.addEventListener(
+      'message',
+      (event) => {
+        const payload = event?.data;
+        if (!payload || typeof payload !== 'object') return;
+        if (payload.type !== 'vk-connect') return;
+        const method = typeof payload.handler === 'string' ? payload.handler : '';
+        if (!method) return;
+
+        const requestParams =
+          payload.params && typeof payload.params === 'object' ? payload.params : {};
+        const requestId = requestParams.request_id;
+        if (!requestId) return;
+
+        switch (method) {
+          case 'VKWebAppInit':
+            success(method, requestId, { result: true });
+            window.setTimeout(emitConfig, 0);
+            return;
+          case 'VKWebAppGetConfig':
+            success(method, requestId, {
+              app: 'vkclient',
+              app_id: String(vkAppId),
+              appearance: 'dark',
+              scheme: 'space_gray',
+            });
+            return;
+          case 'VKWebAppGetLaunchParams':
+            success(method, requestId, {
+              vk_user_id: String(vkUserId),
+              vk_platform: vkPlatform,
+              vk_app_id: String(vkAppId),
+              sign: 'dev_vk_sign',
+            });
+            return;
+          case 'VKWebAppGetUserInfo':
+            success(method, requestId, profile);
+            return;
+          case 'VKWebAppGetAuthToken':
+            success(method, requestId, {
+              access_token: 'vk_mock_user_token',
+              scope:
+                typeof requestParams.scope === 'string' && requestParams.scope.trim()
+                  ? requestParams.scope.trim()
+                  : 'groups',
+              expires_in: 86400,
+            });
+            return;
+          case 'VKWebAppCallAPIMethod': {
+            const methodName =
+              typeof requestParams.method === 'string' ? requestParams.method.trim() : '';
+            if (!methodName) {
+              fail(method, requestId, {
+                error_code: 100,
+                error_reason: 'Empty method',
+              });
+              return;
+            }
+            success(method, requestId, resolveApiMethod(methodName));
+            return;
+          }
+          case 'VKWebAppSetViewSettings':
+          case 'VKWebAppSetSwipeSettings':
+          case 'VKWebAppEnableSwipeBack':
+          case 'VKWebAppDisableSwipeBack':
+          case 'VKWebAppOpenApp':
+          case 'VKWebAppOpenLink':
+          case 'VKWebAppClose':
+            success(method, requestId, { result: true });
+            return;
+          default:
+            success(method, requestId, { result: true });
+            return;
+        }
+      },
+      { passive: true }
+    );
+  }, {
+    vkAppId: config.vkAppId,
+    vkPlatform: config.vkPlatform,
+    vkUserId: config.vkUserId,
+    mockAdminAccess: config.mockAdminAccess,
+  });
+}
+
 async function installTelegramChrome(page, config) {
   if (!config.telegramChrome) return;
 
@@ -2120,6 +2407,139 @@ async function installTelegramChrome(page, config) {
   });
 }
 
+async function installVkChrome(page, config) {
+  if (!config.vkChrome) return;
+
+  await page.addStyleTag({
+    content: `
+      .vk-visual-host {
+        box-sizing: border-box;
+      }
+
+      .vk-visual-chrome {
+        position: fixed;
+        left: 0;
+        right: 0;
+        z-index: 2147483646;
+        pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      .vk-visual-top {
+        top: 0;
+        background: linear-gradient(180deg, rgba(8, 12, 18, 0.98), rgba(9, 15, 22, 0.92));
+        border-bottom: 1px solid rgba(173, 199, 224, 0.2);
+        color: rgba(231, 239, 247, 0.92);
+      }
+
+      .vk-visual-system-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        color: rgba(223, 234, 246, 0.82);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .vk-visual-system-icons {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        opacity: 0.86;
+      }
+
+      .vk-visual-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        color: rgba(236, 243, 250, 0.94);
+      }
+
+      .vk-visual-header-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      .vk-visual-bottom {
+        bottom: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(252, 252, 252, 0.96);
+      }
+
+      .vk-visual-gesture {
+        width: 132px;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(27, 27, 28, 0.52);
+      }
+    `,
+  });
+
+  await page.evaluate((params) => {
+    const statusBarPx = Math.max(0, Number(params?.vkStatusBarPx) || 0);
+    const headerPx = Math.max(0, Number(params?.vkHeaderPx) || 0);
+    const bottomPx = Math.max(0, Number(params?.vkBottomSystemPx) || 0);
+    const fixtureNowMs = Number(params?.fixtureNowMs) || 0;
+
+    const topTotal = statusBarPx + headerPx;
+    const removeChrome = () => {
+      document.body.classList.remove('vk-visual-host');
+      document.body.style.paddingTop = '';
+      document.body.style.paddingBottom = '';
+      document.documentElement.style.removeProperty('--vk-visual-top-inset');
+      document.documentElement.style.removeProperty('--vk-visual-bottom-inset');
+      document.querySelectorAll('.vk-visual-chrome').forEach((node) => node.remove());
+    };
+
+    removeChrome();
+    document.body.classList.add('vk-visual-host');
+    document.body.style.paddingTop = `${topTotal}px`;
+    document.body.style.paddingBottom = `${bottomPx}px`;
+    document.documentElement.style.setProperty('--vk-visual-top-inset', `${topTotal}px`);
+    document.documentElement.style.setProperty('--vk-visual-bottom-inset', `${bottomPx}px`);
+
+    if (topTotal > 0) {
+      const now = fixtureNowMs > 0 ? new Date(fixtureNowMs) : new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const top = document.createElement('div');
+      top.className = 'vk-visual-chrome vk-visual-top';
+      top.style.height = `${topTotal}px`;
+      top.innerHTML = `
+        <div class="vk-visual-system-row" style="height: ${statusBarPx}px;">
+          <span>${hours}:${minutes}</span>
+          <span class="vk-visual-system-icons">◉ ◌ ⚡</span>
+        </div>
+        <div class="vk-visual-header-row" style="height: ${headerPx}px;">
+          <span></span>
+          <span class="vk-visual-header-actions"><span>⋯</span><span>✕</span></span>
+        </div>
+      `;
+      document.body.appendChild(top);
+    }
+
+    if (bottomPx > 0) {
+      const bottom = document.createElement('div');
+      bottom.className = 'vk-visual-chrome vk-visual-bottom';
+      bottom.style.height = `${bottomPx}px`;
+      bottom.innerHTML = '<span class="vk-visual-gesture"></span>';
+      document.body.appendChild(bottom);
+    }
+  }, {
+    vkStatusBarPx: config.vkStatusBarPx,
+    vkHeaderPx: config.vkHeaderPx,
+    vkBottomSystemPx: config.vkBottomSystemPx,
+    fixtureNowMs: FIXTURE_NOW_MS,
+  });
+}
+
 async function disableMotion(page) {
   await page.addStyleTag({
     content: `
@@ -2219,9 +2639,21 @@ async function closeBlockingSheets(page) {
 
 async function ensureHome(page, waitMs) {
   await closeBlockingSheets(page);
+  const scrollHomeTop = async () => {
+    await page.evaluate(() => {
+      const content = document.querySelector('.content');
+      if (content && 'scrollTop' in content) {
+        content.scrollTop = 0;
+      }
+      window.scrollTo(0, 0);
+    });
+  };
 
   const profileCard = page.locator('.profile-card').first();
-  if (await profileCard.isVisible().catch(() => false)) return;
+  if (await profileCard.isVisible().catch(() => false)) {
+    await scrollHomeTop();
+    return;
+  }
 
   const homeTab = page
     .locator('.bottom-nav .nav-item')
@@ -2229,7 +2661,8 @@ async function ensureHome(page, waitMs) {
     .first();
   if (await homeTab.isVisible().catch(() => false)) {
     await homeTab.click();
-    await page.waitForSelector(APP_READY_SELECTOR, { timeout: 10_000 });
+    await page.waitForSelector(APP_READY_SELECTOR, { state: 'attached', timeout: 10_000 });
+    await scrollHomeTop();
     await sleep(waitMs);
     return;
   }
@@ -2237,12 +2670,14 @@ async function ensureHome(page, waitMs) {
   const backButton = page.locator('.page-header .icon-button[aria-label="Назад"]').first();
   if (await backButton.isVisible().catch(() => false)) {
     await backButton.click();
-    await page.waitForSelector(APP_READY_SELECTOR, { timeout: 10_000 });
+    await page.waitForSelector(APP_READY_SELECTOR, { state: 'attached', timeout: 10_000 });
+    await scrollHomeTop();
     await sleep(waitMs);
     return;
   }
 
-  await page.waitForSelector(APP_READY_SELECTOR, { timeout: 10_000 });
+  await page.waitForSelector(APP_READY_SELECTOR, { state: 'attached', timeout: 10_000 });
+  await scrollHomeTop();
 }
 
 async function waitForTaskWizardStep(page, step) {
@@ -2363,7 +2798,7 @@ async function resetContentScroll(page) {
   });
 }
 
-async function openScreenById(page, waitMs, screenId) {
+async function openScreenById(page, waitMs, screenId, hostRuntime = DEFAULT_HOST_RUNTIME) {
   const normalized = String(screenId || DEFAULT_OPEN_SCREEN).toLowerCase();
   const step = SCREEN_STEPS.find((candidate) => candidate.id === normalized);
   if (!step) {
@@ -2372,15 +2807,15 @@ async function openScreenById(page, waitMs, screenId) {
     );
   }
 
-  await step.open(page, waitMs);
+  await step.open(page, waitMs, hostRuntime);
   await page.waitForLoadState('networkidle', { timeout: 4_000 }).catch(() => undefined);
   await resetContentScroll(page);
   await sleep(Math.max(waitMs, 400));
 }
 
-async function runFlow(page, waitMs, screenIds, onScreen) {
+async function runFlow(page, waitMs, screenIds, hostRuntime, onScreen) {
   for (const screenId of screenIds) {
-    await openScreenById(page, waitMs, screenId);
+    await openScreenById(page, waitMs, screenId, hostRuntime);
     await sleep(Math.max(waitMs, 900));
     await onScreen(screenId);
   }
@@ -2402,7 +2837,7 @@ async function runScreenshotMode(page, config) {
     await fs.mkdir(config.outDir, { recursive: true });
   }
 
-  await runFlow(page, config.waitMs, config.screenIds, async (screenId) => {
+  await runFlow(page, config.waitMs, config.screenIds, config.hostRuntime, async (screenId) => {
     const file = path.join(config.outDir, buildScreenFileName(screenId, config.width, config.height));
     await page.screenshot({ path: file });
     console.log(`[screenshot] ${screenId} -> ${file}`);
@@ -2593,7 +3028,7 @@ async function runScanMode(page, config) {
     },
   };
 
-  await runFlow(page, config.waitMs, config.screenIds, async (screenId) => {
+  await runFlow(page, config.waitMs, config.screenIds, config.hostRuntime, async (screenId) => {
     const audit = await collectAudit(page, screenId, config.safeBottomPx, config.safeTopPx);
     report.screens[screenId] = audit;
     if (audit.horizontalOverflowPx > 0) report.summary.screensWithOverflow += 1;
@@ -2861,6 +3296,7 @@ async function installEmulatorOverlay(page, config) {
   });
 
   await page.evaluate((params) => {
+    const isVkRuntime = params?.hostRuntime === 'vk';
     const previous = document.querySelector('.tg-emulator-overlay');
     if (previous) previous.remove();
 
@@ -2884,10 +3320,10 @@ async function installEmulatorOverlay(page, config) {
     const head = document.createElement('div');
     head.className = 'tg-emulator-overlay-head';
     const title = document.createElement('span');
-    title.textContent = 'Telegram Mini App';
+    title.textContent = isVkRuntime ? 'VK Mini App' : 'Telegram Mini App';
     const modeBadge = document.createElement('span');
     modeBadge.className = 'tg-emulator-overlay-badge';
-    modeBadge.textContent = 'FULLSCREEN';
+    modeBadge.textContent = isVkRuntime ? 'VK-2026' : 'FULLSCREEN';
     head.appendChild(title);
     head.appendChild(modeBadge);
 
@@ -2902,88 +3338,118 @@ async function installEmulatorOverlay(page, config) {
     grid.appendChild(screenRow.row);
     grid.appendChild(versionRow.row);
 
-    const actions = document.createElement('div');
-    actions.className = 'tg-emulator-overlay-actions';
-
-    const fullscreenButton = document.createElement('button');
-    fullscreenButton.type = 'button';
-    fullscreenButton.className = 'tg-emulator-overlay-btn';
-    fullscreenButton.textContent = 'Fullscreen';
-
-    const mainButtonToggle = document.createElement('button');
-    mainButtonToggle.type = 'button';
-    mainButtonToggle.className = 'tg-emulator-overlay-btn tg-emulator-overlay-btn-secondary';
-    mainButtonToggle.textContent = 'MainButton';
-
-    actions.appendChild(fullscreenButton);
-    actions.appendChild(mainButtonToggle);
-
     root.appendChild(head);
     root.appendChild(grid);
-    root.appendChild(actions);
+    let fullscreenButton = null;
+    let mainButtonToggle = null;
+    if (!isVkRuntime) {
+      const actions = document.createElement('div');
+      actions.className = 'tg-emulator-overlay-actions';
+      fullscreenButton = document.createElement('button');
+      fullscreenButton.type = 'button';
+      fullscreenButton.className = 'tg-emulator-overlay-btn';
+      fullscreenButton.textContent = 'Fullscreen';
+
+      mainButtonToggle = document.createElement('button');
+      mainButtonToggle.type = 'button';
+      mainButtonToggle.className = 'tg-emulator-overlay-btn tg-emulator-overlay-btn-secondary';
+      mainButtonToggle.textContent = 'MainButton';
+
+      actions.appendChild(fullscreenButton);
+      actions.appendChild(mainButtonToggle);
+      root.appendChild(actions);
+    }
     document.body.appendChild(root);
 
     const refresh = () => {
+      const viewportW = window.innerWidth;
+      if (isVkRuntime) {
+        const topInset = Math.max(0, Number(params?.vkStatusBarPx || 0) + Number(params?.vkHeaderPx || 0));
+        const bottomInset = Math.max(0, Number(params?.vkBottomSystemPx || 0));
+        const viewportH = Math.max(0, window.innerHeight - topInset - bottomInset);
+        modeBadge.textContent = 'VK-2026';
+        viewportRow.value.textContent = `${Math.round(viewportW)} x ${Math.round(viewportH)}`;
+        safeRow.value.textContent = `top ${Math.round(topInset)} / bottom ${Math.round(bottomInset)}`;
+        versionRow.value.textContent = `vk-bridge mock`;
+        return;
+      }
+
       const webApp = window.Telegram?.WebApp;
-      const mode = webApp?.__emulator?.getMode?.() ||
-        (webApp?.isFullscreen ? 'fullscreen' : 'compact');
+      const mode = webApp?.__emulator?.getMode?.() || (webApp?.isFullscreen ? 'fullscreen' : 'compact');
       const safeTop = Number(webApp?.safeAreaInset?.top || 0);
       const safeBottom = Number(webApp?.safeAreaInset?.bottom || 0);
       const viewportH = Number(webApp?.viewportHeight || window.innerHeight);
-      const viewportW = window.innerWidth;
       const mainVisible = Boolean(webApp?.MainButton?.isVisible);
 
       modeBadge.textContent = String(mode || 'fullscreen').toUpperCase();
       viewportRow.value.textContent = `${Math.round(viewportW)} x ${Math.round(viewportH)}`;
       safeRow.value.textContent = `top ${Math.round(safeTop)} / bottom ${Math.round(safeBottom)}`;
       versionRow.value.textContent = String(webApp?.version || '-');
-      mainButtonToggle.textContent = mainVisible ? 'Hide MainBtn' : 'Show MainBtn';
+      if (mainButtonToggle) {
+        mainButtonToggle.textContent = mainVisible ? 'Hide MainBtn' : 'Show MainBtn';
+      }
     };
 
-    fullscreenButton.addEventListener('click', () => {
-      window.Telegram?.WebApp?.requestFullscreen?.();
-    });
-    mainButtonToggle.addEventListener('click', () => {
-      const webApp = window.Telegram?.WebApp;
-      if (webApp?.__emulator?.toggleMainButton) {
-        webApp.__emulator.toggleMainButton();
-      } else if (webApp?.MainButton?.isVisible) {
-        webApp.MainButton.hide?.();
-      } else {
-        webApp?.MainButton?.show?.();
-      }
-      refresh();
-    });
+    if (!isVkRuntime && fullscreenButton && mainButtonToggle) {
+      fullscreenButton.addEventListener('click', () => {
+        window.Telegram?.WebApp?.requestFullscreen?.();
+      });
+      mainButtonToggle.addEventListener('click', () => {
+        const webApp = window.Telegram?.WebApp;
+        if (webApp?.__emulator?.toggleMainButton) {
+          webApp.__emulator.toggleMainButton();
+        } else if (webApp?.MainButton?.isVisible) {
+          webApp.MainButton.hide?.();
+        } else {
+          webApp?.MainButton?.show?.();
+        }
+        refresh();
+      });
 
-    const webApp = window.Telegram?.WebApp;
-    if (webApp?.onEvent) {
-      webApp.onEvent('viewportChanged', refresh);
-      webApp.onEvent('fullscreenChanged', refresh);
-      webApp.onEvent('safeAreaChanged', refresh);
-      webApp.onEvent('contentSafeAreaChanged', refresh);
+      const webApp = window.Telegram?.WebApp;
+      if (webApp?.onEvent) {
+        webApp.onEvent('viewportChanged', refresh);
+        webApp.onEvent('fullscreenChanged', refresh);
+        webApp.onEvent('safeAreaChanged', refresh);
+        webApp.onEvent('contentSafeAreaChanged', refresh);
+      }
     }
     window.addEventListener('resize', refresh, { passive: true });
     refresh();
   }, {
     allowNonFullscreen: config.allowNonFullscreen,
+    hostRuntime: config.hostRuntime,
     openScreen: config.openScreen,
+    vkStatusBarPx: config.vkStatusBarPx,
+    vkHeaderPx: config.vkHeaderPx,
+    vkBottomSystemPx: config.vkBottomSystemPx,
   });
 }
 
 async function runEmulatorMode(runtime, config) {
-  await openScreenById(runtime.page, config.waitMs, config.openScreen);
+  await openScreenById(runtime.page, config.waitMs, config.openScreen, config.hostRuntime);
   await installEmulatorOverlay(runtime.page, config);
 
-  console.log('[emulator] Telegram Mini App эмулятор запущен.');
+  const runtimeLabel = config.hostRuntime === 'vk' ? 'VK Mini App' : 'Telegram Mini App';
+  console.log(`[emulator] ${runtimeLabel} эмулятор запущен.`);
   console.log(`[emulator] URL: ${runtime.page.url()}`);
-  console.log(
-    `[emulator] Режим viewport: ${config.tgMode}${
-      config.mode === 'emulator' && !config.allowNonFullscreen ? ' (fullscreen lock)' : ''
-    }`
-  );
-  console.log(
-    `[emulator] Профиль: ${config.tgProfile} | platform=${config.tgPlatform} | WebApp API=${config.tgWebAppVersion}`
-  );
+  if (config.hostRuntime === 'vk') {
+    console.log(
+      `[emulator] Профиль: ${config.vkProfile} | platform=${config.vkPlatform} | vk_user_id=${config.vkUserId}`
+    );
+    console.log(
+      `[emulator] VK chrome: top=${config.vkStatusBarPx + config.vkHeaderPx}px, bottom=${config.vkBottomSystemPx}px`
+    );
+  } else {
+    console.log(
+      `[emulator] Режим viewport: ${config.tgMode}${
+        config.mode === 'emulator' && !config.allowNonFullscreen ? ' (fullscreen lock)' : ''
+      }`
+    );
+    console.log(
+      `[emulator] Профиль: ${config.tgProfile} | platform=${config.tgPlatform} | WebApp API=${config.tgWebAppVersion}`
+    );
+  }
   console.log(`[emulator] Экран: ${config.openScreen}`);
   console.log('[emulator] Остановить: Ctrl+C');
 
@@ -3034,15 +3500,24 @@ async function createRuntime(config) {
   const page = await context.newPage();
 
   await blockUnstableAssets(page);
-  await installTelegramMocks(page, config);
+  if (config.hostRuntime === 'vk') {
+    await installVkBridgeMocks(page, config);
+  } else {
+    await installTelegramMocks(page, config);
+  }
   if (config.mockApi) {
     await registerApiMocks(page);
   }
 
-  const telegramMockQuery = buildTelegramMockQuery(config);
-  await page.goto(`${baseUrl}/?${telegramMockQuery}`, { waitUntil: 'domcontentloaded' });
+  const hostQuery =
+    config.hostRuntime === 'vk' ? buildVkMockQuery(config) : buildTelegramMockQuery(config);
+  await page.goto(`${baseUrl}/?${hostQuery}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector(APP_READY_SELECTOR, { timeout: 15_000 });
-  await installTelegramChrome(page, config);
+  if (config.hostRuntime === 'vk') {
+    await installVkChrome(page, config);
+  } else {
+    await installTelegramChrome(page, config);
+  }
   await waitForFonts(page);
   if (config.mode !== 'emulator') {
     await disableMotion(page);
@@ -3074,14 +3549,19 @@ async function main() {
   }
 
   const rawArgs = parseArgs(process.argv.slice(3));
+  const hostRuntime = toHostRuntime(rawArgs.hostRuntime ?? rawArgs.runtime, DEFAULT_HOST_RUNTIME);
   const requestedModeRaw = String(rawArgs.tgMode || '').trim().toLowerCase();
-  if (requestedModeRaw === 'fullsize') {
+  if (hostRuntime === 'telegram' && requestedModeRaw === 'fullsize') {
     console.error('[emulator] Режим "fullsize" удален. Используйте "--tgMode fullscreen".');
     process.exit(1);
   }
   const config = parseConfig(mode, rawArgs);
+  if (config.hostRuntime === 'vk' && rawArgs.tgMode) {
+    console.log('[emulator] --tgMode проигнорирован: в режиме VK используется host viewport.');
+  }
 
   if (
+    config.hostRuntime === 'telegram' &&
     mode === 'emulator' &&
     !config.allowNonFullscreen &&
     rawArgs.tgMode &&

@@ -103,3 +103,22 @@ npm run emulator:miniapp -- --tgProfile ios-2026 --tgPlatform ios
 npm run emulator:miniapp -- --tgStatusBarPx 30 --tgFullscreenControlsPx 46
 npm run emulator:miniapp -- --tgStatusBarPx 24 --tgFullscreenControlsPx 38   # Android fullscreen match
 ```
+
+## Эмулятор VK Mini App (2026)
+Быстрый запуск realtime-эмулятора VK:
+```
+npm run emulator:vk-2026
+```
+
+Для baseline/scan в VK:
+```
+npm run screenshot:vk-2026 -- --width 390 --height 844 --outDir .logs/design-baseline-vk-390
+npm run scan:vk-2026 -- --width 390 --height 844 --outFile .logs/mobile-scan-vk-390.json
+```
+
+Полезные опции VK:
+```
+npm run emulator:vk-2026 -- --vkProfile ios-2026
+npm run emulator:vk-2026 -- --vkStatusBarPx 24 --vkHeaderPx 56 --vkBottomSystemPx 12
+npm run emulator:vk-2026 -- --openScreen promo
+```
