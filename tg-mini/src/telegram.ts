@@ -123,6 +123,8 @@ type VkBridgeImportGroup = {
 const TG_LINK_PARAM_PREFIX = 'link_';
 const VK_OPEN_LINK_TIMEOUT_MS = 1600;
 const VK_GROUPS_SCOPE_BIT = 262144;
+const VK_AUTH_TOKEN_TIMEOUT_MS = 10_000;
+const VK_API_METHOD_TIMEOUT_MS = 12_000;
 const TELEGRAM_WEB_HOSTS = new Set(['t.me', 'telegram.me']);
 const TELEGRAM_SWITCH_BOT_FALLBACK = 'JoinRush_bot';
 
@@ -443,6 +445,27 @@ const parseVkBridgeErrorCode = (error: unknown) => {
   return 'vk_token_bridge_failed';
 };
 
+const runWithTimeout = async <T>(payload: {
+  promise: Promise<T>;
+  timeoutMs: number;
+  timeoutErrorCode?: string;
+}) => {
+  const timeoutErrorCode = payload.timeoutErrorCode ?? 'vk_token_bridge_failed';
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutErrorCode)), payload.timeoutMs);
+  });
+
+  try {
+    return await Promise.race([payload.promise, timeoutPromise]);
+  } finally {
+    if (typeof timeoutId !== 'undefined') {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const classifyVkApiTokenErrorCode = (payload: { code: number; message: string }) => {
   const normalized = payload.message.toLowerCase();
 
@@ -487,13 +510,16 @@ const requestVkApiMethodViaBridge = async <T>(
   params: Record<'access_token', string> & Record<string, string | number>
 ) => {
   try {
-    const payload = (await bridge.send('VKWebAppCallAPIMethod', {
-      method,
-      request_id: `jr_${method}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      params: {
-        ...params,
-        v: '5.199',
-      },
+    const payload = (await runWithTimeout({
+      promise: bridge.send('VKWebAppCallAPIMethod', {
+        method,
+        request_id: `jr_${method}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        params: {
+          ...params,
+          v: '5.199',
+        },
+      }) as Promise<VkBridgeApiMethodResponse<T>>,
+      timeoutMs: VK_API_METHOD_TIMEOUT_MS,
     })) as VkBridgeApiMethodResponse<T>;
 
     if (payload?.error) {
@@ -881,9 +907,12 @@ export const requestVkUserToken = async (scope = 'groups') => {
   };
 
   try {
-    const response = (await bridge.send('VKWebAppGetAuthToken', {
-      app_id: appId,
-      scope,
+    const response = (await runWithTimeout({
+      promise: bridge.send('VKWebAppGetAuthToken', {
+        app_id: appId,
+        scope,
+      }) as Promise<VkBridgeAuthTokenResponse>,
+      timeoutMs: VK_AUTH_TOKEN_TIMEOUT_MS,
     })) as VkBridgeAuthTokenResponse;
     const token = response?.access_token?.trim();
     if (!token) {
@@ -1134,10 +1163,11 @@ export const getInitDataRaw = () => {
 };
 
 export const initTelegram = () => {
-  if (!isTelegram()) {
+  if (isVk()) {
     initVk();
     return;
   }
+  if (!isTelegram()) return;
   if (initialized) return;
 
   try {

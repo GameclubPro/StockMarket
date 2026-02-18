@@ -2148,9 +2148,11 @@ export default function App() {
     }
 
     setVkImportLoading(true);
+    setVkImportStatus('Запрашиваем доступ VK к сообществам…');
     let usedBridgeFallback = false;
     try {
       const vkUserToken = await requestVkUserToken('groups');
+      setVkImportStatus('Получили токен, загружаем список сообществ…');
       let data: ImportVkGroupsResponse;
       try {
         data = await importVkAdminGroups(vkUserToken);
@@ -2167,6 +2169,7 @@ export default function App() {
         if (!shouldUseBridgeFallback) {
           throw error;
         }
+        setVkImportStatus('VK ограничил токен по IP, пробуем импорт через VK Bridge…');
         const vkAdminGroups = await fetchVkAdminGroupsViaBridge(vkUserToken);
         data = await importVkAdminGroupsFromBridge(vkAdminGroups);
         usedBridgeFallback = true;
@@ -2200,6 +2203,7 @@ export default function App() {
       return true;
     } catch (error: any) {
       if (handleBlockedApiError(error)) return false;
+      setVkImportStatus('');
       const details = getApiErrorDetails(error);
       const detailsCode = details.code;
       const messageCode = typeof error?.message === 'string' ? error.message : '';
