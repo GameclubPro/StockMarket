@@ -82,6 +82,7 @@ test('resolvePlatformLinkCode prioritizes valid body link code', () => {
   });
 
   assert.equal(resolved.linkCode, 'LINK_A1B2C3D4');
+  assert.equal(resolved.linkCodeSource, 'body');
   assert.equal(resolved.hasBodyLinkCode, true);
   assert.equal(resolved.hasStartParamLinkCode, true);
   assert.equal(resolved.bodyCodeInvalid, false);
@@ -93,6 +94,7 @@ test('resolvePlatformLinkCode uses start param with link_ prefix', () => {
   });
 
   assert.equal(resolved.linkCode, 'LINK_M1N2B3V4');
+  assert.equal(resolved.linkCodeSource, 'start_param');
   assert.equal(resolved.hasBodyLinkCode, false);
   assert.equal(resolved.hasStartParamLinkCode, true);
   assert.equal(resolved.bodyCodeInvalid, false);
@@ -104,6 +106,7 @@ test('resolvePlatformLinkCode supports direct LINK_ start param (vk_ref)', () =>
   });
 
   assert.equal(resolved.linkCode, 'LINK_H1J2K3L4');
+  assert.equal(resolved.linkCodeSource, 'start_param');
   assert.equal(resolved.hasStartParamLinkCode, true);
 });
 
@@ -114,6 +117,7 @@ test('resolvePlatformLinkCode flags invalid body code and rejects invalid start 
   });
 
   assert.equal(resolved.linkCode, '');
+  assert.equal(resolved.linkCodeSource, '');
   assert.equal(resolved.hasBodyLinkCode, true);
   assert.equal(resolved.hasStartParamLinkCode, false);
   assert.equal(resolved.bodyCodeInvalid, true);

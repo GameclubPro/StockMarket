@@ -822,6 +822,17 @@ const trimVkImportLogMessage = (value?: string) => {
   return `${normalized.slice(0, VK_IMPORT_LOG_MESSAGE_LIMIT)}...`;
 };
 
+const START_PARAM_RECOVERABLE_LINK_CODE_ERRORS = new Set([
+  'platform_link_code_invalid',
+  'platform_link_code_expired',
+  'platform_link_code_already_used',
+]);
+
+const isRecoverableStartParamLinkCodeError = (error: unknown) => {
+  const normalized = normalizeApiError(error, 400).message;
+  return START_PARAM_RECOVERABLE_LINK_CODE_ERRORS.has(normalized);
+};
+
 const resolveMiniAppAuthIdentity = (authPayload: string): MiniAppAuthIdentity => {
   const rawPayload = authPayload.trim();
   if (!rawPayload) throw new Error('empty auth payload');
@@ -3806,6 +3817,7 @@ export const registerRoutes = (app: FastifyInstance) => {
         referralCandidate && isValidReferralCode(referralCandidate) ? referralCandidate : '';
       const now = new Date();
       let linkConsumed = false;
+      let startParamLinkCodeIgnored = false;
 
       const result = await prisma.$transaction(async (tx) => {
         let current: User;
@@ -3814,36 +3826,50 @@ export const registerRoutes = (app: FastifyInstance) => {
         let accountLink: AccountLinkResult = buildAccountLinkResult();
 
         if (linkCode) {
-          const link = await consumePlatformLinkCode(tx, {
-            code: linkCode,
-            targetPlatform: identity.platform,
-            now,
-          });
-          linkConsumed = true;
-          accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, false);
-
-          const sourceUser = await tx.user.findUnique({
-            where: { id: link.sourceUserId },
-          });
-          if (!sourceUser) {
-            throw new Error('platform_link_code_invalid');
-          }
-
-          const ownedByIdentity = await loadUserByIdentity(tx, identity);
-          if (!ownedByIdentity) {
-            current = await updateUserFromIdentity(tx, sourceUser, identity);
-            await upsertUserIdentity(tx, { userId: current.id, identity });
-          } else if (ownedByIdentity.id === sourceUser.id) {
-            current = await updateUserFromIdentity(tx, ownedByIdentity, identity);
-            await upsertUserIdentity(tx, { userId: current.id, identity });
-          } else {
-            current = await mergeUsersWithTelegramMaster(tx, {
-              userAId: sourceUser.id,
-              userBId: ownedByIdentity.id,
+          try {
+            const link = await consumePlatformLinkCode(tx, {
+              code: linkCode,
+              targetPlatform: identity.platform,
+              now,
             });
-            current = await updateUserFromIdentity(tx, current, identity);
-            await upsertUserIdentity(tx, { userId: current.id, identity });
-            accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, true);
+            linkConsumed = true;
+            accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, false);
+
+            const sourceUser = await tx.user.findUnique({
+              where: { id: link.sourceUserId },
+            });
+            if (!sourceUser) {
+              throw new Error('platform_link_code_invalid');
+            }
+
+            const ownedByIdentity = await loadUserByIdentity(tx, identity);
+            if (!ownedByIdentity) {
+              current = await updateUserFromIdentity(tx, sourceUser, identity);
+              await upsertUserIdentity(tx, { userId: current.id, identity });
+            } else if (ownedByIdentity.id === sourceUser.id) {
+              current = await updateUserFromIdentity(tx, ownedByIdentity, identity);
+              await upsertUserIdentity(tx, { userId: current.id, identity });
+            } else {
+              current = await mergeUsersWithTelegramMaster(tx, {
+                userAId: sourceUser.id,
+                userBId: ownedByIdentity.id,
+              });
+              current = await updateUserFromIdentity(tx, current, identity);
+              await upsertUserIdentity(tx, { userId: current.id, identity });
+              accountLink = buildAccountLinkResult(link.targetPlatform as RuntimePlatform, true);
+            }
+          } catch (error) {
+            if (
+              linkCodeResolution.linkCodeSource === 'start_param' &&
+              isRecoverableStartParamLinkCodeError(error)
+            ) {
+              startParamLinkCodeIgnored = true;
+              const ensured = await ensureIdentityUser(tx, identity, now);
+              current = ensured.user;
+              isFirstAuth = ensured.isFirstAuth;
+            } else {
+              throw error;
+            }
           }
         } else {
           const ensured = await ensureIdentityUser(tx, identity, now);
@@ -3886,8 +3912,10 @@ export const registerRoutes = (app: FastifyInstance) => {
           platform: identity.platform,
           hasBodyLinkCode: linkCodeResolution.hasBodyLinkCode,
           hasStartParamLinkCode: linkCodeResolution.hasStartParamLinkCode,
+          linkCodeSource: linkCodeResolution.linkCodeSource,
           linkCodeResolved: Boolean(linkCode),
           linkConsumed,
+          startParamLinkCodeIgnored,
         },
         'platform link auth verify'
       );

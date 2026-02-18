@@ -559,7 +559,9 @@ const normalizePlatformLinkCode = (value: string) => {
   return /^LINK_[A-Z0-9]{8,32}$/.test(normalized) ? normalized : '';
 };
 
-const PLATFORM_LINK_URL_KEYS = ['jr_link_code', 'link_code', 'startapp', 'vk_ref'] as const;
+// Keep vk_ref intact: in VK it is part of signed launch params.
+// Removing it breaks signature verification on backend when VK_APP_SECRET is enabled.
+const PLATFORM_LINK_URL_KEYS = ['jr_link_code', 'link_code', 'startapp'] as const;
 
 const extractLinkCodeFromStartLikeValue = (value: string) => {
   const normalized = value.trim();

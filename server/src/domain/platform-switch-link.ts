@@ -3,6 +3,7 @@ const TG_LINK_CODE_PREFIX = 'link_';
 
 export type PlatformLinkCodeResolution = {
   linkCode: string;
+  linkCodeSource: 'body' | 'start_param' | '';
   hasBodyLinkCode: boolean;
   hasStartParamLinkCode: boolean;
   bodyCodeInvalid: boolean;
@@ -80,9 +81,11 @@ export const resolvePlatformLinkCode = (payload: {
 
   const startCode = extractLinkCodeCandidate(payload.startParam);
   const hasStartParamLinkCode = Boolean(startCode);
+  const linkCodeSource = bodyValid ? 'body' : startCode ? 'start_param' : '';
 
   return {
     linkCode: bodyValid ? bodyNormalized : startCode,
+    linkCodeSource,
     hasBodyLinkCode,
     hasStartParamLinkCode,
     bodyCodeInvalid,
