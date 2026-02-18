@@ -7058,7 +7058,8 @@ button {
     var(--tg-viewport-content-safe-area-inset-left, env(safe-area-inset-left, 0px))
   );
   --tg-safe-top-effective: max(var(--tg-safe-top), env(safe-area-inset-top, 0px));
-  --tg-safe-bottom-effective: max(var(--tg-safe-bottom), env(safe-area-inset-bottom, 0px), 18px);
+  --tg-safe-bottom-floor: 18px;
+  --tg-safe-bottom-effective: max(var(--tg-safe-bottom), env(safe-area-inset-bottom, 0px), var(--tg-safe-bottom-floor));
   --tg-app-height: var(--tg-viewport-height, var(--tg-viewport-stable-height, 100dvh));
   --tg-top-ui-gap: 18px;
   --tg-screen-top-gap: 12px;

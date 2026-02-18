@@ -373,6 +373,8 @@ const applyVkInsetFallback = () => {
   root.style.setProperty('--tg-bottom-reserved', '0px');
   root.style.setProperty('--tg-safe-top-actual', '0px');
   root.style.setProperty('--tg-safe-bottom-actual', '0px');
+  root.style.setProperty('--tg-safe-bottom-floor', '0px');
+  root.style.setProperty('--tg-nav-bottom-gap', '8px');
 };
 
 export const isVk = () => {
