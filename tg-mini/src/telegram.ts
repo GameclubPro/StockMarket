@@ -38,7 +38,7 @@ type VkBridgeUserInfo = {
 
 type VkBridgeAuthTokenResponse = {
   access_token?: string;
-  scope?: string;
+  scope?: string | number;
   expires_in?: number;
 };
 
@@ -122,6 +122,7 @@ type VkBridgeImportGroup = {
 
 const TG_LINK_PARAM_PREFIX = 'link_';
 const VK_OPEN_LINK_TIMEOUT_MS = 1600;
+const VK_GROUPS_SCOPE_BIT = 262144;
 const TELEGRAM_WEB_HOSTS = new Set(['t.me', 'telegram.me']);
 const TELEGRAM_SWITCH_BOT_FALLBACK = 'JoinRush_bot';
 
@@ -858,12 +859,26 @@ export const requestVkUserToken = async (scope = 'groups') => {
     throw new Error('vk_token_app_id_missing');
   }
 
-  const normalizeVkScopeList = (value: string) =>
-    value
+  const normalizeVkScopeList = (value: unknown) => {
+    if (typeof value !== 'string') return [];
+    return value
       .toLowerCase()
       .split(/[\s,]+/)
       .map((entry) => entry.trim())
       .filter(Boolean);
+  };
+
+  const parseVkScopeBitmask = (value: unknown) => {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      return Math.floor(value);
+    }
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim();
+    if (!/^\d+$/.test(normalized)) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return Math.floor(parsed);
+  };
 
   try {
     const response = (await bridge.send('VKWebAppGetAuthToken', {
@@ -876,10 +891,26 @@ export const requestVkUserToken = async (scope = 'groups') => {
     }
     const requestedScope = normalizeVkScopeList(scope);
     if (requestedScope.length > 0) {
-      const grantedScope = new Set(normalizeVkScopeList(response?.scope ?? ''));
-      const hasAllScopes = requestedScope.every((entry) => grantedScope.has(entry));
-      if (!hasAllScopes) {
-        throw new Error('vk_user_token_scope_missing');
+      const grantedScopeBitmask = parseVkScopeBitmask(response?.scope);
+      if (grantedScopeBitmask !== null) {
+        const hasAllScopes = requestedScope.every((entry) => {
+          if (entry === 'groups') {
+            return (grantedScopeBitmask & VK_GROUPS_SCOPE_BIT) === VK_GROUPS_SCOPE_BIT;
+          }
+          return true;
+        });
+        if (!hasAllScopes) {
+          throw new Error('vk_user_token_scope_missing');
+        }
+      } else {
+        const grantedScope = normalizeVkScopeList(response?.scope);
+        if (grantedScope.length > 0) {
+          const grantedScopeSet = new Set(grantedScope);
+          const hasAllScopes = requestedScope.every((entry) => grantedScopeSet.has(entry));
+          if (!hasAllScopes) {
+            throw new Error('vk_user_token_scope_missing');
+          }
+        }
       }
     }
     return token;
