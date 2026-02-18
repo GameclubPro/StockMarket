@@ -47,6 +47,8 @@ type VkBridgeApiError = {
   error_msg?: string;
 };
 
+const VK_SYSTEM_SURFACE_COLOR = '#0d0d0d';
+
 type VkBridgeApiMethodResponse<T> = {
   response?: T;
   error?: VkBridgeApiError;
@@ -1049,6 +1051,18 @@ const initVk = () => {
 
   try {
     void bridge.send('VKWebAppInit');
+  } catch {
+    // noop
+  }
+
+  try {
+    void bridge
+      .send('VKWebAppSetViewSettings', {
+        status_bar_style: 'light',
+        action_bar_color: VK_SYSTEM_SURFACE_COLOR,
+        navigation_bar_color: VK_SYSTEM_SURFACE_COLOR,
+      })
+      .catch(() => undefined);
   } catch {
     // noop
   }
