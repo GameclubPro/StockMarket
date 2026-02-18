@@ -562,6 +562,36 @@ const normalizePlatformLinkCode = (value: string) => {
 // Keep vk_ref intact: in VK it is part of signed launch params.
 // Removing it breaks signature verification on backend when VK_APP_SECRET is enabled.
 const PLATFORM_LINK_URL_KEYS = ['jr_link_code', 'link_code', 'startapp'] as const;
+const PLATFORM_LINK_CONSUMED_CODE_KEY = 'jr:platform_link_code_consumed';
+
+const readConsumedPlatformLinkCode = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    const value = localStorage.getItem(PLATFORM_LINK_CONSUMED_CODE_KEY);
+    return normalizePlatformLinkCode(value ?? '');
+  } catch {
+    return '';
+  }
+};
+
+const rememberConsumedPlatformLinkCode = (value: string) => {
+  if (typeof window === 'undefined') return;
+  const normalized = normalizePlatformLinkCode(value);
+  if (!normalized) return;
+  try {
+    localStorage.setItem(PLATFORM_LINK_CONSUMED_CODE_KEY, normalized);
+  } catch {
+    // noop
+  }
+};
+
+const skipConsumedPlatformLinkCode = (value: string) => {
+  const normalized = normalizePlatformLinkCode(value);
+  if (!normalized) return '';
+  const consumed = readConsumedPlatformLinkCode();
+  if (consumed && consumed === normalized) return '';
+  return normalized;
+};
 
 const extractLinkCodeFromStartLikeValue = (value: string) => {
   const normalized = value.trim();
@@ -705,26 +735,31 @@ const getTelegramStartParam = () => {
 export const getPlatformLinkCode = () => {
   if (isVk()) {
     const vkRefCode = extractLinkCodeFromStartLikeValue(readUrlParam('vk_ref'));
-    if (vkRefCode) return vkRefCode;
+    if (vkRefCode) return skipConsumedPlatformLinkCode(vkRefCode);
 
     const vkCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
-    return normalizePlatformLinkCode(vkCode);
+    return skipConsumedPlatformLinkCode(vkCode);
   }
 
   const startParam = getTelegramStartParam();
   const startParamCode = extractLinkCodeFromStartLikeValue(startParam);
-  if (startParamCode) return startParamCode;
+  if (startParamCode) return skipConsumedPlatformLinkCode(startParamCode);
 
   const startAppCode = extractLinkCodeFromStartLikeValue(readUrlParam('startapp'));
-  if (startAppCode) return startAppCode;
+  if (startAppCode) return skipConsumedPlatformLinkCode(startAppCode);
 
   const fallbackCode = readUrlParam('jr_link_code') || readUrlParam('link_code');
-  return normalizePlatformLinkCode(fallbackCode);
+  return skipConsumedPlatformLinkCode(fallbackCode);
 };
 
-export const clearPlatformLinkCodeFromUrl = () => {
+export const clearPlatformLinkCodeFromUrl = (consumedCode?: string) => {
   if (typeof window === 'undefined') return;
   try {
+    const normalizedConsumedCode = normalizePlatformLinkCode(consumedCode ?? '');
+    if (normalizedConsumedCode) {
+      rememberConsumedPlatformLinkCode(normalizedConsumedCode);
+    }
+
     const url = new URL(window.location.href);
     for (const key of PLATFORM_LINK_URL_KEYS) {
       url.searchParams.delete(key);

@@ -1711,7 +1711,7 @@ export default function App() {
         setPostLinkSyncPending(true);
       }
       if (linkCode) {
-        clearPlatformLinkCodeFromUrl();
+        clearPlatformLinkCodeFromUrl(linkCode);
       }
       if (data.referralBonus?.amount && data.referralBonus.amount > 0 && data.user?.id) {
         const key = `jr:referralWelcomeSeen:${data.user.id}`;
